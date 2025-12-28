@@ -25,7 +25,6 @@ void MidiParser::reset() {
 	current_status_ = 0;
 	data_[0] = 0;
 	data_[1] = 0;
-	data_count_ = 0;
 	expected_data_bytes_ = 0;
 }
 
@@ -82,12 +81,8 @@ void MidiParser::feed(uint8_t byte) noexcept {
 			// No data bytes expected, process immediately
 			processMessage();
 			state_ = State::Idle;
-		} else if (expected_data_bytes_ == 1) {
-			state_ = State::AwaitData1;
-			data_count_ = 0;
 		} else {
 			state_ = State::AwaitData1;
-			data_count_ = 0;
 		}
 	} else if (isDataByte(byte)) {
 		// Data byte received
@@ -98,7 +93,6 @@ void MidiParser::feed(uint8_t byte) noexcept {
 					current_status_ = running_status_;
 					expected_data_bytes_ = getExpectedDataBytes(current_status_);
 					data_[0] = byte;
-					data_count_ = 1;
 
 					if (expected_data_bytes_ == 1) {
 						processMessage();
@@ -111,7 +105,6 @@ void MidiParser::feed(uint8_t byte) noexcept {
 
 			case State::AwaitData1:
 				data_[0] = byte;
-				data_count_ = 1;
 
 				if (expected_data_bytes_ == 1) {
 					processMessage();
@@ -123,7 +116,6 @@ void MidiParser::feed(uint8_t byte) noexcept {
 
 			case State::AwaitData2:
 				data_[1] = byte;
-				data_count_ = 2;
 #if DEBUG_MIDI_PARSER
 				printf("[MIDI] Complete msg: status=0x%02X data=[0x%02X, 0x%02X]\r\n",
 				       current_status_, data_[0], data_[1]);
@@ -198,6 +190,11 @@ void MidiParser::processUartInput() {
 		return;
 	}
 
+	// UART error bits mask for efficient error checking
+	static constexpr uint32_t kUartErrorMask =
+		UART_UARTDR_OE_BITS | UART_UARTDR_BE_BITS |
+		UART_UARTDR_PE_BITS | UART_UARTDR_FE_BITS;
+
 	// Read any available MIDI bytes and feed them to the parser
 	while (uart_is_readable(uart_)) {
 		// Read the byte - this also reads the error flags atomically
@@ -205,8 +202,7 @@ void MidiParser::processUartInput() {
 		uint8_t byte = data_reg & 0xFF;
 
 		// Check for UART errors (these are in the same register read)
-		if (data_reg & (UART_UARTDR_OE_BITS | UART_UARTDR_BE_BITS |
-		                UART_UARTDR_PE_BITS | UART_UARTDR_FE_BITS)) {
+		if (data_reg & kUartErrorMask) {
 #if DEBUG_MIDI_PARSER
 			printf("[MIDI] UART ERROR: byte=0x%02X OE=%d BE=%d PE=%d FE=%d\r\n",
 			       byte,
@@ -249,42 +245,43 @@ void MidiParser::processMessage() {
 	uint8_t callback_channel = message_channel + 1;
 
 	switch (status_type) {
-		case kNoteOnMask:
-			if (data_count_ >= 2) {
-				uint8_t note = data_[0];
-				uint8_t velocity = data_[1];
+		case kNoteOnMask: {
+			uint8_t note = data_[0];
+			uint8_t velocity = data_[1];
 
-				// Treat Note On with velocity 0 as Note Off per MIDI spec
-				if (velocity == 0) {
-					if (note_off_callback_) {
-						note_off_callback_(note, velocity, callback_channel);
-					}
-				} else {
-					if (note_on_callback_) {
-						note_on_callback_(note, velocity, callback_channel);
-					}
+			// Treat Note On with velocity 0 as Note Off per MIDI spec
+			if (velocity == 0) {
+				if (note_off_callback_) {
+					note_off_callback_(note, velocity, callback_channel);
+				}
+			} else {
+				if (note_on_callback_) {
+					note_on_callback_(note, velocity, callback_channel);
 				}
 			}
 			break;
+		}
 
-		case kNoteOffMask:
-			if (data_count_ >= 2 && note_off_callback_) {
+		case kNoteOffMask: {
+			if (note_off_callback_) {
 				uint8_t note = data_[0];
 				uint8_t velocity = data_[1];
 				note_off_callback_(note, velocity, callback_channel);
 			}
 			break;
+		}
 
-		case kControlChangeMask:
-			if (data_count_ >= 2 && control_change_callback_) {
+		case kControlChangeMask: {
+			if (control_change_callback_) {
 				uint8_t cc = data_[0];
 				uint8_t value = data_[1];
 				control_change_callback_(cc, value, callback_channel);
 			}
 			break;
+		}
 
-		case kPitchBendMask:
-			if (data_count_ >= 2 && pitch_bend_callback_) {
+		case kPitchBendMask: {
+			if (pitch_bend_callback_) {
 				uint8_t lsb = data_[0];
 				uint8_t msb = data_[1];
 
@@ -297,6 +294,7 @@ void MidiParser::processMessage() {
 				pitch_bend_callback_(signed_bend, callback_channel);
 			}
 			break;
+		}
 
 		default:
 			// Unknown or unsupported message type
@@ -311,9 +309,7 @@ void MidiParser::handleRealtimeByte(uint8_t byte) {
 }
 
 uint8_t MidiParser::getExpectedDataBytes(uint8_t status) const {
-	uint8_t status_type = getStatusType(status);
-
-	switch (status_type) {
+	switch (getStatusType(status)) {
 		case kNoteOnMask:
 		case kNoteOffMask:
 		case kControlChangeMask:

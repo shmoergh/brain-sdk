@@ -180,7 +180,6 @@ class MidiParser {
 	uint8_t running_status_ = 0;
 	uint8_t current_status_ = 0;
 	uint8_t data_[2] = {0, 0};
-	uint8_t data_count_ = 0;
 	uint8_t expected_data_bytes_ = 0;
 
 	// Configuration
