@@ -39,6 +39,11 @@ class Led {
 	void off();
 
 	/**
+	 * @brief Toggle LED state (on -> off, off -> on)
+	 */
+	void toggle();
+
+	/**
 	 * @brief Set LED brightness level
 	 *
 	 * @param value Brightness level (0-255, where 255 is maximum brightness)

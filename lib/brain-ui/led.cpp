@@ -40,6 +40,14 @@ void Led::off() {
 	}
 }
 
+void Led::toggle() {
+	if (state_) {
+		off();
+	} else {
+		on();
+	}
+}
+
 void Led::setBrightness(uint8_t value) {
 	brightness_ = value;
 	uint slice = pwm_gpio_to_slice_num(gpio_pin_);

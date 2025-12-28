@@ -1,6 +1,4 @@
 add_library(brain-ui
-	brain-ui.c
-	brain-ui.h
 	button.cpp
 	led.cpp
 	pot-multiplexer.cpp

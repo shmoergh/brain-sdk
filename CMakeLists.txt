@@ -11,3 +11,9 @@ pico_sdk_init()
 
 # Add subdirectories for libraries
 add_subdirectory(lib)
+
+# Only build SDK test when this is the top-level project
+# (not when included as a submodule in another project)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_subdirectory(sdk_test)
+endif()
