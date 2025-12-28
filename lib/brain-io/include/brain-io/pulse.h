@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <functional>
 
-#include "brain-gpio-setup.h"
+#include "brain-common/brain-gpio-setup.h"
 #include "pico/types.h"
 
 namespace brain::io {
