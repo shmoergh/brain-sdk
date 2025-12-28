@@ -96,7 +96,8 @@ target_link_libraries($APP_NAME
 	pico_stdlib
 	brain-common
 	brain-ui
-	brain-io)
+	brain-io
+  brain-utils)
 
 pico_enable_stdio_usb($APP_NAME 1)
 pico_enable_stdio_uart($APP_NAME 1)
@@ -109,13 +110,11 @@ cat > "$APP_DIR/main.cpp" <<EOF
 #include <stdio.h>
 
 #include "brain-common/brain-common.h"
-#include "brain-ui/button.h"
 #include "brain-ui/led.h"
 
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 
 using brain::ui::Led;
-using brain::ui::Button;
 
 const uint LED_PINS[] = {
 	BRAIN_LED_1, BRAIN_LED_2, BRAIN_LED_3, BRAIN_LED_4, BRAIN_LED_5, BRAIN_LED_6};
