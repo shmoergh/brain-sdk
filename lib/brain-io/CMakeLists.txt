@@ -14,6 +14,7 @@ target_include_directories(brain-io PUBLIC
 target_link_libraries(brain-io
     pico_stdlib
     brain-common
+    brain-utils
     hardware_gpio
     hardware_timer
     hardware_spi

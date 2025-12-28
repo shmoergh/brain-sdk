@@ -11,7 +11,7 @@
 
 // Include Brain SDK headers
 #include "brain-common/brain-common.h"
-#include "brain-common/ringbuffer.h"
+#include "brain-utils/ringbuffer.h"
 
 // Include specific components to verify they're accessible
 #include "brain-io/audio-cv-in.h"

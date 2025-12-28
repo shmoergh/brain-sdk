@@ -1,6 +1,4 @@
-add_library(brain-common
-    ringbuffer.cpp
-)
+add_library(brain-common)
 
 target_include_directories(brain-common PUBLIC
     include

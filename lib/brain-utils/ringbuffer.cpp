@@ -1,8 +1,8 @@
-#include "brain-common/ringbuffer.h"
+#include "brain-utils/ringbuffer.h"
 
-namespace brain::common {
+namespace brain::utils {
 
-void RingBuffer::init(uint16_t* data_buffer, uint16_t buffer_size) {
+void RingBuffer::init(uint8_t* data_buffer, uint16_t buffer_size) {
 	buffer_size_ = buffer_size;
 	write_index_ = 0;
 	read_index_ = 0;
@@ -13,7 +13,7 @@ void RingBuffer::init(uint16_t* data_buffer, uint16_t buffer_size) {
  * Since it's a circular/ringbuffer we keep increasing the write index and wrap
  * around once it exceeds the size of the buffer.
  */
-bool RingBuffer::writeByte(uint16_t data) {
+bool RingBuffer::writeByte(uint8_t data) {
 	if (!isFull()) {
 		data_buffer_[write_index_] = data;
 		write_index_++;
@@ -27,7 +27,7 @@ bool RingBuffer::writeByte(uint16_t data) {
  * Similar to the write function, we increase the read index. We don't actually
  * remove value from the array, it removes automatically as it wraps around.
  */
-bool RingBuffer::readByte(uint16_t& data) {
+bool RingBuffer::readByte(uint8_t& data) {
 	if (!isEmpty()) {
 		data = data_buffer_[read_index_];
 		read_index_++;
@@ -37,7 +37,7 @@ bool RingBuffer::readByte(uint16_t& data) {
 	return false;
 }
 
-bool RingBuffer::peek(uint16_t& data) const {
+bool RingBuffer::peek(uint8_t& data) const {
 	if (!isEmpty()) {
 		data = data_buffer_[read_index_];
 		return true;

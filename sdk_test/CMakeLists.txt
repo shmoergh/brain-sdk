@@ -11,6 +11,7 @@ target_link_libraries(sdk_test
     brain-common
     brain-io
     brain-ui
+    brain-utils
 )
 
 # Enable USB output for printf

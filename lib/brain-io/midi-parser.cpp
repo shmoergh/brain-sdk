@@ -17,6 +17,7 @@ namespace brain::io {
 MidiParser::MidiParser(uint8_t channel, bool omni) : channel_filter_(channel), omni_mode_(omni) {
 	setChannel(channel);  // Clamp to valid range
 	reset();
+	buffer_.init(data_buffer_, kBufferSize);
 }
 
 void MidiParser::reset() {
@@ -51,11 +52,7 @@ bool MidiParser::omni() const {
 	return omni_mode_;
 }
 
-void MidiParser::feed(uint8_t byte) noexcept {
-#if DEBUG_MIDI_PARSER
-	printf("[MIDI] RX byte: 0x%02X (state=%d)\r\n", byte, static_cast<int>(state_));
-#endif
-
+void MidiParser::parse(uint8_t byte) noexcept {
 	// Handle real-time messages immediately at any time
 	if (isRealtimeByte(byte)) {
 		handleRealtimeByte(byte);
@@ -64,14 +61,13 @@ void MidiParser::feed(uint8_t byte) noexcept {
 
 	// Ignore System Common messages (SysEx, etc.) for v1
 	if (isSystemCommonByte(byte)) {
-#if DEBUG_MIDI_PARSER
-		printf("[MIDI] System Common byte detected, resetting\r\n");
-#endif
 		reset();  // Clear any partial message
 		return;
 	}
 
+	// Handle status bytes
 	if (isStatusByte(byte)) {
+
 		// New status byte received
 		current_status_ = byte;
 		running_status_ = byte;	 // Update running status
@@ -84,7 +80,10 @@ void MidiParser::feed(uint8_t byte) noexcept {
 		} else {
 			state_ = State::AwaitData1;
 		}
+
+	// Handle data byte
 	} else if (isDataByte(byte)) {
+
 		// Data byte received
 		switch (state_) {
 			case State::Idle:
@@ -116,19 +115,11 @@ void MidiParser::feed(uint8_t byte) noexcept {
 
 			case State::AwaitData2:
 				data_[1] = byte;
-#if DEBUG_MIDI_PARSER
-				printf("[MIDI] Complete msg: status=0x%02X data=[0x%02X, 0x%02X]\r\n",
-				       current_status_, data_[0], data_[1]);
-#endif
 				processMessage();
 				state_ = State::Idle;
 				break;
 		}
 	} else {
-		// Invalid byte, reset state
-#if DEBUG_MIDI_PARSER
-		printf("[MIDI] Invalid byte, resetting\r\n");
-#endif
 		reset();
 	}
 }
@@ -197,26 +188,28 @@ void MidiParser::processUartInput() {
 
 	// Read any available MIDI bytes and feed them to the parser
 	while (uart_is_readable(uart_)) {
+
 		// Read the byte - this also reads the error flags atomically
 		uint32_t data_reg = uart_get_hw(uart_)->dr;
-		uint8_t byte = data_reg & 0xFF;
+		uint8_t data = data_reg & 0xFF;
 
 		// Check for UART errors (these are in the same register read)
 		if (data_reg & kUartErrorMask) {
-#if DEBUG_MIDI_PARSER
-			printf("[MIDI] UART ERROR: byte=0x%02X OE=%d BE=%d PE=%d FE=%d\r\n",
-			       byte,
-			       !!(data_reg & UART_UARTDR_OE_BITS),
-			       !!(data_reg & UART_UARTDR_BE_BITS),
-			       !!(data_reg & UART_UARTDR_PE_BITS),
-			       !!(data_reg & UART_UARTDR_FE_BITS));
-#endif
-			// Discard corrupted byte and reset parser state
 			reset();
 			continue;
 		}
 
-		feed(byte);
+		// If there's no error, write the data to the ringbuffer
+		if (!buffer_.writeByte(data)) {
+			// Handle buffer overflow
+		}
+	}
+
+	// Read the buffer and process it
+	while (!buffer_.isEmpty()) {
+		uint8_t byte = 0;
+		buffer_.readByte(byte);
+		parse(byte);
 	}
 }
 

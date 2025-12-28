@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "brain-utils/ringbuffer.h"
+
 // Forward declarations for UART types
 typedef struct uart_inst uart_inst_t;
 
@@ -10,10 +12,11 @@ namespace brain::io {
 /**
  * @brief MIDI parser with integrated UART input for channel voice messages.
  * Handles UART MIDI input and parsing with channel filtering and Omni mode support.
- * ISR-safe feed() method for real-time parsing or use initUart() for integrated UART handling.
+ * ISR-safe parse() method for real-time parsing or use initUart() for integrated UART handling.
  */
 class MidiParser {
-	public:
+
+public:
 	// Callback function types
 	using NoteOnCallback = void (*)(uint8_t note, uint8_t velocity, uint8_t channel);
 	using NoteOffCallback = void (*)(uint8_t note, uint8_t velocity, uint8_t channel);
@@ -61,7 +64,7 @@ class MidiParser {
 	 * @brief Feed a raw MIDI byte to the parser
 	 * @param byte Raw MIDI byte (ISR-safe, noexcept)
 	 */
-	void feed(uint8_t byte) noexcept;
+	void parse(uint8_t byte) noexcept;
 
 	/**
 	 * @brief Initialize UART for MIDI input using default Brain module GPIO pins
@@ -117,7 +120,7 @@ class MidiParser {
 	 */
 	void setRealtimeCallback(RealtimeCallback callback);
 
-	private:
+private:
 	// Parser state machine states
 	enum class State : uint8_t { Idle, AwaitData1, AwaitData2 };
 
@@ -132,6 +135,7 @@ class MidiParser {
 	static constexpr uint8_t kRealtimeMin = 0xF8;
 	static constexpr uint8_t kSystemCommonMin = 0xF0;
 	static constexpr uint8_t kSystemCommonMax = 0xF7;
+	static constexpr uint16_t kBufferSize = 120;
 
 	// Check if byte is a status byte
 	static constexpr bool isStatusByte(uint8_t byte) {
@@ -176,6 +180,8 @@ class MidiParser {
 	uint8_t getExpectedDataBytes(uint8_t status) const;
 
 	// State
+	brain::utils::RingBuffer buffer_;
+	uint8_t data_buffer_[kBufferSize];
 	State state_ = State::Idle;
 	uint8_t running_status_ = 0;
 	uint8_t current_status_ = 0;
