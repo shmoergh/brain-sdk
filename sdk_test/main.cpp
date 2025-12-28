@@ -12,6 +12,7 @@
 // Include Brain SDK headers
 #include "brain-common/brain-common.h"
 #include "brain-utils/ringbuffer.h"
+#include "brain-utils/midi-to-cv.h"
 
 // Include specific components to verify they're accessible
 #include "brain-io/audio-cv-in.h"
@@ -39,8 +40,12 @@ int main() {
 
     printf("\nSDK test program running. Press Ctrl+C to exit.\n");
 
+	brain::utils::MidiToCV midiToCV;
+	midiToCV.init(brain::io::AudioCvOutChannel::kChannelA, 11);
+
     // Main loop - blink LED to show it's running
     while (true) {
+		midiToCV.update();
         sleep_ms(1000);
     }
 
