@@ -3,8 +3,10 @@
 namespace brain::ui {
 
 void Leds::init() {
+	leds_.reserve(NO_OF_LEDS);
+
 	for (size_t i = 0; i < NO_OF_LEDS; i++) {
-		leds_[i] = Led(led_pins[i]);
+		leds_.emplace_back(led_pins[i]);
 		leds_[i].init();
 		leds_[i].off();
 	}
