@@ -1,4 +1,3 @@
-// pot-multiplexer.h
 // Multiplexed potentiometer reader for Hog Moduleur Brain
 // Requires: 74HC4051 multiplexer, ADC GPIO, and S0/S1 selector GPIOs.
 #pragma once
@@ -18,7 +17,7 @@ static constexpr uint8_t kMaxPots = 4;	// 4-channel multiplexer
  * Defines hardware connections and sampling parameters for the multiplexed
  * potentiometer reader using a 74HC4051 analog multiplexer.
  */
-struct PotMultiplexerConfig {
+struct PotsConfig {
 	bool simple;
 	uint8_t adc_gpio;  ///< ADC GPIO pin number (typically 26-29)
 	uint8_t s0_gpio;  ///< Multiplexer S0 select line GPIO
@@ -41,7 +40,7 @@ struct PotMultiplexerConfig {
  * @param output_resolution Output resolution in bits (defaults to 7 for 0-127 range)
  * @return Default configuration structure
  */
-PotMultiplexerConfig create_default_config(uint8_t num_pots = 3, uint8_t output_resolution = 7);
+PotsConfig create_default_config(uint8_t num_pots = 3, uint8_t output_resolution = 7);
 
 /**
  * @brief Multiplexed potentiometer reader for Brain module
@@ -52,7 +51,7 @@ PotMultiplexerConfig create_default_config(uint8_t num_pots = 3, uint8_t output_
  *
  * Typical settling time: ~200µs per channel for stable readings.
  */
-class PotMultiplexer {
+class Pots {
 	public:
 	/**
 	 * @brief Construct a new PotMultiplexer object
@@ -60,7 +59,7 @@ class PotMultiplexer {
 	 * Initializes internal state but does not configure hardware.
 	 * Call init() to set up GPIO and ADC.
 	 */
-	PotMultiplexer();
+	Pots();
 
 	/**
 	 * @brief Initialize hardware and configure multiplexer
@@ -70,7 +69,7 @@ class PotMultiplexer {
 	 *
 	 * @param cfg Configuration structure with hardware and timing parameters
 	 */
-	void init(const PotMultiplexerConfig& cfg);
+	void init(const PotsConfig& cfg);
 
 	/**
 	 * Config setters
@@ -139,7 +138,7 @@ class PotMultiplexer {
 	 */
 	uint16_t read_channel_once(uint8_t ch);
 
-	PotMultiplexerConfig config_;  ///< Hardware configuration
+	PotsConfig config_;  ///< Hardware configuration
 	uint16_t last_values_[kMaxPots];  ///< Last known values for change detection
 	std::function<void(uint8_t, uint16_t)> on_change_;	///< Change callback function
 };

@@ -1,4 +1,4 @@
-// pot_multiplexer.cpp
+// pots.cpp
 // Implementation for multiplexed potentiometer reader using 74HC4051
 // Handles ADC sampling, channel switching, and change detection for Brain module
 #include "brain-ui/pots.h"
@@ -11,8 +11,8 @@
 
 namespace brain::ui {
 
-PotMultiplexerConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
-	PotMultiplexerConfig cfg = {};
+PotsConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
+	PotsConfig cfg = {};
 	cfg.simple = false;
 	cfg.adc_gpio = GPIO_BRAIN_POTMUX_ADC;
 	cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
@@ -28,13 +28,13 @@ PotMultiplexerConfig create_default_config(uint8_t num_pots, uint8_t output_reso
 	return cfg;
 }
 
-PotMultiplexer::PotMultiplexer() {
+Pots::Pots() {
 	for (int i = 0; i < kMaxPots; ++i) {
 		last_values_[i] = 0;
 	}
 }
 
-void PotMultiplexer::init(const PotMultiplexerConfig& cfg) {
+void Pots::init(const PotsConfig& cfg) {
 	config_ = cfg;
 	// Ensure num_pots doesn't exceed our array size
 	if (config_.num_pots > kMaxPots) {
@@ -55,33 +55,33 @@ void PotMultiplexer::init(const PotMultiplexerConfig& cfg) {
 	busy_wait_us_32(cfg.settling_delay_us);
 }
 
-void PotMultiplexer::set_simple(bool simple) {
+void Pots::set_simple(bool simple) {
 	config_.simple = simple;
 }
 
-void PotMultiplexer::set_output_resolution(uint8_t resolution) {
+void Pots::set_output_resolution(uint8_t resolution) {
 	config_.output_resolution = resolution;
 }
 
-void PotMultiplexer::set_settling_delay_us(uint32_t delay) {
+void Pots::set_settling_delay_us(uint32_t delay) {
 	config_.settling_delay_us = delay;
 }
 
-void PotMultiplexer::set_samples_per_read(uint8_t samples) {
+void Pots::set_samples_per_read(uint8_t samples) {
 	config_.samples_per_read = samples;
 }
 
-void PotMultiplexer::set_change_threshold (uint16_t threshold) {
+void Pots::set_change_threshold (uint16_t threshold) {
 	config_.change_threshold = threshold;
 }
 
-void PotMultiplexer::set_mux_channel(uint8_t ch) {
+void Pots::set_mux_channel(uint8_t ch) {
 	ch &= 0x03;
 	gpio_put(config_.s0_gpio, ch & 0x01);
 	gpio_put(config_.s1_gpio, (ch >> 1) & 0x01);
 }
 
-uint16_t PotMultiplexer::read_channel_once(uint8_t ch) {
+uint16_t Pots::read_channel_once(uint8_t ch) {
 	set_mux_channel(ch);
 
 	// Reselect ADC input to ensure proper synchronization
@@ -113,12 +113,12 @@ uint16_t PotMultiplexer::read_channel_once(uint8_t ch) {
 	}
 }
 
-uint16_t PotMultiplexer::get_raw(uint8_t index) {
+uint16_t Pots::get_raw(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
 	return read_channel_once(config_.channel_map[index]);
 }
 
-uint16_t PotMultiplexer::get(uint8_t index) {
+uint16_t Pots::get(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
 
 	uint16_t raw = get_raw(index);
@@ -130,7 +130,7 @@ uint16_t PotMultiplexer::get(uint8_t index) {
 	return (raw * output_max) / kAdcMaxValue;
 }
 
-void PotMultiplexer::scan() {
+void Pots::scan() {
 	for (uint8_t i = 0; i < config_.num_pots && i < kMaxPots; ++i) {
 		uint16_t val = get(i);
 		if (val > last_values_[i] + config_.change_threshold ||
@@ -143,7 +143,7 @@ void PotMultiplexer::scan() {
 	}
 }
 
-void PotMultiplexer::set_on_change(std::function<void(uint8_t, uint16_t)> cb) {
+void Pots::set_on_change(std::function<void(uint8_t, uint16_t)> cb) {
 	on_change_ = cb;
 }
 
