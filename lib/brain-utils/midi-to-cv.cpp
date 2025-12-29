@@ -28,6 +28,7 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	// Init Gate and set to low
 	gate_.begin();
 	gate_.set(false);
+	gate_on_ = false;
 
 	// Set MIDI parser channel
 	midi_parser_.set_channel(midi_channel_);
@@ -72,12 +73,34 @@ void MidiToCV::note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
 
 	// Set gate high
 	gate_.set(true);
+	gate_on_ = true;
+
+	// Callback note on
+	if (note_on_callback_) {
+		note_on_callback_(note, velocity, channel);
+	}
 }
 
 void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 	pop_note(note);
 	set_cv();
-	if (current_stack_size_ == 0) gate_.set(false);
+	if (current_stack_size_ == 0) {
+		gate_.set(false);
+		gate_on_ = false;
+	}
+
+	// Callback note off
+	if (note_off_callback_) {
+		note_off_callback_(note, velocity, channel);
+	}
+}
+
+void MidiToCV::set_note_on_callback(NoteOnCallback callback) {
+	note_on_callback_ = callback;
+}
+
+void MidiToCV::set_note_off_callback(NoteOffCallback callback) {
+	note_off_callback_ = callback;
 }
 
 void MidiToCV::set_midi_channel(uint8_t midi_channel) {
@@ -93,6 +116,10 @@ void MidiToCV::set_pitch_channel(brain::io::AudioCvOutChannel cv_channel) {
 
 void MidiToCV::update() {
 	midi_parser_.process_uart();
+}
+
+bool MidiToCV::is_note_playing() {
+	return gate_on_;
 }
 
 void MidiToCV::push_note(uint8_t note) {
