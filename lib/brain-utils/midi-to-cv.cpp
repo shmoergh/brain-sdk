@@ -20,8 +20,10 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	}
 
 	// DC couple the CV output and set it to 0.0f
-	dac_.set_coupling(cv_channel_, brain::io::AudioCvOutCoupling::kDcCoupled);
-	dac_.set_voltage(cv_channel_, 0.0f);
+	dac_.set_coupling(brain::io::AudioCvOutChannel::kChannelA, brain::io::AudioCvOutCoupling::kDcCoupled);
+	dac_.set_coupling(brain::io::AudioCvOutChannel::kChannelB, brain::io::AudioCvOutCoupling::kDcCoupled);
+	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
+	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
 
 	// Init Gate and set to low
 	gate_.begin();
@@ -81,6 +83,12 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 	midi_channel_ = midi_channel;
 	midi_parser_.set_channel(midi_channel_);
+}
+
+void MidiToCV::set_pitch_channel(brain::io::AudioCvOutChannel cv_channel) {
+	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
+	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
+	cv_channel_ = cv_channel;
 }
 
 void MidiToCV::update() {

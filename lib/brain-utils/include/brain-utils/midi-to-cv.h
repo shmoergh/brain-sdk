@@ -15,6 +15,7 @@ class MidiToCV {
 	public:
 		bool init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channel);
 		void set_midi_channel(uint8_t midi_channel);
+		void set_pitch_channel(brain::io::AudioCvOutChannel cv_channel);
 
 		/**
 		 * Call in main loop
