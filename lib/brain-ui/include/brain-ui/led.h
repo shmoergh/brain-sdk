@@ -48,7 +48,7 @@ class Led {
 	 *
 	 * @param value Brightness level (0-255, where 255 is maximum brightness)
 	 */
-	void setBrightness(uint8_t value);
+	void set_brightness(uint8_t value);
 
 	/**
 	 * @brief Blink LED a specific number of times
@@ -64,19 +64,19 @@ class Led {
 	 * @param duration_ms Total blinking duration in milliseconds
 	 * @param interval_ms Time between state changes in milliseconds
 	 */
-	void blinkDuration(uint duration_ms, uint interval_ms);
+	void blink_duration(uint duration_ms, uint interval_ms);
 
 	/**
 	 * @brief Start continuous blinking (until stopped manually)
 	 *
 	 * @param interval_ms Time between state changes in milliseconds
 	 */
-	void startBlink(uint interval_ms);
+	void start_blink(uint interval_ms);
 
 	/**
 	 * @brief Stop any active blinking pattern
 	 */
-	void stopBlink();
+	void stop_blink();
 
 	/**
 	 * @brief Update LED state and handle timing (call in main loop)
@@ -91,28 +91,28 @@ class Led {
 	 *
 	 * @param callback Function to invoke when LED state changes (on/off)
 	 */
-	void setOnStateChange(std::function<void(bool)> callback);
+	void set_on_state_change(std::function<void(bool)> callback);
 
 	/**
 	 * @brief Set callback for end of blink sequence
 	 *
 	 * @param callback Function to invoke when blink pattern completes
 	 */
-	void setOnBlinkEnd(std::function<void()> callback);
+	void set_on_blink_end(std::function<void()> callback);
 
 	/**
 	 * @brief Check if LED is currently on
 	 *
 	 * @return true if LED is on, false if off
 	 */
-	bool isOn() const;
+	bool is_on() const;
 
 	/**
 	 * @brief Check if LED is currently blinking
 	 *
 	 * @return true if any blink pattern is active, false otherwise
 	 */
-	bool isBlinking() const;
+	bool is_blinking() const;
 
 	private:
 	uint gpio_pin_;	 ///< GPIO pin number for LED output
