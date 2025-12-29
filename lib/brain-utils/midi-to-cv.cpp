@@ -28,10 +28,10 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	gate_.set(false);
 
 	// Set MIDI parser channel
-	midi_parser_.setChannel(midi_channel_);
-	midi_parser_.setNoteOnCallback(note_on_callback);
-	midi_parser_.setNoteOffCallback(note_off_callback);
-	if (!midi_parser_.initUart()) {
+	midi_parser_.set_channel(midi_channel_);
+	midi_parser_.set_note_on_callback(note_on_callback);
+	midi_parser_.set_note_off_callback(note_off_callback);
+	if (!midi_parser_.init_uart()) {
 		printf("[ERROR] Brain SDK / Midi to CV: MIDI parser failed to initialize.\n");
 		return false;
 	}
@@ -80,11 +80,11 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 
 void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 	midi_channel_ = midi_channel;
-	midi_parser_.setChannel(midi_channel_);
+	midi_parser_.set_channel(midi_channel_);
 }
 
 void MidiToCV::update() {
-	midi_parser_.processUartInput();
+	midi_parser_.process_uart();
 }
 
 void MidiToCV::push_note(uint8_t note) {

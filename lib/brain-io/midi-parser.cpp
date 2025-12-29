@@ -15,7 +15,7 @@
 namespace brain::io {
 
 MidiParser::MidiParser(uint8_t channel, bool omni) : channel_filter_(channel), omni_mode_(omni) {
-	setChannel(channel);  // Clamp to valid range
+	set_channel(channel);  // Clamp to valid range
 	reset();
 	buffer_.init(data_buffer_, kBufferSize);
 }
@@ -29,7 +29,7 @@ void MidiParser::reset() {
 	expected_data_bytes_ = 0;
 }
 
-void MidiParser::setChannel(uint8_t ch) {
+void MidiParser::set_channel(uint8_t ch) {
 	// Clamp to valid MIDI channel range (1-16)
 	if (ch < 1) {
 		channel_filter_ = 1;
@@ -44,7 +44,7 @@ uint8_t MidiParser::channel() const {
 	return channel_filter_;
 }
 
-void MidiParser::setOmni(bool enabled) {
+void MidiParser::set_omni(bool enabled) {
 	omni_mode_ = enabled;
 }
 
@@ -54,35 +54,35 @@ bool MidiParser::omni() const {
 
 void MidiParser::parse(uint8_t byte) noexcept {
 	// Handle real-time messages immediately at any time
-	if (isRealtimeByte(byte)) {
-		handleRealtimeByte(byte);
+	if (is_realtime_byte(byte)) {
+		handle_realtime_byte(byte);
 		return;
 	}
 
 	// Ignore System Common messages (SysEx, etc.) for v1
-	if (isSystemCommonByte(byte)) {
+	if (is_system_common_byte(byte)) {
 		reset();  // Clear any partial message
 		return;
 	}
 
 	// Handle status bytes
-	if (isStatusByte(byte)) {
+	if (is_status_byte(byte)) {
 
 		// New status byte received
 		current_status_ = byte;
 		running_status_ = byte;	 // Update running status
-		expected_data_bytes_ = getExpectedDataBytes(byte);
+		expected_data_bytes_ = get_expected_data_bytes(byte);
 
 		if (expected_data_bytes_ == 0) {
 			// No data bytes expected, process immediately
-			processMessage();
+			process_message();
 			state_ = State::Idle;
 		} else {
 			state_ = State::AwaitData1;
 		}
 
 	// Handle data byte
-	} else if (isDataByte(byte)) {
+	} else if (is_data_byte(byte)) {
 
 		// Data byte received
 		switch (state_) {
@@ -90,11 +90,11 @@ void MidiParser::parse(uint8_t byte) noexcept {
 				// Use running status if available
 				if (running_status_ != 0) {
 					current_status_ = running_status_;
-					expected_data_bytes_ = getExpectedDataBytes(current_status_);
+					expected_data_bytes_ = get_expected_data_bytes(current_status_);
 					data_[0] = byte;
 
 					if (expected_data_bytes_ == 1) {
-						processMessage();
+						process_message();
 						state_ = State::Idle;
 					} else {
 						state_ = State::AwaitData2;
@@ -106,7 +106,7 @@ void MidiParser::parse(uint8_t byte) noexcept {
 				data_[0] = byte;
 
 				if (expected_data_bytes_ == 1) {
-					processMessage();
+					process_message();
 					state_ = State::Idle;
 				} else {
 					state_ = State::AwaitData2;
@@ -115,7 +115,7 @@ void MidiParser::parse(uint8_t byte) noexcept {
 
 			case State::AwaitData2:
 				data_[1] = byte;
-				processMessage();
+				process_message();
 				state_ = State::Idle;
 				break;
 		}
@@ -124,32 +124,32 @@ void MidiParser::parse(uint8_t byte) noexcept {
 	}
 }
 
-void MidiParser::setNoteOnCallback(NoteOnCallback callback) {
+void MidiParser::set_note_on_callback(NoteOnCallback callback) {
 	note_on_callback_ = callback;
 }
 
-void MidiParser::setNoteOffCallback(NoteOffCallback callback) {
+void MidiParser::set_note_off_callback(NoteOffCallback callback) {
 	note_off_callback_ = callback;
 }
 
-void MidiParser::setControlChangeCallback(ControlChangeCallback callback) {
+void MidiParser::set_control_change_callback(ControlChangeCallback callback) {
 	control_change_callback_ = callback;
 }
 
-void MidiParser::setPitchBendCallback(PitchBendCallback callback) {
+void MidiParser::set_pitch_bend_callback(PitchBendCallback callback) {
 	pitch_bend_callback_ = callback;
 }
 
-void MidiParser::setRealtimeCallback(RealtimeCallback callback) {
+void MidiParser::set_realtime_callback(RealtimeCallback callback) {
 	realtime_callback_ = callback;
 }
 
-bool MidiParser::initUart(uint32_t baud_rate) {
+bool MidiParser::init_uart(uint32_t baud_rate) {
 	// Use default Brain module configuration: UART1 with GPIO_BRAIN_MIDI_RX
-	return initUart(uart1, GPIO_BRAIN_MIDI_RX, baud_rate);
+	return init_uart(uart1, GPIO_BRAIN_MIDI_RX, baud_rate);
 }
 
-bool MidiParser::initUart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rate) {
+bool MidiParser::init_uart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rate) {
 	if (uart == nullptr) {
 		return false;
 	}
@@ -176,7 +176,7 @@ bool MidiParser::initUart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rate
 	return true;
 }
 
-void MidiParser::processUartInput() {
+void MidiParser::process_uart() {
 	if (!uart_initialized_ || uart_ == nullptr) {
 		return;
 	}
@@ -213,11 +213,11 @@ void MidiParser::processUartInput() {
 	}
 }
 
-bool MidiParser::isUartInitialized() const {
+bool MidiParser::is_uart_initialized() const {
 	return uart_initialized_;
 }
 
-bool MidiParser::shouldProcessChannel(uint8_t messageChannel) const {
+bool MidiParser::should_process_channel(uint8_t messageChannel) const {
 	if (omni_mode_) {
 		return true;
 	}
@@ -225,12 +225,12 @@ bool MidiParser::shouldProcessChannel(uint8_t messageChannel) const {
 	return (messageChannel + 1) == channel_filter_;
 }
 
-void MidiParser::processMessage() {
-	uint8_t status_type = getStatusType(current_status_);
-	uint8_t message_channel = getStatusChannel(current_status_);
+void MidiParser::process_message() {
+	uint8_t status_type = get_status_type(current_status_);
+	uint8_t message_channel = get_status_channel(current_status_);
 
 	// Check channel filter
-	if (!shouldProcessChannel(message_channel)) {
+	if (!should_process_channel(message_channel)) {
 		return;
 	}
 
@@ -295,14 +295,14 @@ void MidiParser::processMessage() {
 	}
 }
 
-void MidiParser::handleRealtimeByte(uint8_t byte) {
+void MidiParser::handle_realtime_byte(uint8_t byte) {
 	if (realtime_callback_) {
 		realtime_callback_(byte);
 	}
 }
 
-uint8_t MidiParser::getExpectedDataBytes(uint8_t status) const {
-	switch (getStatusType(status)) {
+uint8_t MidiParser::get_expected_data_bytes(uint8_t status) const {
+	switch (get_status_type(status)) {
 		case kNoteOnMask:
 		case kNoteOffMask:
 		case kControlChangeMask:

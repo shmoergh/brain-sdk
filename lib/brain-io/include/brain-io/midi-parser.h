@@ -40,7 +40,7 @@ public:
 	 * @brief Set MIDI channel filter (1-16)
 	 * @param ch Channel number, clamped to 1-16 range
 	 */
-	void setChannel(uint8_t ch);
+	void set_channel(uint8_t ch);
 
 	/**
 	 * @brief Get current channel filter
@@ -52,7 +52,7 @@ public:
 	 * @brief Enable/disable Omni mode
 	 * @param enabled If true, accept messages from all channels
 	 */
-	void setOmni(bool enabled);
+	void set_omni(bool enabled);
 
 	/**
 	 * @brief Check if Omni mode is enabled
@@ -72,7 +72,7 @@ public:
 	 * @param baud_rate MIDI baud rate (default: 31250)
 	 * @return true if initialization successful
 	 */
-	bool initUart(uint32_t baud_rate = 31250);
+	bool init_uart(uint32_t baud_rate = 31250);
 
 	/**
 	 * @brief Initialize UART for MIDI input (optional integrated approach)
@@ -81,44 +81,44 @@ public:
 	 * @param baud_rate MIDI baud rate (default: 31250)
 	 * @return true if initialization successful
 	 */
-	bool initUart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rate = 31250);
+	bool init_uart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rate = 31250);
 
 	/**
 	 * @brief Process any available UART MIDI input (call regularly in main loop)
 	 * Only works if initUart() was called first
 	 */
-	void processUartInput();
+	void process_uart();
 
 	/**
 	 * @brief Check if UART MIDI input is initialized and ready
 	 * @return true if UART is initialized
 	 */
-	bool isUartInitialized() const;
+	bool is_uart_initialized() const;
 
 	/**
 	 * @brief Set callback for Note On messages
 	 */
-	void setNoteOnCallback(NoteOnCallback callback);
+	void set_note_on_callback(NoteOnCallback callback);
 
 	/**
 	 * @brief Set callback for Note Off messages
 	 */
-	void setNoteOffCallback(NoteOffCallback callback);
+	void set_note_off_callback(NoteOffCallback callback);
 
 	/**
 	 * @brief Set callback for Control Change messages
 	 */
-	void setControlChangeCallback(ControlChangeCallback callback);
+	void set_control_change_callback(ControlChangeCallback callback);
 
 	/**
 	 * @brief Set callback for Pitch Bend messages
 	 */
-	void setPitchBendCallback(PitchBendCallback callback);
+	void set_pitch_bend_callback(PitchBendCallback callback);
 
 	/**
 	 * @brief Set callback for Real-time messages (optional)
 	 */
-	void setRealtimeCallback(RealtimeCallback callback);
+	void set_realtime_callback(RealtimeCallback callback);
 
 private:
 	// Parser state machine states
@@ -138,46 +138,46 @@ private:
 	static constexpr uint16_t kBufferSize = 120;
 
 	// Check if byte is a status byte
-	static constexpr bool isStatusByte(uint8_t byte) {
+	static constexpr bool is_status_byte(uint8_t byte) {
 		return (byte & 0x80) != 0;
 	}
 
 	// Check if byte is a data byte
-	static constexpr bool isDataByte(uint8_t byte) {
+	static constexpr bool is_data_byte(uint8_t byte) {
 		return (byte & 0x80) == 0;
 	}
 
 	// Check if byte is a real-time message
-	static constexpr bool isRealtimeByte(uint8_t byte) {
+	static constexpr bool is_realtime_byte(uint8_t byte) {
 		return byte >= kRealtimeMin;
 	}
 
 	// Check if byte is a system common message
-	static constexpr bool isSystemCommonByte(uint8_t byte) {
+	static constexpr bool is_system_common_byte(uint8_t byte) {
 		return byte >= kSystemCommonMin && byte <= kSystemCommonMax;
 	}
 
 	// Get channel from status byte (0-15)
-	static constexpr uint8_t getStatusChannel(uint8_t status) {
+	static constexpr uint8_t get_status_channel(uint8_t status) {
 		return status & kChannelMask;
 	}
 
 	// Get status type from status byte
-	static constexpr uint8_t getStatusType(uint8_t status) {
+	static constexpr uint8_t get_status_type(uint8_t status) {
 		return status & kStatusMask;
 	}
 
 	// Check if message should be processed based on channel filter
-	bool shouldProcessChannel(uint8_t messageChannel) const;
+	bool should_process_channel(uint8_t messageChannel) const;
 
 	// Process a complete MIDI message
-	void processMessage();
+	void process_message();
 
 	// Handle real-time byte
-	void handleRealtimeByte(uint8_t byte);
+	void handle_realtime_byte(uint8_t byte);
 
 	// Get expected data bytes for status
-	uint8_t getExpectedDataBytes(uint8_t status) const;
+	uint8_t get_expected_data_bytes(uint8_t status) const;
 
 	// State
 	brain::utils::RingBuffer buffer_;
