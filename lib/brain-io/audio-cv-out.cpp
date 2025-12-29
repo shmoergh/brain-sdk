@@ -59,7 +59,7 @@ bool AudioCvOut::init(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint 
 	return true;
 }
 
-bool AudioCvOut::setVoltage(AudioCvOutChannel channel, float voltage) {
+bool AudioCvOut::set_voltage(AudioCvOutChannel channel, float voltage) {
 	// Validate voltage range
 	if (voltage < 0.0f || voltage > kMaxVoltage) {
 		fprintf(stderr, "AudioCvOut: Voltage %.2fV out of range (0-%.1fV)\n", voltage, kMaxVoltage);
@@ -67,12 +67,12 @@ bool AudioCvOut::setVoltage(AudioCvOutChannel channel, float voltage) {
 	}
 
 	// Convert voltage to DAC value and send command
-	uint16_t dac_value = voltageToDAC(voltage);
-	writeDacChannel(channel, dac_value);
+	uint16_t dac_value = voltage_to_dac(voltage);
+	write_dac_channel(channel, dac_value);
 	return true;
 }
 
-bool AudioCvOut::setCoupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
+bool AudioCvOut::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
 	uint coupling_pin =
 		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
 
@@ -81,7 +81,7 @@ bool AudioCvOut::setCoupling(AudioCvOutChannel channel, AudioCvOutCoupling coupl
 	return true;
 }
 
-void AudioCvOut::writeDacChannel(AudioCvOutChannel channel, uint16_t dac_value) {
+void AudioCvOut::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
 	// Constructing DAC config
 	uint8_t config =
 		(channel == AudioCvOutChannel::kChannelA ? kMCP4822_CHANNEL_A : kMCP4822_CHANNEL_B) << 3 |
@@ -106,7 +106,7 @@ void AudioCvOut::writeDacChannel(AudioCvOutChannel channel, uint16_t dac_value) 
 	asm volatile("nop \n nop \n nop");
 }
 
-uint16_t AudioCvOut::voltageToDAC(float voltage) {
+uint16_t AudioCvOut::voltage_to_dac(float voltage) {
 	// Linear conversion: 0V -> 0, 10V -> 4095
 	float normalized = voltage / kMaxVoltage;
 	uint16_t dac_value = static_cast<uint16_t>(normalized * kMaxDacValue + 0.5f);

@@ -20,8 +20,8 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	}
 
 	// DC couple the CV output and set it to 0.0f
-	dac_.setCoupling(cv_channel_, brain::io::AudioCvOutCoupling::kDcCoupled);
-	dac_.setVoltage(cv_channel_, 0.0f);
+	dac_.set_coupling(cv_channel_, brain::io::AudioCvOutCoupling::kDcCoupled);
+	dac_.set_voltage(cv_channel_, 0.0f);
 
 	// Init Gate and set to low
 	gate_.begin();
@@ -144,7 +144,7 @@ void MidiToCV::set_cv() {
 	}
 
 	float voltage = (note - kZeroCVMidiNote) / 12.0f;
-	dac_.setVoltage(cv_channel_, voltage);
+	dac_.set_voltage(cv_channel_, voltage);
 }
 
 }

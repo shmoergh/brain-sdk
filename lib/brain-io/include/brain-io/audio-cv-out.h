@@ -46,7 +46,7 @@ class AudioCvOut {
 	 * @param voltage Output voltage in range 0.0V to 10.0V
 	 * @return true if voltage set successfully, false on error
 	 */
-	bool setVoltage(AudioCvOutChannel channel, float voltage);
+	bool set_voltage(AudioCvOutChannel channel, float voltage);
 
 	/**
 	 * Configure DC/AC coupling for specified channel
@@ -54,14 +54,14 @@ class AudioCvOut {
 	 * @param coupling Desired coupling mode
 	 * @return true if coupling set successfully, false on error
 	 */
-	bool setCoupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling);
+	bool set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling);
 
 	private:
 	/** Send 16-bit command to MCP4822 via SPI */
-	void writeDacChannel(AudioCvOutChannel channel, uint16_t dac_value);
+	void write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value);
 
 	/** Convert voltage (0-10V) to 12-bit DAC value (0-4095) */
-	uint16_t voltageToDAC(float voltage);
+	uint16_t voltage_to_dac(float voltage);
 
 	// Hardware configuration
 	uint cs_pin_ = 0;
