@@ -11,7 +11,7 @@
 
 namespace brain::ui {
 
-PotMultiplexerConfig createDefaultConfig(uint8_t num_pots, uint8_t output_resolution) {
+PotMultiplexerConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 	PotMultiplexerConfig cfg = {};
 	cfg.adc_gpio = GPIO_BRAIN_POTMUX_ADC;
 	cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
@@ -54,14 +54,14 @@ void PotMultiplexer::init(const PotMultiplexerConfig& cfg) {
 	busy_wait_us_32(cfg.settling_delay_us);
 }
 
-void PotMultiplexer::setMuxChannel(uint8_t ch) {
+void PotMultiplexer::set_mux_channel(uint8_t ch) {
 	ch &= 0x03;
 	gpio_put(config_.s0_gpio, ch & 0x01);
 	gpio_put(config_.s1_gpio, (ch >> 1) & 0x01);
 }
 
-uint16_t PotMultiplexer::readChannelOnce(uint8_t ch) {
-	setMuxChannel(ch);
+uint16_t PotMultiplexer::read_channel_once(uint8_t ch) {
+	set_mux_channel(ch);
 	// Reselect ADC input to ensure proper synchronization
 	adc_select_input(config_.adc_gpio - 26);
 
@@ -84,15 +84,15 @@ uint16_t PotMultiplexer::readChannelOnce(uint8_t ch) {
 	return sum / samples;
 }
 
-uint16_t PotMultiplexer::getRaw(uint8_t index) {
+uint16_t PotMultiplexer::get_raw(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
-	return readChannelOnce(config_.channel_map[index]);
+	return read_channel_once(config_.channel_map[index]);
 }
 
 uint16_t PotMultiplexer::get(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
 
-	uint16_t raw = getRaw(index);
+	uint16_t raw = get_raw(index);
 
 	// Map from 12-bit ADC (0-4095) to desired output resolution
 	static constexpr uint16_t kAdcMaxValue = 4095;	// 12-bit ADC
@@ -114,7 +114,7 @@ void PotMultiplexer::scan() {
 	}
 }
 
-void PotMultiplexer::setOnChange(std::function<void(uint8_t, uint16_t)> cb) {
+void PotMultiplexer::set_on_change(std::function<void(uint8_t, uint16_t)> cb) {
 	on_change_ = cb;
 }
 

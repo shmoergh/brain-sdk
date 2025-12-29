@@ -40,7 +40,7 @@ struct PotMultiplexerConfig {
  * @param output_resolution Output resolution in bits (defaults to 7 for 0-127 range)
  * @return Default configuration structure
  */
-PotMultiplexerConfig createDefaultConfig(uint8_t num_pots = 3, uint8_t output_resolution = 7);
+PotMultiplexerConfig create_default_config(uint8_t num_pots = 3, uint8_t output_resolution = 7);
 
 /**
  * @brief Multiplexed potentiometer reader for Brain module
@@ -101,7 +101,7 @@ class PotMultiplexer {
 	 * @param index Logical potentiometer index (0 to num_pots-1)
 	 * @return Raw ADC value (0-4095), or 0 if index is invalid
 	 */
-	uint16_t getRaw(uint8_t index);
+	uint16_t get_raw(uint8_t index);
 
 	/**
 	 * @brief Set callback for potentiometer value changes
@@ -111,7 +111,7 @@ class PotMultiplexer {
 	 *
 	 * @param cb Callback function: void(uint8_t pot_index, uint16_t new_value)
 	 */
-	void setOnChange(std::function<void(uint8_t, uint16_t)> cb);
+	void set_on_change(std::function<void(uint8_t, uint16_t)> cb);
 
 	private:
 	/**
@@ -119,7 +119,7 @@ class PotMultiplexer {
 	 *
 	 * @param ch Physical channel number (0-3)
 	 */
-	void setMuxChannel(uint8_t ch);
+	void set_mux_channel(uint8_t ch);
 
 	/**
 	 * @brief Read ADC value for specific channel with proper settling
@@ -127,7 +127,7 @@ class PotMultiplexer {
 	 * @param ch Physical channel number to read
 	 * @return Averaged ADC reading
 	 */
-	uint16_t readChannelOnce(uint8_t ch);
+	uint16_t read_channel_once(uint8_t ch);
 
 	PotMultiplexerConfig config_;  ///< Hardware configuration
 	uint16_t last_values_[kMaxPots];  ///< Last known values for change detection
