@@ -14,7 +14,7 @@ namespace brain::utils {
 class MidiToCV {
 	public:
 		bool init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channel);
-		void setMidiChannel(uint8_t midi_channel);
+		void set_midi_channel(uint8_t midi_channel);
 
 		/**
 		 * Call in main loop
@@ -35,16 +35,16 @@ class MidiToCV {
 		uint8_t current_stack_size_;
 		uint8_t last_note_;
 
-		static void noteOnCallback(uint8_t note, uint8_t velocity, uint8_t channel);
-		static void noteOffCallback(uint8_t note, uint8_t velocity, uint8_t channel);
-		void noteOn(uint8_t note, uint8_t velocity, uint8_t channel);
-		void noteOff(uint8_t note, uint8_t velocity, uint8_t channel);
+		static void note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel);
+		static void note_off_callback(uint8_t note, uint8_t velocity, uint8_t channel);
+		void note_on(uint8_t note, uint8_t velocity, uint8_t channel);
+		void note_off(uint8_t note, uint8_t velocity, uint8_t channel);
 
-		void resetNoteStack();
-		void pushNote(uint8_t note);
-		void popNote(uint8_t note);
-		int findNote(uint8_t note);
-		void setCV();
+		void reset_note_stack();
+		void push_note(uint8_t note);
+		void pop_note(uint8_t note);
+		int find_note(uint8_t note);
+		void set_cv();
 };
 
 }
