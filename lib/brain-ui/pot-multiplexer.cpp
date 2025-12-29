@@ -13,6 +13,7 @@ namespace brain::ui {
 
 PotMultiplexerConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 	PotMultiplexerConfig cfg = {};
+	cfg.simple = false;
 	cfg.adc_gpio = GPIO_BRAIN_POTMUX_ADC;
 	cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
 	cfg.s1_gpio = GPIO_BRAIN_POTMUX_S1;
@@ -54,6 +55,26 @@ void PotMultiplexer::init(const PotMultiplexerConfig& cfg) {
 	busy_wait_us_32(cfg.settling_delay_us);
 }
 
+void PotMultiplexer::set_simple(bool simple) {
+	config_.simple = simple;
+}
+
+void PotMultiplexer::set_output_resolution(uint8_t resolution) {
+	config_.output_resolution = resolution;
+}
+
+void PotMultiplexer::set_settling_delay_us(uint32_t delay) {
+	config_.settling_delay_us = delay;
+}
+
+void PotMultiplexer::set_samples_per_read(uint8_t samples) {
+	config_.samples_per_read = samples;
+}
+
+void PotMultiplexer::set_change_threshold (uint16_t threshold) {
+	config_.change_threshold = threshold;
+}
+
 void PotMultiplexer::set_mux_channel(uint8_t ch) {
 	ch &= 0x03;
 	gpio_put(config_.s0_gpio, ch & 0x01);
@@ -62,26 +83,34 @@ void PotMultiplexer::set_mux_channel(uint8_t ch) {
 
 uint16_t PotMultiplexer::read_channel_once(uint8_t ch) {
 	set_mux_channel(ch);
+
 	// Reselect ADC input to ensure proper synchronization
 	adc_select_input(config_.adc_gpio - 26);
 
-	// Allow more settling time (minimum 100us is typical for many MUXs)
-	busy_wait_us_32(config_.settling_delay_us > 100 ? config_.settling_delay_us : 100);
+	// Simple read is just reading the ADC once and that's it. It's the fastest
+	// but lacks precision
+	if (config_.simple) {
+		uint16_t adc_value = adc_read();
+		return adc_value;
 
-	// Discard multiple samples to ensure ADC has settled
-	for (int i = 0; i < 3; i++) {
-		(void) adc_read();
-	}
+	} else {
+		busy_wait_us_32(config_.settling_delay_us > 100 ? config_.settling_delay_us : 100);
 
-	// Take actual readings
-	uint32_t sum = 0;
-	uint8_t samples = config_.samples_per_read > 0 ? config_.samples_per_read : 1;
-	for (uint8_t i = 0; i < samples; ++i) {
-		sum += adc_read();
-		// Small delay between samples
-		busy_wait_us_32(10);
+		// Discard multiple samples to ensure ADC has settled
+		for (int i = 0; i < 3; i++) {
+			(void) adc_read();
+		}
+
+		// Take actual readings
+		uint32_t sum = 0;
+		uint8_t samples = config_.samples_per_read > 0 ? config_.samples_per_read : 1;
+		for (uint8_t i = 0; i < samples; ++i) {
+			sum += adc_read();
+			// Small delay between samples
+			busy_wait_us_32(10);
+		}
+		return sum / samples;
 	}
-	return sum / samples;
 }
 
 uint16_t PotMultiplexer::get_raw(uint8_t index) {

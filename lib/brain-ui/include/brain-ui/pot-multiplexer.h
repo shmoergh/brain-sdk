@@ -19,6 +19,7 @@ static constexpr uint8_t kMaxPots = 4;	// 4-channel multiplexer
  * potentiometer reader using a 74HC4051 analog multiplexer.
  */
 struct PotMultiplexerConfig {
+	bool simple;
 	uint8_t adc_gpio;  ///< ADC GPIO pin number (typically 26-29)
 	uint8_t s0_gpio;  ///< Multiplexer S0 select line GPIO
 	uint8_t s1_gpio;  ///< Multiplexer S1 select line GPIO
@@ -70,6 +71,15 @@ class PotMultiplexer {
 	 * @param cfg Configuration structure with hardware and timing parameters
 	 */
 	void init(const PotMultiplexerConfig& cfg);
+
+	/**
+	 * Config setters
+	 */
+	void set_simple(bool simple);
+	void set_output_resolution(uint8_t resolution);
+	void set_settling_delay_us(uint32_t delay);
+	void set_samples_per_read(uint8_t samples);
+	void set_change_threshold (uint16_t threshold);
 
 	/**
 	 * @brief Scan all configured potentiometers for changes
