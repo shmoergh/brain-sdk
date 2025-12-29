@@ -50,28 +50,28 @@ class Button {
 	 *
 	 * @param callback Function to invoke when button is pressed (after debounce)
 	 */
-	void setOnPress(std::function<void()> callback);
+	void set_on_press(std::function<void()> callback);
 
 	/**
 	 * @brief Set callback for button release event
 	 *
 	 * @param callback Function to invoke when button is released (after debounce)
 	 */
-	void setOnRelease(std::function<void()> callback);
+	void set_on_release(std::function<void()> callback);
 
 	/**
 	 * @brief Set callback for single tap event
 	 *
 	 * @param callback Function to invoke for quick press-release cycles
 	 */
-	void setOnSingleTap(std::function<void()> callback);
+	void set_on_single_tap(std::function<void()> callback);
 
 	/**
 	 * @brief Set callback for long press event
 	 *
 	 * @param callback Function to invoke when button is held beyond threshold
 	 */
-	void setOnLongPress(std::function<void()> callback);
+	void set_on_long_press(std::function<void()> callback);
 
 	private:
 	uint gpio_pin_;	 ///< GPIO pin number for button input

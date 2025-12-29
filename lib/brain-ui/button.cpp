@@ -69,16 +69,16 @@ void Button::update() {
 	}
 }
 
-void Button::setOnPress(std::function<void()> callback) {
+void Button::set_on_press(std::function<void()> callback) {
 	on_press_ = callback;
 }
-void Button::setOnRelease(std::function<void()> callback) {
+void Button::set_on_release(std::function<void()> callback) {
 	on_release_ = callback;
 }
-void Button::setOnSingleTap(std::function<void()> callback) {
+void Button::set_on_single_tap(std::function<void()> callback) {
 	on_single_tap_ = callback;
 }
-void Button::setOnLongPress(std::function<void()> callback) {
+void Button::set_on_long_press(std::function<void()> callback) {
 	on_long_press_ = callback;
 }
 
