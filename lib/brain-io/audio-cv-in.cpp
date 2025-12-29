@@ -18,7 +18,7 @@ bool AudioCvIn::init() {
 	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_B);  // GPIO 28 -> ADC2
 
 	// Calculate conversion parameters from calibration constants
-	calculateConversionParameters();
+	calculate_conversion_parameters();
 
 	// Take initial readings
 	update();
@@ -36,55 +36,55 @@ void AudioCvIn::update() {
 	channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B] = adc_read();
 }
 
-uint16_t AudioCvIn::getRaw(int channel) const {
+uint16_t AudioCvIn::get_raw(int channel) const {
 	if (channel == BRAIN_AUDIO_CV_IN_CHANNEL_A || channel == BRAIN_AUDIO_CV_IN_CHANNEL_B) {
 		return channel_raw_[channel];
 	}
 	return 0;
 }
 
-uint16_t AudioCvIn::getRawChannelA() const {
+uint16_t AudioCvIn::get_raw_channel_a() const {
 	return channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A];
 }
 
-uint16_t AudioCvIn::getRawChannelB() const {
+uint16_t AudioCvIn::get_raw_channel_b() const {
 	return channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B];
 }
 
-float AudioCvIn::getVoltage(int channel) const {
+float AudioCvIn::get_voltage(int channel) const {
 	if (channel == BRAIN_AUDIO_CV_IN_CHANNEL_A || channel == BRAIN_AUDIO_CV_IN_CHANNEL_B) {
-		return adcToVoltage(channel_raw_[channel]);
+		return adc_to_voltage(channel_raw_[channel]);
 	}
 	return 0.0f;
 }
 
-float AudioCvIn::getVoltageChannelA() const {
-	return adcToVoltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A]);
+float AudioCvIn::get_voltage_channel_a() const {
+	return adc_to_voltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A]);
 }
 
-float AudioCvIn::getVoltageChannelB() const {
-	return adcToVoltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B]);
+float AudioCvIn::get_voltage_channel_b() const {
+	return adc_to_voltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B]);
 }
 
-float AudioCvIn::adcToVoltage(uint16_t adc_value) const {
+float AudioCvIn::adc_to_voltage(uint16_t adc_value) const {
 	// Convert ADC reading to voltage
 	float adc_voltage = (static_cast<float>(adc_value) / kAdcMaxValue) * kAdcVoltageRef;
-	
+
 	// Apply calibration to get original signal voltage
 	return (adc_voltage * voltage_scale_) + voltage_offset_;
 }
 
-void AudioCvIn::calculateConversionParameters() {
+void AudioCvIn::calculate_conversion_parameters() {
 	// Calculate linear conversion from measured ADC voltages to original signal voltages
-	// Two known points: (kAudioCvInVoltageAtMinus5V, kAudioCvInMinVoltage) 
+	// Two known points: (kAudioCvInVoltageAtMinus5V, kAudioCvInMinVoltage)
 	//                   (kAudioCvInVoltageAtPlus5V, kAudioCvInMaxVoltage)
-	
+
 	float voltage_span = kAudioCvInVoltageAtPlus5V - kAudioCvInVoltageAtMinus5V;
 	float signal_span = kAudioCvInMaxVoltage - kAudioCvInMinVoltage;
-	
+
 	// Scale factor: change in output per unit change in input
 	voltage_scale_ = signal_span / voltage_span;
-	
+
 	// Offset: output value when input is zero
 	voltage_offset_ = kAudioCvInMinVoltage - (kAudioCvInVoltageAtMinus5V * voltage_scale_);
 }

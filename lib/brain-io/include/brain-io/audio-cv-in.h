@@ -15,7 +15,7 @@ namespace brain::io {
 
 /**
  * Audio/CV input controller for two-channel analog input via RP2040 ADC
- * 
+ *
  * Handles reading analog signals that have been level-shifted from ±5V range
  * to the RP2040 ADC input range. Provides both raw ADC values and converted
  * voltage values using configurable calibration constants.
@@ -39,45 +39,45 @@ class AudioCvIn {
 	 * @param channel Channel number (use BRAIN_AUDIO_CV_IN_CHANNEL_A/B constants)
 	 * @return Raw 12-bit ADC value (0-4095)
 	 */
-	uint16_t getRaw(int channel) const;
+	uint16_t get_raw(int channel) const;
 
 	/**
 	 * Get raw ADC value for channel A
 	 * @return Raw 12-bit ADC value (0-4095)
 	 */
-	uint16_t getRawChannelA() const;
+	uint16_t get_raw_channel_a() const;
 
 	/**
 	 * Get raw ADC value for channel B
 	 * @return Raw 12-bit ADC value (0-4095)
 	 */
-	uint16_t getRawChannelB() const;
+	uint16_t get_raw_channel_b() const;
 
 	/**
 	 * Get converted voltage for specified channel
 	 * @param channel Channel number (use BRAIN_AUDIO_CV_IN_CHANNEL_A/B constants)
 	 * @return Original signal voltage (-5.0V to +5.0V range)
 	 */
-	float getVoltage(int channel) const;
+	float get_voltage(int channel) const;
 
 	/**
 	 * Get converted voltage for channel A
 	 * @return Original signal voltage (-5.0V to +5.0V range)
 	 */
-	float getVoltageChannelA() const;
+	float get_voltage_channel_a() const;
 
 	/**
 	 * Get converted voltage for channel B
 	 * @return Original signal voltage (-5.0V to +5.0V range)
 	 */
-	float getVoltageChannelB() const;
+	float get_voltage_channel_b() const;
 
 	private:
 	/** Convert ADC reading to original signal voltage using calibration */
-	float adcToVoltage(uint16_t adc_value) const;
+	float adc_to_voltage(uint16_t adc_value) const;
 
 	/** Calculate conversion parameters from calibration constants */
-	void calculateConversionParameters();
+	void calculate_conversion_parameters();
 
 	// Current ADC readings for both channels
 	uint16_t channel_raw_[2] = {0, 0};
