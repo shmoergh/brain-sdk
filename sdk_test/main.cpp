@@ -21,7 +21,7 @@
 #include "brain-io/midi-parser.h"
 #include "brain-ui/button.h"
 #include "brain-ui/led.h"
-#include "brain-ui/pot-multiplexer.h"
+#include "brain-ui/pots.h"
 
 int main() {
     // Initialize standard I/O
