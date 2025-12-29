@@ -52,7 +52,7 @@ class Pulse {
 	 *
 	 * @return true when GPIO pin is HIGH
 	 */
-	bool readRaw() const;
+	bool read_raw() const;
 
 	/**
 	 * @brief Set logical output state
@@ -73,14 +73,14 @@ class Pulse {
 	 *
 	 * @param cb Callback function to invoke
 	 */
-	void onRise(std::function<void()> cb);
+	void on_rise(std::function<void()> cb);
 
 	/**
 	 * @brief Set callback for logical falling edge (high→low)
 	 *
 	 * @param cb Callback function to invoke
 	 */
-	void onFall(std::function<void()> cb);
+	void on_fall(std::function<void()> cb);
 
 	/**
 	 * @brief Poll for edge detection (call in main loop)
@@ -92,17 +92,17 @@ class Pulse {
 	 *
 	 * @param us Microseconds to filter (0 = disabled)
 	 */
-	void setInputGlitchFilterUs(uint32_t us);
+	void set_input_glitch_filter_us(uint32_t us);
 
 	/**
 	 * @brief Enable interrupt-driven edge detection
 	 */
-	void enableInterrupts();
+	void enable_interrupts();
 
 	/**
 	 * @brief Disable interrupt-driven edge detection
 	 */
-	void disableInterrupts();
+	void disable_interrupts();
 
 	private:
 	uint in_gpio_;
@@ -119,8 +119,8 @@ class Pulse {
 	uint32_t last_change_time_us_;
 	bool filtered_state_;
 
-	static void gpioIrqHandler(uint gpio, uint32_t events);
-	void handleEdge(bool raw_state);
+	static void gpio_irq_handler(uint gpio, uint32_t events);
+	void handle_edge(bool raw_state);
 };
 
 }  // namespace brain::io

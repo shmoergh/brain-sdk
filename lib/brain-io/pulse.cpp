@@ -51,7 +51,7 @@ void Pulse::begin() {
 void Pulse::end() {
 	// Disable interrupts if enabled
 	if (interrupts_enabled_) {
-		disableInterrupts();
+		disable_interrupts();
 	}
 
 	// Clear IRQ instance
@@ -71,7 +71,7 @@ bool Pulse::read() const {
 	return !gpio_get(in_gpio_);
 }
 
-bool Pulse::readRaw() const {
+bool Pulse::read_raw() const {
 	return gpio_get(in_gpio_);
 }
 
@@ -88,11 +88,11 @@ bool Pulse::get() const {
 	return current_output_state_;
 }
 
-void Pulse::onRise(std::function<void()> cb) {
+void Pulse::on_rise(std::function<void()> cb) {
 	on_rise_callback_ = cb;
 }
 
-void Pulse::onFall(std::function<void()> cb) {
+void Pulse::on_fall(std::function<void()> cb) {
 	on_fall_callback_ = cb;
 }
 
@@ -129,35 +129,35 @@ void Pulse::poll() {
 	}
 }
 
-void Pulse::setInputGlitchFilterUs(uint32_t us) {
+void Pulse::set_input_glitch_filter_us(uint32_t us) {
 	glitch_filter_us_ = us;
 }
 
-void Pulse::enableInterrupts() {
+void Pulse::enable_interrupts() {
 	if (!interrupts_enabled_) {
 		gpio_set_irq_enabled_with_callback(
-			in_gpio_, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpioIrqHandler);
+			in_gpio_, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 		interrupts_enabled_ = true;
 	}
 }
 
-void Pulse::disableInterrupts() {
+void Pulse::disable_interrupts() {
 	if (interrupts_enabled_) {
 		gpio_set_irq_enabled(in_gpio_, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
 		interrupts_enabled_ = false;
 	}
 }
 
-void Pulse::gpioIrqHandler(uint gpio, uint32_t events) {
+void Pulse::gpio_irq_handler(uint gpio, uint32_t events) {
 	if (gpio < NUM_BANK0_GPIOS && irq_instances[gpio] != nullptr) {
 		// In ISR context - just record that an edge occurred
 		// The actual edge processing happens in Poll() in main loop
 		bool raw_state = gpio_get(gpio);
-		irq_instances[gpio]->handleEdge(raw_state);
+		irq_instances[gpio]->handle_edge(raw_state);
 	}
 }
 
-void Pulse::handleEdge(bool raw_state) {
+void Pulse::handle_edge(bool raw_state) {
 	// This is called from ISR - keep it minimal
 	// The actual callback invocation happens in Poll()
 	// Just update timing for glitch filter
