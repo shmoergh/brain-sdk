@@ -13,8 +13,8 @@ void RingBuffer::init(uint8_t* data_buffer, uint16_t buffer_size) {
  * Since it's a circular/ringbuffer we keep increasing the write index and wrap
  * around once it exceeds the size of the buffer.
  */
-bool RingBuffer::writeByte(uint8_t data) {
-	if (!isFull()) {
+bool RingBuffer::write_byte(uint8_t data) {
+	if (!is_full()) {
 		data_buffer_[write_index_] = data;
 		write_index_++;
 		if (write_index_ >= buffer_size_) write_index_ = 0;
@@ -27,8 +27,8 @@ bool RingBuffer::writeByte(uint8_t data) {
  * Similar to the write function, we increase the read index. We don't actually
  * remove value from the array, it removes automatically as it wraps around.
  */
-bool RingBuffer::readByte(uint8_t& data) {
-	if (!isEmpty()) {
+bool RingBuffer::read_byte(uint8_t& data) {
+	if (!is_empty()) {
 		data = data_buffer_[read_index_];
 		read_index_++;
 		if (read_index_ >= buffer_size_) read_index_ = 0;
@@ -38,7 +38,7 @@ bool RingBuffer::readByte(uint8_t& data) {
 }
 
 bool RingBuffer::peek(uint8_t& data) const {
-	if (!isEmpty()) {
+	if (!is_empty()) {
 		data = data_buffer_[read_index_];
 		return true;
 	}
@@ -50,7 +50,7 @@ bool RingBuffer::peek(uint8_t& data) const {
  * When read and write indices are equal, the buffer is empty.
  * This is ISR-safe because we only read volatile indices (no modifications).
  */
-bool RingBuffer::isEmpty() const {
+bool RingBuffer::is_empty() const {
 	return read_index_ == write_index_;
 }
 
@@ -67,7 +67,7 @@ bool RingBuffer::isEmpty() const {
  *
  * Note: With buffer_size_ = N, you can store (N - 1) items maximum.
  */
-bool RingBuffer::isFull() const {
+bool RingBuffer::is_full() const {
 	return ((write_index_ + 1) % buffer_size_) == read_index_;
 }
 

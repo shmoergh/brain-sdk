@@ -200,15 +200,15 @@ void MidiParser::processUartInput() {
 		}
 
 		// If there's no error, write the data to the ringbuffer
-		if (!buffer_.writeByte(data)) {
+		if (!buffer_.write_byte(data)) {
 			// Handle buffer overflow
 		}
 	}
 
 	// Read the buffer and process it
-	while (!buffer_.isEmpty()) {
+	while (!buffer_.is_empty()) {
 		uint8_t byte = 0;
-		buffer_.readByte(byte);
+		buffer_.read_byte(byte);
 		parse(byte);
 	}
 }

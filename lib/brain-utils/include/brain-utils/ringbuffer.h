@@ -9,11 +9,11 @@ class RingBuffer {
 	public:
 		void init(uint8_t* data_buffer, uint16_t buffer_size);
 
-		bool writeByte(uint8_t data);
-		bool readByte(uint8_t& data);
+		bool write_byte(uint8_t data);
+		bool read_byte(uint8_t& data);
 		bool peek(uint8_t& data) const;
-		bool isFull() const;
-		bool isEmpty() const;
+		bool is_full() const;
+		bool is_empty() const;
 
 	private:
 		uint16_t buffer_size_;
