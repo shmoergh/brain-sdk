@@ -52,17 +52,11 @@ bool Leds::is_blinking(uint8_t led) {
 	return false;
 }
 
-void Leds::on_mask(uint8_t mask) {
+void Leds::set_from_mask(uint8_t mask) {
 	for (size_t i = 0; i < NO_OF_LEDS; i++) {
 		if (mask & (1 << i)) {
 			leds_[i].on();
-		}
-	}
-}
-
-void Leds::off_mask(uint8_t mask) {
-	for (size_t i = 0; i < NO_OF_LEDS; i++) {
-		if (mask & (1 << i)) {
+		} else {
 			leds_[i].off();
 		}
 	}

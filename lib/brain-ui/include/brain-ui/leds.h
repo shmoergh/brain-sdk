@@ -38,8 +38,7 @@ class Leds {
 		void stop_blink(uint8_t led);
 
 		// Multi led methods
-		void on_mask(uint8_t mask);
-		void off_mask(uint8_t mask);
+		void set_from_mask(uint8_t mask);
 		void on_all();
 		void off_all();
 
