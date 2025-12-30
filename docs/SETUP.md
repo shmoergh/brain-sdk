@@ -65,7 +65,7 @@ Use the helper script:
 ```sh
 ./scripts/new-program.sh <program-name>
 ```
-This will create a new folder under `programs/` with boilerplate files. After running, re-run CMake configure/build:
+This will create a new folder a folder up from the brain-sdk (`../`) with boilerplate files. After running, re-run CMake configure/build:
 ```sh
 rm -rf build
 cmake -B build -G "Unix Makefiles"
