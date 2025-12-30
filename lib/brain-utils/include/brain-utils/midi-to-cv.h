@@ -13,6 +13,9 @@ namespace brain::utils {
 
 class MidiToCV {
 	public:
+		// Call this in main loop
+		void update();
+
 		using NoteOnCallback = brain::io::MidiParser::NoteOnCallback;
 		using NoteOffCallback = brain::io::MidiParser::NoteOffCallback;
 
@@ -24,8 +27,9 @@ class MidiToCV {
 		void set_note_on_callback(brain::io::MidiParser::NoteOnCallback callback);
 		void set_note_off_callback(brain::io::MidiParser::NoteOffCallback callback);
 
-		// Call this in main loop
-		void update();
+		void reset_note_stack();
+
+		void set_gate(bool state);
 		bool is_note_playing();
 
 	protected:
@@ -53,12 +57,12 @@ class MidiToCV {
 		NoteOnCallback note_on_callback_ = nullptr;
 		NoteOffCallback note_off_callback_ = nullptr;
 
-		void reset_note_stack();
 		void push_note(uint8_t note);
 		void pop_note(uint8_t note);
 		int find_note(uint8_t note);
+
 		void set_cv();
-};
+	};
 
 }
 

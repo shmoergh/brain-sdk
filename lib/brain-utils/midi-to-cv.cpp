@@ -27,8 +27,7 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	// Init Gate and set to low
 	gate_.begin();
-	gate_.set(false);
-	gate_on_ = false;
+	set_gate(false);
 
 	// Set MIDI parser channel
 	midi_parser_.set_channel(midi_channel_);
@@ -72,8 +71,7 @@ void MidiToCV::note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
 	set_cv();
 
 	// Set gate high
-	gate_.set(true);
-	gate_on_ = true;
+	set_gate(true);
 
 	// Callback note on
 	if (note_on_callback_) {
@@ -85,8 +83,7 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 	pop_note(note);
 	set_cv();
 	if (current_stack_size_ == 0) {
-		gate_.set(false);
-		gate_on_ = false;
+		set_gate(false);
 	}
 
 	// Callback note off
@@ -180,6 +177,11 @@ void MidiToCV::set_cv() {
 
 	float voltage = (note - kZeroCVMidiNote) / 12.0f;
 	dac_.set_voltage(cv_channel_, voltage);
+}
+
+void MidiToCV::set_gate(bool state) {
+	gate_.set(state);
+	gate_on_ = state;
 }
 
 }
