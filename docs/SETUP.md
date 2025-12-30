@@ -3,7 +3,6 @@
 ## Basic folder structure
 ```
 brain-sdk/
-├── ai/            # Project rules, todos, and documentation
 ├── build/         # CMake build output
 ├── cmake/         # CMake helper scripts
 ├── docs/          # Documentation and conventions

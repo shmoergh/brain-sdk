@@ -19,27 +19,42 @@ As the Pico and Pico2 are pin compatible, the newer version can be used for heav
 
 ## SDK
 
-Anyone can write their own apps for the Brain module. For this we'll provide an SDK with easy access to the built in I/O and interface components. We'll also provide a boilerplate shell script which makes it easy for anyone to get started with a new app/firmware.
+Anyone can write their own apps for the Brain module. The SDK provides easy access to all built-in I/O and interface components, along with utility classes for common tasks. A boilerplate shell script makes it easy to get started with new apps/firmware.
 
 ### Core Components
 
-- [Button](docs/BUTTON.md)
-- [LED](docs/LED.md)
-- [Pots](docs/POT_MULTIPLEXER.md)
-- [Pulse I/O](docs/PULSE.md)
-- [MIDI parser](docs/MIDI_PARSER.md)
+#### I/O Components (`brain::io`)
+- [Audio/CV Input](docs/AUDIO_CV_IN.md) - Two-channel analog input with voltage conversion
+- [Audio/CV Output](docs/AUDIO_CV_OUT.md) - Two-channel DAC output with DC/AC coupling
+- [Pulse I/O](docs/PULSE.md) - Digital pulse input/output for gates and triggers
+- [MIDI Parser](docs/MIDI_PARSER.md) - UART-based MIDI input with message parsing
+
+#### UI Components (`brain::ui`)
+- [Button](docs/BUTTON.md) - Debounced pushbutton input with callbacks
+- [LED](docs/LED.md) - Individual LED control with PWM brightness
+- [Leds](docs/LEDS.md) - Group LED controller for all 6 Brain module LEDs
+- [Pots](docs/POTS.md) - Multiplexed potentiometer reader
+
+#### Utilities (`brain::utils`)
+- [MIDI to CV](docs/MIDI_TO_CV.md) - Complete MIDI-to-CV converter with note priority
+- [Utilities](docs/UTILITIES.md) - RingBuffer and helper functions (map, clamp)
 
 
 ### Folder Structure
 ```
 brain-sdk/
-├── ai/            # Project rules, todos, and documentation
 ├── build/         # CMake build output
 ├── cmake/         # CMake helper scripts
 ├── docs/          # Documentation and conventions
-├── lib/           # Reusable libraries (e.g. brain-io, brain-ui)
+├── lib/           # Reusable libraries
+│   ├── brain-common/    # Common definitions and GPIO setup
+│   ├── brain-io/        # I/O components (ADC, DAC, MIDI, Pulse)
+│   ├── brain-ui/        # UI components (Button, LED, Leds, Pots)
+│   └── brain-utils/     # Utilities (MIDI to CV, RingBuffer, helpers)
 ├── pico-sdk/      # Pico SDK (as a git submodule)
+├── programs/      # Firmware applications
 ├── scripts/       # Helper scripts (e.g. new-program.sh)
+└── sdk_test/      # SDK test programs
 ```
 
 ## Development
