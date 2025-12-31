@@ -127,9 +127,10 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 }
 
 void MidiToCV::control_change(uint8_t cc, uint8_t value, uint8_t channel) {
-	// Modwheel implementation
-	if (cc == 1) {
+	// Modwheel
+	if (cc == 1 && mode_ == Mode::kModWheel) {
 		modwheel_value_ = value;
+		set_cc_cv(midi_value_to_voltage(modwheel_value_));
 	}
 }
 
@@ -221,24 +222,31 @@ void MidiToCV::set_cv() {
 	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
 	dac_.set_voltage(cv_channel_, note_voltage);
 
-	// Handling modes
+	float cc_voltage;
+
 	switch (mode_) {
 		case kUnison: {
-			dac_.set_voltage(cv_other_channel_, note_voltage);
+			cc_voltage = note_voltage;
 			break;
 		}
 
 		case kModWheel: {
-			float velocity_voltage = midi_value_to_voltage(modwheel_value_);
-			dac_.set_voltage(cv_other_channel_, velocity_voltage);
+			cc_voltage = midi_value_to_voltage(modwheel_value_);
+			break;
 		}
 
 		default: {
-			float velocity_voltage = midi_value_to_voltage(play_note.velocity);
-			dac_.set_voltage(cv_other_channel_, velocity_voltage);
+			cc_voltage = midi_value_to_voltage(play_note.velocity);
 			break;
 		}
 	}
+
+	set_cc_cv(cc_voltage);
+}
+
+void MidiToCV::set_cc_cv(float cc_voltage) {
+	// Handling modes
+	dac_.set_voltage(cv_other_channel_, cc_voltage);
 }
 
 void MidiToCV::set_gate(bool state) {

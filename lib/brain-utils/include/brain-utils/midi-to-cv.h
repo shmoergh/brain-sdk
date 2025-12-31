@@ -97,6 +97,7 @@ class MidiToCV {
 		int find_note(uint8_t note);
 
 		uint8_t max_cc_voltage_;
+		void set_cc_cv(float cc_voltage);
 
 		void set_cv();
 
