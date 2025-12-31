@@ -7,8 +7,11 @@ MidiToCV* MidiToCV::instance_ = nullptr;
 bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	instance_ = this;
 
-	cv_channel_ = cv_channel;
+	set_pitch_channel(cv_channel);
 	midi_channel_ = midi_channel;
+
+	// Set default mode
+	set_mode(Midi2CVMode::kDefault);
 
 	// Let bits settle
 	sleep_ms(200);
@@ -25,6 +28,9 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
 	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
 
+	// Enable CV
+	enable_cv();
+
 	// Init Gate and set to low
 	gate_.begin();
 	set_gate(false);
@@ -40,9 +46,17 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	// Reset note stack & last played note
 	reset_note_stack();
-	last_note_ = kZeroCVMidiNote;
+	last_note_ = {kZeroCVMidiNote, 0};
 
 	return true;
+}
+
+void MidiToCV::set_mode(Midi2CVMode mode) {
+	mode_ = mode;
+}
+
+Midi2CVMode MidiToCV::get_mode() const {
+	return mode_;
 }
 
 void MidiToCV::note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel) {
@@ -65,10 +79,12 @@ void MidiToCV::note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
 	}
 
 	// Push note to the note stack
-	push_note(note);
+	push_note(note, velocity);
 
 	// Convert MIDI note to voltage
-	set_cv();
+	if (cv_enabled_) {
+		set_cv();
+	}
 
 	// Set gate high
 	set_gate(true);
@@ -81,7 +97,11 @@ void MidiToCV::note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
 
 void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 	pop_note(note);
-	set_cv();
+
+	if (cv_enabled_) {
+		set_cv();
+	}
+
 	if (current_stack_size_ == 0) {
 		set_gate(false);
 	}
@@ -108,7 +128,9 @@ void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 void MidiToCV::set_pitch_channel(brain::io::AudioCvOutChannel cv_channel) {
 	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
 	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
+
 	cv_channel_ = cv_channel;
+	cv_other_channel_ = cv_channel == brain::io::AudioCvOutChannel::kChannelA ? brain::io::AudioCvOutChannel::kChannelB : brain::io::AudioCvOutChannel::kChannelA;
 }
 
 void MidiToCV::update() {
@@ -119,12 +141,12 @@ bool MidiToCV::is_note_playing() {
 	return gate_on_;
 }
 
-void MidiToCV::push_note(uint8_t note) {
+void MidiToCV::push_note(uint8_t note, uint8_t velocity) {
 	if (find_note(note) != -1) return;
 
 	// Push the new note in the stack
 	if (current_stack_size_ < kNoteStackSize) {
-		note_stack_[current_stack_size_] = note;
+		note_stack_[current_stack_size_] = {note, velocity};
 		current_stack_size_++;
 	}
 }
@@ -137,7 +159,7 @@ void MidiToCV::pop_note(uint8_t note) {
 		note_stack_[i] = note_stack_[i + 1];
 	}
 
-	note_stack_[current_stack_size_ - 1] = 255;
+	note_stack_[current_stack_size_ - 1] = {255, 0};
 	current_stack_size_--;
 }
 
@@ -146,10 +168,10 @@ void MidiToCV::pop_note(uint8_t note) {
  */
 int MidiToCV::find_note(uint8_t note) {
 	for (size_t i = 0; i < kNoteStackSize; i++) {
-		if (note_stack_[i] == note) {
+		if (note_stack_[i].note == note) {
 			return i;
 		}
-		if (note_stack_[i] == 255) {
+		if (note_stack_[i].note == 255) {
 			return -1;
 		}
 	}
@@ -160,28 +182,45 @@ void MidiToCV::reset_note_stack() {
 	current_stack_size_ = 0;
 	for (size_t i = 0; i < kNoteStackSize; i++) {
 		// Use 255 as default value for each note in the stack because MIDI notes go up only until 127
-		note_stack_[i] = 255;
+		note_stack_[i] = {255, 0};
 	}
 }
 
 void MidiToCV::set_cv() {
-	uint8_t note;
+	NoteVelocity play_note;
 
-	// Keep last note on the CV output
+	// Keep last note on the CV output even after releasing all keys
 	if (current_stack_size_ > 0) {
-		note = note_stack_[current_stack_size_ - 1];
-		last_note_ = note;
+		play_note = note_stack_[current_stack_size_ - 1];
+		last_note_ = play_note;
 	} else {
-		note = last_note_;
+		play_note = last_note_;
 	}
 
-	float voltage = (note - kZeroCVMidiNote) / 12.0f;
+	float voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
 	dac_.set_voltage(cv_channel_, voltage);
+
+	// Handling modes
+	switch (mode_) {
+		case kDefault: {
+			float velocity_voltage = play_note.velocity * brain::io::AudioCvOut::kMaxVoltage / 127.0;
+			dac_.set_voltage(cv_other_channel_, velocity_voltage);
+			break;
+		}
+	}
 }
 
 void MidiToCV::set_gate(bool state) {
 	gate_.set(state);
 	gate_on_ = state;
+}
+
+void MidiToCV::enable_cv() {
+	cv_enabled_ = true;
+}
+
+void MidiToCV::disable_cv() {
+	cv_enabled_ = false;
 }
 
 }

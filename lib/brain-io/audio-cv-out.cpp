@@ -7,17 +7,6 @@
 
 namespace brain::io {
 
-// MCP4822 command bits
-static constexpr uint8_t kMCP4822_CHANNEL_A = 0;  // A/B = 0
-static constexpr uint8_t kMCP4822_CHANNEL_B = 1;  // A/B = 1
-static constexpr uint8_t kMCP4822_GAIN = 0;
-static constexpr uint8_t kMCP4822_ACTIVE = 1;
-
-// Voltage conversion constants
-static constexpr float kMaxVoltage = 10.0f;
-static constexpr uint16_t kMaxDacValue = 4095;
-static constexpr uint32_t kSpiFrequency = 1000000;	// 1 MHz
-
 bool AudioCvOut::init(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
 	uint coupling_pin_a, uint coupling_pin_b) {
 	// Validate SPI instance

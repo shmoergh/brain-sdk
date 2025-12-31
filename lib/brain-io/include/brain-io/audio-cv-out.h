@@ -25,51 +25,63 @@ enum class AudioCvOutCoupling {
 /** Audio/CV output controller for MCP4822 DAC with coupling switches */
 class AudioCvOut {
 	public:
-	/**
-	 * Initialize SPI interface and GPIO pins for DAC and coupling control
-	 * @param spi_instance SPI peripheral instance (default: spi0)
-	 * @param cs_pin Chip select GPIO pin for MCP4822 (default: GPIO 5)
-	 * @param sck_pin SPI clock (SCK) GPIO pin (default: GPIO 2)
-	 * @param tx_pin SPI TX/MOSI GPIO pin (default: GPIO 3)
-	 * @param coupling_pin_a CD4053 control pin for channel A coupling (default: GPIO 6)
-	 * @param coupling_pin_b CD4053 control pin for channel B coupling (default: GPIO 7)
-	 * @return true if initialization successful, false on error
-	 */
-	bool init(spi_inst_t* spi_instance = spi0, uint cs_pin = GPIO_BRAIN_AUDIO_CV_OUT_CS,
-		uint sck_pin = GPIO_BRAIN_AUDIO_CV_OUT_SCK, uint tx_pin = GPIO_BRAIN_AUDIO_CV_OUT_TX,
-		uint coupling_pin_a = GPIO_BRAIN_AUDIO_CV_OUT_COUPLING_A,
-		uint coupling_pin_b = GPIO_BRAIN_AUDIO_CV_OUT_COUPLING_B);
 
-	/**
-	 * Set output voltage on specified channel
-	 * @param channel Target output channel (A or B)
-	 * @param voltage Output voltage in range 0.0V to 10.0V
-	 * @return true if voltage set successfully, false on error
-	 */
-	bool set_voltage(AudioCvOutChannel channel, float voltage);
+		// MCP4822 command bits
+		static constexpr uint8_t kMCP4822_CHANNEL_A = 0;  // A/B = 0
+		static constexpr uint8_t kMCP4822_CHANNEL_B = 1;  // A/B = 1
+		static constexpr uint8_t kMCP4822_GAIN = 0;
+		static constexpr uint8_t kMCP4822_ACTIVE = 1;
 
-	/**
-	 * Configure DC/AC coupling for specified channel
-	 * @param channel Target output channel (A or B)
-	 * @param coupling Desired coupling mode
-	 * @return true if coupling set successfully, false on error
-	 */
-	bool set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling);
+		// Voltage conversion constants
+		static constexpr float kMaxVoltage = 10.0f;
+		static constexpr uint16_t kMaxDacValue = 4095;
+		static constexpr uint32_t kSpiFrequency = 1000000;	// 1 MHz
+
+		/**
+		 * Initialize SPI interface and GPIO pins for DAC and coupling control
+		 * @param spi_instance SPI peripheral instance (default: spi0)
+		 * @param cs_pin Chip select GPIO pin for MCP4822 (default: GPIO 5)
+		 * @param sck_pin SPI clock (SCK) GPIO pin (default: GPIO 2)
+		 * @param tx_pin SPI TX/MOSI GPIO pin (default: GPIO 3)
+		 * @param coupling_pin_a CD4053 control pin for channel A coupling (default: GPIO 6)
+		 * @param coupling_pin_b CD4053 control pin for channel B coupling (default: GPIO 7)
+		 * @return true if initialization successful, false on error
+		 */
+		bool init(spi_inst_t* spi_instance = spi0, uint cs_pin = GPIO_BRAIN_AUDIO_CV_OUT_CS,
+			uint sck_pin = GPIO_BRAIN_AUDIO_CV_OUT_SCK, uint tx_pin = GPIO_BRAIN_AUDIO_CV_OUT_TX,
+			uint coupling_pin_a = GPIO_BRAIN_AUDIO_CV_OUT_COUPLING_A,
+			uint coupling_pin_b = GPIO_BRAIN_AUDIO_CV_OUT_COUPLING_B);
+
+		/**
+		 * Set output voltage on specified channel
+		 * @param channel Target output channel (A or B)
+		 * @param voltage Output voltage in range 0.0V to 10.0V
+		 * @return true if voltage set successfully, false on error
+		 */
+		bool set_voltage(AudioCvOutChannel channel, float voltage);
+
+		/**
+		 * Configure DC/AC coupling for specified channel
+		 * @param channel Target output channel (A or B)
+		 * @param coupling Desired coupling mode
+		 * @return true if coupling set successfully, false on error
+		 */
+		bool set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling);
 
 	private:
-	/** Send 16-bit command to MCP4822 via SPI */
-	void write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value);
+		/** Send 16-bit command to MCP4822 via SPI */
+		void write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value);
 
-	/** Convert voltage (0-10V) to 12-bit DAC value (0-4095) */
-	uint16_t voltage_to_dac(float voltage);
+		/** Convert voltage (0-10V) to 12-bit DAC value (0-4095) */
+		uint16_t voltage_to_dac(float voltage);
 
-	// Hardware configuration
-	uint cs_pin_ = 0;
-	uint sck_pin_ = 0;
-	uint tx_pin_ = 0;
-	uint coupling_pin_a_ = 0;
-	uint coupling_pin_b_ = 0;
-	spi_inst_t* spi_instance_ = nullptr;
+		// Hardware configuration
+		uint cs_pin_ = 0;
+		uint sck_pin_ = 0;
+		uint tx_pin_ = 0;
+		uint coupling_pin_a_ = 0;
+		uint coupling_pin_b_ = 0;
+		spi_inst_t* spi_instance_ = nullptr;
 };
 
 }  // namespace brain::io
