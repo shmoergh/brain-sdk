@@ -6,8 +6,6 @@ MidiToCV* MidiToCV::instance_ = nullptr;
 
 bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	instance_ = this;
-
-	set_pitch_channel(cv_channel);
 	midi_channel_ = midi_channel;
 
 	// Set default mode
@@ -53,6 +51,9 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	// Modwheel
 	modwheel_value_ = 0;
+
+	// Set CV channel
+	set_pitch_channel(cv_channel);
 
 	return true;
 }
