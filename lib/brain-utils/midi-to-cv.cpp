@@ -52,7 +52,8 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	// Modwheel
 	modwheel_value_ = 0;
 
-	// Set CV channel
+	// Set up CV
+	max_cc_voltage_ = brain::io::AudioCvOut::kMaxVoltage;
 	set_pitch_channel(cv_channel);
 
 	return true;
@@ -253,8 +254,12 @@ void MidiToCV::disable_cv() {
 	cv_enabled_ = false;
 }
 
+void MidiToCV::set_max_cc_voltage(uint8_t max_voltage) {
+	max_cc_voltage_ = clamp(0, brain::io::AudioCvOut::kMaxDacValue, max_voltage);
+}
+
 float MidiToCV::midi_value_to_voltage(uint8_t value) {
-	return value * brain::io::AudioCvOut::kMaxVoltage / 127.0;
+	return value * max_cc_voltage_ / 127.0;
 }
 
 }

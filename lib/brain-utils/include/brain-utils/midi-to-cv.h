@@ -8,6 +8,7 @@
 #include "brain-io/audio-cv-out.h"
 #include "brain-io/pulse.h"
 #include "brain-io/midi-parser.h"
+#include "brain-utils/helpers.h"
 
 namespace brain::utils {
 
@@ -43,6 +44,8 @@ class MidiToCV {
 
 		void set_gate(bool state);
 		bool is_note_playing();
+
+		void set_max_cc_voltage(uint8_t max_voltage);
 
 		void enable_cv();
 		void disable_cv();
@@ -92,6 +95,8 @@ class MidiToCV {
 		void push_note(uint8_t note, uint8_t velocity);
 		void pop_note(uint8_t note);
 		int find_note(uint8_t note);
+
+		uint8_t max_cc_voltage_;
 
 		void set_cv();
 

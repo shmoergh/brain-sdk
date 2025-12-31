@@ -1,3 +1,6 @@
+#ifndef BRAIN_UTILS_HELPERS_H
+#define BRAIN_UTILS_HELPERS_H
+
 #include <stdint.h>
 
 static inline long map(long x, long in_min, long in_max, long out_min, long out_max) {
@@ -12,3 +15,5 @@ static inline int clamp(int min, int max, int value) {
 	}
 	return value;
 }
+
+#endif
