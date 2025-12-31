@@ -13,6 +13,8 @@
 
 namespace brain::io {
 
+enum AudioCvInChannel { kChannelA = 0, kChannelB = 1 };
+
 /**
  * Audio/CV input controller for two-channel analog input via RP2040 ADC
  *

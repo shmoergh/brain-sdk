@@ -24,8 +24,8 @@
 #define BRAIN_BUTTON_2 GPIO_BRAIN_BUTTON_2
 
 // Common constants that might be used across modules
-namespace brain {
-namespace constants {
+namespace brain::constants {
+
 // Timing constants
 constexpr uint32_t kMicrosPerSecond = 1000000;
 constexpr uint32_t kMillisPerSecond = 1000;
@@ -45,9 +45,6 @@ constexpr float kAudioCvInVoltageAtPlus5V = 3.000f;   // Approx 3V for +5V input
 // Original signal voltage range
 constexpr float kAudioCvInMinVoltage = -5.0f;
 constexpr float kAudioCvInMaxVoltage = 5.0f;
-}  // namespace constants
-}  // namespace brain
 
-// Audio CV In channel constants
-#define BRAIN_AUDIO_CV_IN_CHANNEL_A 0
-#define BRAIN_AUDIO_CV_IN_CHANNEL_B 1
+}
+

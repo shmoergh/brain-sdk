@@ -29,41 +29,41 @@ bool AudioCvIn::init() {
 void AudioCvIn::update() {
 	// Read channel A (GPIO 27 = ADC1)
 	adc_select_input(1);
-	channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A] = adc_read();
+	channel_raw_[AudioCvInChannel::kChannelA] = adc_read();
 
 	// Read channel B (GPIO 28 = ADC2)
 	adc_select_input(2);
-	channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B] = adc_read();
+	channel_raw_[AudioCvInChannel::kChannelB] = adc_read();
 }
 
 uint16_t AudioCvIn::get_raw(int channel) const {
-	if (channel == BRAIN_AUDIO_CV_IN_CHANNEL_A || channel == BRAIN_AUDIO_CV_IN_CHANNEL_B) {
+	if (channel == AudioCvInChannel::kChannelA || channel == AudioCvInChannel::kChannelB) {
 		return channel_raw_[channel];
 	}
 	return 0;
 }
 
 uint16_t AudioCvIn::get_raw_channel_a() const {
-	return channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A];
+	return channel_raw_[AudioCvInChannel::kChannelA];
 }
 
 uint16_t AudioCvIn::get_raw_channel_b() const {
-	return channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B];
+	return channel_raw_[AudioCvInChannel::kChannelB];
 }
 
 float AudioCvIn::get_voltage(int channel) const {
-	if (channel == BRAIN_AUDIO_CV_IN_CHANNEL_A || channel == BRAIN_AUDIO_CV_IN_CHANNEL_B) {
+	if (channel == AudioCvInChannel::kChannelA || channel == AudioCvInChannel::kChannelB) {
 		return adc_to_voltage(channel_raw_[channel]);
 	}
 	return 0.0f;
 }
 
 float AudioCvIn::get_voltage_channel_a() const {
-	return adc_to_voltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_A]);
+	return adc_to_voltage(channel_raw_[AudioCvInChannel::kChannelA]);
 }
 
 float AudioCvIn::get_voltage_channel_b() const {
-	return adc_to_voltage(channel_raw_[BRAIN_AUDIO_CV_IN_CHANNEL_B]);
+	return adc_to_voltage(channel_raw_[AudioCvInChannel::kChannelB]);
 }
 
 float AudioCvIn::adc_to_voltage(uint16_t adc_value) const {
