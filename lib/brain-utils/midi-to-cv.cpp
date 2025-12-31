@@ -11,7 +11,7 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	midi_channel_ = midi_channel;
 
 	// Set default mode
-	set_mode(Midi2CVMode::kDefault);
+	set_mode(Mode::kDefault);
 
 	// Let bits settle
 	sleep_ms(200);
@@ -35,10 +35,13 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	gate_.begin();
 	set_gate(false);
 
-	// Set MIDI parser channel
+	// Set MIDI parser stuff
 	midi_parser_.set_channel(midi_channel_);
+
 	midi_parser_.set_note_on_callback(note_on_callback);
 	midi_parser_.set_note_off_callback(note_off_callback);
+	midi_parser_.set_control_change_callback(control_change_callback);
+
 	if (!midi_parser_.init_uart()) {
 		printf("[ERROR] Brain SDK / Midi to CV: MIDI parser failed to initialize.\n");
 		return false;
@@ -48,14 +51,17 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	reset_note_stack();
 	last_note_ = {kZeroCVMidiNote, 0};
 
+	// Modwheel
+	modwheel_value_ = 0;
+
 	return true;
 }
 
-void MidiToCV::set_mode(Midi2CVMode mode) {
+void MidiToCV::set_mode(Mode mode) {
 	mode_ = mode;
 }
 
-Midi2CVMode MidiToCV::get_mode() const {
+MidiToCV::Mode MidiToCV::get_mode() const {
 	return mode_;
 }
 
@@ -68,6 +74,12 @@ void MidiToCV::note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel)
 void MidiToCV::note_off_callback(uint8_t note, uint8_t velocity, uint8_t channel) {
 	if (instance_) {
 		instance_->note_off(note, velocity, channel);
+	}
+}
+
+void MidiToCV::control_change_callback(uint8_t cc, uint8_t value, uint8_t channel) {
+	if (instance_) {
+		instance_->control_change(cc, value, channel);
 	}
 }
 
@@ -109,6 +121,13 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 	// Callback note off
 	if (note_off_callback_) {
 		note_off_callback_(note, velocity, channel);
+	}
+}
+
+void MidiToCV::control_change(uint8_t cc, uint8_t value, uint8_t channel) {
+	// Modwheel implementation
+	if (cc == 1) {
+		modwheel_value_ = value;
 	}
 }
 
@@ -197,13 +216,23 @@ void MidiToCV::set_cv() {
 		play_note = last_note_;
 	}
 
-	float voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
-	dac_.set_voltage(cv_channel_, voltage);
+	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
+	dac_.set_voltage(cv_channel_, note_voltage);
 
 	// Handling modes
 	switch (mode_) {
-		case kDefault: {
-			float velocity_voltage = play_note.velocity * brain::io::AudioCvOut::kMaxVoltage / 127.0;
+		case kUnison: {
+			dac_.set_voltage(cv_other_channel_, note_voltage);
+			break;
+		}
+
+		case kModWheel: {
+			float velocity_voltage = midi_value_to_voltage(modwheel_value_);
+			dac_.set_voltage(cv_other_channel_, velocity_voltage);
+		}
+
+		default: {
+			float velocity_voltage = midi_value_to_voltage(play_note.velocity);
 			dac_.set_voltage(cv_other_channel_, velocity_voltage);
 			break;
 		}
@@ -221,6 +250,10 @@ void MidiToCV::enable_cv() {
 
 void MidiToCV::disable_cv() {
 	cv_enabled_ = false;
+}
+
+float MidiToCV::midi_value_to_voltage(uint8_t value) {
+	return value * brain::io::AudioCvOut::kMaxVoltage / 127.0;
 }
 
 }
