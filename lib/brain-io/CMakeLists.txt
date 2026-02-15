@@ -1,5 +1,7 @@
 add_library(brain-io
     pulse.cpp
+    pulse-input.cpp
+    pulse-output.cpp
     midi-parser.cpp
     audio-cv-out.cpp
     audio-cv-in.cpp

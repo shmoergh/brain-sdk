@@ -1,0 +1,110 @@
+// Pulse input handler with hardware inversion support for Brain module.
+// Provides digital input reading with transistor-inverted signals and edge detection.
+// Requires: GPIO pin for input (pull-up).
+
+#ifndef BRAIN_IO_PULSE_INPUT_H_
+#define BRAIN_IO_PULSE_INPUT_H_
+
+#include <cstdint>
+#include <functional>
+
+#include "brain-common/brain-gpio-setup.h"
+#include "pico/types.h"
+
+namespace brain::io {
+
+/**
+ * @brief Pulse input handler with hardware inversion support
+ *
+ * Provides a simple API for reading a transistor-inverted digital input.
+ * The SDK handles inversion transparently.
+ */
+class PulseInput {
+	public:
+	/**
+	 * @brief Construct a new PulseInput object
+	 *
+	 * @param in_gpio GPIO pin number for input (default: GPIO_BRAIN_PULSE_INPUT)
+	 */
+	PulseInput(uint in_gpio = GPIO_BRAIN_PULSE_INPUT);
+
+	/**
+	 * @brief Initialize GPIO pin
+	 */
+	void begin();
+
+	/**
+	 * @brief Return pin to input/high-impedance state
+	 */
+	void end();
+
+	/**
+	 * @brief Read logical input state (hardware inversion handled)
+	 *
+	 * @return true when physical jack is logically ON
+	 */
+	bool read() const;
+
+	/**
+	 * @brief Read raw GPIO level for debugging
+	 *
+	 * @return true when GPIO pin is HIGH
+	 */
+	bool read_raw() const;
+
+	/**
+	 * @brief Set callback for logical rising edge (low→high)
+	 *
+	 * @param cb Callback function to invoke
+	 */
+	void on_rise(std::function<void()> cb);
+
+	/**
+	 * @brief Set callback for logical falling edge (high→low)
+	 *
+	 * @param cb Callback function to invoke
+	 */
+	void on_fall(std::function<void()> cb);
+
+	/**
+	 * @brief Poll for edge detection (call in main loop)
+	 */
+	void poll();
+
+	/**
+	 * @brief Set input glitch filter duration
+	 *
+	 * @param us Microseconds to filter (0 = disabled)
+	 */
+	void set_input_glitch_filter_us(uint32_t us);
+
+	/**
+	 * @brief Enable interrupt-driven edge detection
+	 */
+	void enable_interrupts();
+
+	/**
+	 * @brief Disable interrupt-driven edge detection
+	 */
+	void disable_interrupts();
+
+	private:
+	uint in_gpio_;
+	bool last_logical_state_;
+	uint32_t glitch_filter_us_;
+	bool interrupts_enabled_;
+
+	std::function<void()> on_rise_callback_;
+	std::function<void()> on_fall_callback_;
+
+	// For glitch filtering
+	uint32_t last_change_time_us_;
+	bool filtered_state_;
+
+	static void gpio_irq_handler(uint gpio, uint32_t events);
+	void handle_edge(bool raw_state);
+};
+
+}  // namespace brain::io
+
+#endif	// BRAIN_IO_PULSE_INPUT_H_
