@@ -2,6 +2,7 @@ add_library(brain-ui
 	button.cpp
 	led.cpp
 	leds.cpp
+	pot-multi-function.cpp
 	pots.cpp
 )
 target_include_directories(brain-ui PUBLIC
