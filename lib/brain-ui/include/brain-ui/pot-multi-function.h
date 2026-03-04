@@ -77,6 +77,7 @@ private:
 	uint16_t read_raw_for_function(Pots& pots, const FunctionState& state);
 	void on_function_activated(FunctionState& state, uint16_t raw);
 	void update_pickup(FunctionState& state, uint16_t raw);
+	void update_value_scale(FunctionState& state, uint16_t raw);
 };
 
 }  // namespace brain::ui

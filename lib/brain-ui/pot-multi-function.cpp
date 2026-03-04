@@ -91,8 +91,10 @@ void PotMultiFunction::update(Pots& pots) {
 			case PotBehavior::kPickup:
 				update_pickup(state, raw);
 				break;
-			case PotBehavior::kDirect:
-			case PotBehavior::kValueScale: {
+			case PotBehavior::kValueScale:
+				update_value_scale(state, raw);
+				break;
+			case PotBehavior::kDirect: {
 				int32_t mapped = map_raw_to_range(state, raw);
 				mapped = clamp_value(state, mapped);
 				if (mapped != state.value) {
@@ -160,6 +162,13 @@ void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw)
 		if (diff < 0) diff = -diff;
 		state.picked_up = (diff <= state.pickup_hysteresis);
 	}
+	if (state.behavior == PotBehavior::kValueScale) {
+		state.accumulator_q16 = state.value << 16;
+		state.scale_direction = 0;
+		state.scale_anchor_raw = raw;
+		state.scale_anchor_value = state.value;
+		state.scale_step_q16 = 0;
+	}
 }
 
 void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
@@ -184,6 +193,54 @@ void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
 			state.changed = true;
 		}
 	}
+}
+
+void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
+	static constexpr uint16_t kRawMax = 255;
+	if (raw == state.last_raw) return;
+
+	int8_t direction = (raw > state.last_raw) ? 1 : -1;
+	if (direction != state.scale_direction) {
+		state.scale_direction = direction;
+		state.scale_anchor_raw = state.last_raw;
+		state.scale_anchor_value = state.value;
+
+		uint32_t raw_runway = 0;
+		int32_t value_runway = 0;
+		if (direction > 0) {
+			raw_runway = kRawMax - state.scale_anchor_raw;
+			value_runway = state.max_value - state.scale_anchor_value;
+		} else {
+			raw_runway = state.scale_anchor_raw;
+			value_runway = state.scale_anchor_value - state.min_value;
+		}
+
+		if (raw_runway == 0 || value_runway <= 0) {
+			state.scale_step_q16 = 0;
+		} else {
+			state.scale_step_q16 = (static_cast<uint32_t>(value_runway) << 16) / raw_runway;
+		}
+	}
+
+	if (state.scale_step_q16 == 0) return;
+
+	uint16_t raw_delta = (raw > state.last_raw) ? (raw - state.last_raw) : (state.last_raw - raw);
+	uint32_t delta_q16 = raw_delta * state.scale_step_q16;
+	if (direction > 0) {
+		state.accumulator_q16 += static_cast<int32_t>(delta_q16);
+	} else {
+		state.accumulator_q16 -= static_cast<int32_t>(delta_q16);
+	}
+
+	int32_t rounded = (state.accumulator_q16 >= 0)
+		? ((state.accumulator_q16 + (1 << 15)) >> 16)
+		: ((state.accumulator_q16 - (1 << 15)) >> 16);
+	int32_t clamped = clamp_value(state, rounded);
+	if (clamped != state.value) {
+		state.value = clamped;
+		state.changed = true;
+	}
+	state.accumulator_q16 = state.value << 16;
 }
 
 }  // namespace brain::ui
