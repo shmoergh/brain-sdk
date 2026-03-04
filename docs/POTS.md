@@ -91,6 +91,50 @@ pots.set_samples_per_read(8);
 pots.set_change_threshold(2);
 ```
 
+## Multi-function pot helper (takeover behaviors)
+
+When one physical pot controls multiple logical parameters (depending on buttons/modes), use
+`brain-ui/pot-multi-function.h`.
+
+Available behaviors:
+- `kDirect` — direct mapping
+- `kPickup` — value updates only after the pot reaches/crosses current stored value
+- `kValueScale` — smooth convergence from current pot position to stored value domain
+
+Example:
+```cpp
+#include "brain-ui/pot-multi-function.h"
+
+brain::ui::PotMultiFunction multi;
+multi.init();
+
+brain::ui::PotFunctionConfig velocity_cfg;
+velocity_cfg.function_id = 1;
+velocity_cfg.pot_index = 0;
+velocity_cfg.min_value = 0;
+velocity_cfg.max_value = 127;
+velocity_cfg.initial_value = 12;
+velocity_cfg.behavior = brain::ui::PotBehavior::kPickup;
+velocity_cfg.pickup_hysteresis = 1;
+multi.register_function(velocity_cfg);
+
+brain::ui::PotFunctionConfig tempo_cfg;
+tempo_cfg.function_id = 2;
+tempo_cfg.pot_index = 0;
+tempo_cfg.min_value = 20;
+tempo_cfg.max_value = 240;
+tempo_cfg.initial_value = 120;
+tempo_cfg.behavior = brain::ui::PotBehavior::kValueScale;
+tempo_cfg.pickup_hysteresis = 0;
+multi.register_function(tempo_cfg);
+
+// In update loop: resolve active function id from button state
+multi.set_active_function(0, button_a_held ? 2 : 1);
+multi.update(pots);
+
+int32_t value = multi.get_value(button_a_held ? 2 : 1);
+```
+
 ## Notes
 - Designed for Eurorack potentiometers (10k-100k typical)
 - Default settling time is 200µs for stable readings

@@ -22,6 +22,7 @@
 #include "brain-ui/button.h"
 #include "brain-ui/led.h"
 #include "brain-ui/pots.h"
+#include "brain-ui/pot-multi-function.h"
 
 int main() {
     // Initialize standard I/O
