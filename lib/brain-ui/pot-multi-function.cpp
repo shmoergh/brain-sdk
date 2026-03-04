@@ -6,6 +6,7 @@ PotMultiFunction::PotMultiFunction()
 	: max_functions_(kMaxFunctions) {
 	for (uint8_t i = 0; i < kMaxPots; i++) {
 		active_function_per_pot_[i] = 255;
+		previous_active_function_per_pot_[i] = 255;
 	}
 
 	for (uint8_t i = 0; i < kMaxFunctions; i++) {
@@ -18,6 +19,7 @@ void PotMultiFunction::init(uint8_t max_functions) {
 	max_functions_ = (max_functions > kMaxFunctions) ? kMaxFunctions : max_functions;
 	for (uint8_t i = 0; i < kMaxPots; i++) {
 		active_function_per_pot_[i] = 255;
+		previous_active_function_per_pot_[i] = 255;
 	}
 	for (uint8_t i = 0; i < kMaxFunctions; i++) {
 		functions_[i].registered = false;
@@ -71,18 +73,36 @@ void PotMultiFunction::update(Pots& pots) {
 	for (uint8_t pot_index = 0; pot_index < kMaxPots; pot_index++) {
 		uint8_t function_id = active_function_per_pot_[pot_index];
 		int idx = find_index_by_function_id(function_id);
-		if (idx < 0) continue;
+		if (idx < 0) {
+			previous_active_function_per_pot_[pot_index] = 255;
+			continue;
+		}
 
 		FunctionState& state = functions_[idx];
 		if (state.pot_index != pot_index) continue;
 
 		uint16_t raw = read_raw_for_function(pots, state);
-		int32_t mapped = map_raw_to_range(state, raw);
-		mapped = clamp_value(state, mapped);
-		if (mapped != state.value) {
-			state.value = mapped;
-			state.changed = true;
+		if (previous_active_function_per_pot_[pot_index] != function_id) {
+			on_function_activated(state, raw);
+			previous_active_function_per_pot_[pot_index] = function_id;
 		}
+
+		switch (state.behavior) {
+			case PotBehavior::kPickup:
+				update_pickup(state, raw);
+				break;
+			case PotBehavior::kDirect:
+			case PotBehavior::kValueScale: {
+				int32_t mapped = map_raw_to_range(state, raw);
+				mapped = clamp_value(state, mapped);
+				if (mapped != state.value) {
+					state.value = mapped;
+					state.changed = true;
+				}
+				break;
+			}
+		}
+
 		state.last_raw = raw;
 	}
 }
@@ -130,6 +150,40 @@ int32_t PotMultiFunction::map_raw_to_range(const FunctionState& state, uint16_t 
 
 uint16_t PotMultiFunction::read_raw_for_function(Pots& pots, const FunctionState& state) {
 	return pots.get(state.pot_index);
+}
+
+void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw) {
+	state.last_raw = raw;
+	if (state.behavior == PotBehavior::kPickup) {
+		int32_t mapped = map_raw_to_range(state, raw);
+		int32_t diff = mapped - state.value;
+		if (diff < 0) diff = -diff;
+		state.picked_up = (diff <= state.pickup_hysteresis);
+	}
+}
+
+void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
+	int32_t mapped_prev = map_raw_to_range(state, state.last_raw);
+	int32_t mapped_curr = map_raw_to_range(state, raw);
+
+	int32_t diff_curr = mapped_curr - state.value;
+	if (diff_curr < 0) diff_curr = -diff_curr;
+
+	if (!state.picked_up) {
+		bool crossed = ((mapped_prev <= state.value) && (mapped_curr >= state.value))
+			|| ((mapped_prev >= state.value) && (mapped_curr <= state.value));
+		if (crossed || (diff_curr <= state.pickup_hysteresis)) {
+			state.picked_up = true;
+		}
+	}
+
+	if (state.picked_up) {
+		int32_t mapped = clamp_value(state, mapped_curr);
+		if (mapped != state.value) {
+			state.value = mapped;
+			state.changed = true;
+		}
+	}
 }
 
 }  // namespace brain::ui

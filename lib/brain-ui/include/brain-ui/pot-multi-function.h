@@ -68,12 +68,15 @@ private:
 
 	uint8_t max_functions_;
 	uint8_t active_function_per_pot_[kMaxPots];
+	uint8_t previous_active_function_per_pot_[kMaxPots];
 	FunctionState functions_[kMaxFunctions];
 
 	int find_index_by_function_id(uint8_t function_id) const;
 	int32_t clamp_value(const FunctionState& state, int32_t value) const;
 	int32_t map_raw_to_range(const FunctionState& state, uint16_t raw) const;
 	uint16_t read_raw_for_function(Pots& pots, const FunctionState& state);
+	void on_function_activated(FunctionState& state, uint16_t raw);
+	void update_pickup(FunctionState& state, uint16_t raw);
 };
 
 }  // namespace brain::ui
