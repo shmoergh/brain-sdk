@@ -90,6 +90,7 @@ void PotMultiFunction::update(Pots& pots) {
 		switch (state.behavior) {
 			case PotBehavior::kPickup:
 				update_pickup(state, raw);
+				state.last_raw = raw;
 				break;
 			case PotBehavior::kValueScale:
 				update_value_scale(state, raw);
@@ -101,11 +102,10 @@ void PotMultiFunction::update(Pots& pots) {
 					state.value = mapped;
 					state.changed = true;
 				}
+				state.last_raw = raw;
 				break;
 			}
 		}
-
-		state.last_raw = raw;
 	}
 }
 
@@ -197,7 +197,11 @@ void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
 
 void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 	static constexpr uint16_t kRawMax = 255;
+	static constexpr uint16_t kNoiseDeadband = 2;
 	if (raw == state.last_raw) return;
+
+	uint16_t raw_delta = (raw > state.last_raw) ? (raw - state.last_raw) : (state.last_raw - raw);
+	if (raw_delta <= kNoiseDeadband) return;
 
 	int8_t direction = (raw > state.last_raw) ? 1 : -1;
 	if (direction != state.scale_direction) {
@@ -224,9 +228,11 @@ void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 		}
 	}
 
-	if (state.scale_step_q16 == 0) return;
+	if (state.scale_step_q16 == 0) {
+		state.last_raw = raw;
+		return;
+	}
 
-	uint16_t raw_delta = (raw > state.last_raw) ? (raw - state.last_raw) : (state.last_raw - raw);
 	uint64_t delta_q16 = static_cast<uint64_t>(raw_delta) * state.scale_step_q16;
 	int64_t accumulator_q16 = state.accumulator_q16;
 	if (direction > 0) {
@@ -249,6 +255,7 @@ void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 		state.value = clamped;
 		state.changed = true;
 	}
+	state.last_raw = raw;
 }
 
 }  // namespace brain::ui
