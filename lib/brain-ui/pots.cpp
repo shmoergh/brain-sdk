@@ -31,6 +31,7 @@ PotsConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 Pots::Pots() {
 	for (int i = 0; i < kMaxPots; ++i) {
 		last_values_[i] = 0;
+		buffered_values_[i] = 0;
 	}
 }
 
@@ -130,9 +131,15 @@ uint16_t Pots::get(uint8_t index) {
 	return (raw * output_max) / kAdcMaxValue;
 }
 
+uint16_t Pots::get_buffered(uint8_t index) const {
+	if (index >= config_.num_pots || index >= kMaxPots) return 0;
+	return buffered_values_[index];
+}
+
 void Pots::scan() {
 	for (uint8_t i = 0; i < config_.num_pots && i < kMaxPots; ++i) {
 		uint16_t val = get(i);
+		buffered_values_[i] = val;
 		if (val > last_values_[i] + config_.change_threshold ||
 			val + config_.change_threshold < last_values_[i]) {
 			last_values_[i] = val;

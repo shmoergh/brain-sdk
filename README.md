@@ -54,7 +54,7 @@ brain-sdk/
 ├── pico-sdk/      # Pico SDK (as a git submodule)
 ├── programs/      # Firmware applications
 ├── scripts/       # Helper scripts (e.g. new-program.sh)
-└── sdk_test/      # SDK test programs
+└── sandbox/       # Sandbox firmware apps
 ```
 
 ## Development

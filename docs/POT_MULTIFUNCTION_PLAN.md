@@ -152,7 +152,7 @@ This solves the “constantly changing upper/lower ranges” problem by freezing
 - Add migration notes for existing firmwares.
 
 ## Test plan (host-side)
-Create deterministic tests under `sdk_test`:
+Create deterministic tests under `sandbox`:
 - registration/context routing
 - pickup lock/unlock/crossing behavior
 - value-scale convergence in both directions

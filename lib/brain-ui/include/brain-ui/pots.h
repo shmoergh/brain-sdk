@@ -102,6 +102,18 @@ class Pots {
 	uint16_t get(uint8_t index);
 
 	/**
+	 * @brief Get last scanned potentiometer value without triggering ADC reads
+	 *
+	 * Returns the buffered value captured by the most recent scan() call.
+	 * Use this after scan() when you want a consistent snapshot across pots
+	 * and want to avoid additional ADC reads.
+	 *
+	 * @param index Logical potentiometer index (0 to num_pots-1)
+	 * @return Buffered scaled value, or 0 if index is invalid
+	 */
+	uint16_t get_buffered(uint8_t index) const;
+
+	/**
 	 * @brief Get raw 12-bit ADC value
 	 *
 	 * Returns the unscaled ADC reading (0-4095) for debugging or
@@ -139,7 +151,8 @@ class Pots {
 	uint16_t read_channel_once(uint8_t ch);
 
 	PotsConfig config_;  ///< Hardware configuration
-	uint16_t last_values_[kMaxPots];  ///< Last known values for change detection
+	uint16_t last_values_[kMaxPots];  ///< Last reported values for change detection
+	uint16_t buffered_values_[kMaxPots];  ///< Last scanned values
 	std::function<void(uint8_t, uint16_t)> on_change_;	///< Change callback function
 };
 

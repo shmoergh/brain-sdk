@@ -4,7 +4,7 @@
 		{
 			"label": "CMake Build",
 			"type": "shell",
-			"command": "cmake --build ${workspaceFolder}/build --target sdk_test",
+			"command": "cmake --build ${workspaceFolder}/build --target sandbox",
 			"group": "build",
 			"problemMatcher": []
 		}
