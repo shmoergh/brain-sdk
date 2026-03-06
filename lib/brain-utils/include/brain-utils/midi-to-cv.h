@@ -18,7 +18,7 @@ class MidiToCV {
 			kDefault = 0, 	// Pitch on selected channel, velocity on the other
 			kModWheel = 1, 	// Pitch on selected channel, modwheel on the other
 			kUnison = 2,	// Pitch on both channel
-			kDuo = 3		// Duophonic mode: last-two-note priority split across both channels
+			kDuo = 3		// Duophonic mode with last-two-note priority and latched duo fallback
 		};
 
 		// Call this in main loop
@@ -81,6 +81,9 @@ class MidiToCV {
 		NoteVelocity note_stack_[kNoteStackSize];
 		uint8_t current_stack_size_;
 		NoteVelocity last_note_;
+		NoteVelocity duo_latched_primary_note_;
+		NoteVelocity duo_latched_secondary_note_;
+		uint8_t duo_prev_stack_size_;
 
 		uint8_t modwheel_value_;
 

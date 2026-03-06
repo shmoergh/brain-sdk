@@ -48,6 +48,9 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	// Reset note stack & last played note
 	reset_note_stack();
 	last_note_ = {kZeroCVMidiNote, 0};
+	duo_latched_primary_note_ = last_note_;
+	duo_latched_secondary_note_ = last_note_;
+	duo_prev_stack_size_ = 0;
 
 	// Modwheel
 	modwheel_value_ = 0;
@@ -61,6 +64,19 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 void MidiToCV::set_mode(Mode mode) {
 	mode_ = mode;
+	if (mode_ == Mode::kDuo) {
+		if (current_stack_size_ > 1) {
+			duo_latched_primary_note_ = note_stack_[current_stack_size_ - 2];
+			duo_latched_secondary_note_ = note_stack_[current_stack_size_ - 1];
+		} else if (current_stack_size_ == 1) {
+			duo_latched_primary_note_ = note_stack_[0];
+			duo_latched_secondary_note_ = note_stack_[0];
+		} else {
+			duo_latched_primary_note_ = last_note_;
+			duo_latched_secondary_note_ = last_note_;
+		}
+		duo_prev_stack_size_ = current_stack_size_;
+	}
 }
 
 MidiToCV::Mode MidiToCV::get_mode() const {
@@ -206,23 +222,20 @@ void MidiToCV::reset_note_stack() {
 		// Use 255 as default value for each note in the stack because MIDI notes go up only until 127
 		note_stack_[i] = {255, 0};
 	}
+	duo_latched_primary_note_ = last_note_;
+	duo_latched_secondary_note_ = last_note_;
+	duo_prev_stack_size_ = 0;
 }
 
 void MidiToCV::set_cv() {
 	NoteVelocity play_note;
-	NoteVelocity duo_primary_note;
-	NoteVelocity duo_secondary_note;
 
 	// Keep last note on the CV output even after releasing all keys
 	if (current_stack_size_ > 0) {
 		play_note = note_stack_[current_stack_size_ - 1];
-		duo_secondary_note = play_note;
-		duo_primary_note = current_stack_size_ > 1 ? note_stack_[current_stack_size_ - 2] : duo_secondary_note;
 		last_note_ = play_note;
 	} else {
 		play_note = last_note_;
-		duo_primary_note = last_note_;
-		duo_secondary_note = last_note_;
 	}
 
 	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
@@ -231,11 +244,23 @@ void MidiToCV::set_cv() {
 
 	switch (mode_) {
 		case kDuo: {
-			// Duo mode uses last-two-note priority: newest two held notes are played.
-			float primary_note_voltage = (duo_primary_note.note - kZeroCVMidiNote) / 12.0f;
-			float secondary_note_voltage = (duo_secondary_note.note - kZeroCVMidiNote) / 12.0f;
+			if (current_stack_size_ > 1) {
+				// Two or more notes: play the newest two held notes.
+				duo_latched_primary_note_ = note_stack_[current_stack_size_ - 2];
+				duo_latched_secondary_note_ = note_stack_[current_stack_size_ - 1];
+			} else if (current_stack_size_ == 1 && duo_prev_stack_size_ == 0) {
+				// New phrase after all notes were released: reset both outputs to the new first note.
+				duo_latched_primary_note_ = note_stack_[0];
+				duo_latched_secondary_note_ = note_stack_[0];
+			} else if (current_stack_size_ == 0) {
+				// No notes held: keep duo outputs latched until the next phrase starts.
+			}
+
+			float primary_note_voltage = (duo_latched_primary_note_.note - kZeroCVMidiNote) / 12.0f;
+			float secondary_note_voltage = (duo_latched_secondary_note_.note - kZeroCVMidiNote) / 12.0f;
 			dac_.set_voltage(cv_channel_, primary_note_voltage);
 			set_cc_cv(secondary_note_voltage);
+			duo_prev_stack_size_ = current_stack_size_;
 			return;
 		}
 
@@ -257,6 +282,7 @@ void MidiToCV::set_cv() {
 
 	dac_.set_voltage(cv_channel_, note_voltage);
 	set_cc_cv(cc_voltage);
+	duo_prev_stack_size_ = current_stack_size_;
 }
 
 void MidiToCV::set_cc_cv(float cc_voltage) {

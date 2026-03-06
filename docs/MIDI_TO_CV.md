@@ -135,7 +135,7 @@ void set_mode(MidiToCV::Mode mode)
 - `kDefault`: velocity CV
 - `kModWheel`: CC1 (mod wheel) CV
 - `kUnison`: same pitch as primary channel
-- `kDuo`: last-two-note priority split: second-most-recent note on primary channel, most-recent note on other channel (if only one note is held, both channels output that note)
+- `kDuo`: last-two-note priority split: second-most-recent note on primary channel, most-recent note on other channel. When falling from 2 notes to 1, the duo pair stays latched until all notes are released and a new first note starts a new phrase.
 
 ### Update
 ```cpp

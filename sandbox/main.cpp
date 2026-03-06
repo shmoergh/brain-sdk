@@ -1,7 +1,7 @@
-#include "apps/multipot_test.h"
+#include "apps/midi_to_cv_test.h"
 
 int main() {
-	sandbox::apps::MultipotTest app;
+	sandbox::apps::MidiToCvTest app;
 	app.init();
 	while (true) {
 		app.update();

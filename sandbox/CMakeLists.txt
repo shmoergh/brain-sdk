@@ -3,6 +3,7 @@
 
 add_executable(sandbox
     main.cpp
+    apps/midi_to_cv_test.cpp
     apps/multipot_test.cpp
 )
 
