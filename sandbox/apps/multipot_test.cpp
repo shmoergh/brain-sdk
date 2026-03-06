@@ -17,7 +17,7 @@ constexpr uint8_t kFunctionTempo = 1;
 constexpr uint8_t kFunctionScale = 2;
 
 // Sandbox knob: choose the behavior used by Pot X.
-constexpr brain::ui::PotBehavior kValuePotBehavior = brain::ui::PotBehavior::kPickup;
+constexpr brain::ui::PotBehavior kValuePotBehavior = brain::ui::PotBehavior::kValueScale;
 
 // Function id table [function] for the selected static behavior.
 constexpr uint8_t kFunctionIdsByFunction[3] = {

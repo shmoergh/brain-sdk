@@ -218,19 +218,28 @@ void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 		if (raw_runway == 0 || value_runway <= 0) {
 			state.scale_step_q16 = 0;
 		} else {
-			state.scale_step_q16 = (static_cast<uint32_t>(value_runway) << 16) / raw_runway;
+			// Rounded fixed-point step to reduce directional quantization bias.
+			state.scale_step_q16 =
+				((static_cast<uint32_t>(value_runway) << 16) + (raw_runway / 2)) / raw_runway;
 		}
 	}
 
 	if (state.scale_step_q16 == 0) return;
 
 	uint16_t raw_delta = (raw > state.last_raw) ? (raw - state.last_raw) : (state.last_raw - raw);
-	uint32_t delta_q16 = raw_delta * state.scale_step_q16;
+	uint64_t delta_q16 = static_cast<uint64_t>(raw_delta) * state.scale_step_q16;
+	int64_t accumulator_q16 = state.accumulator_q16;
 	if (direction > 0) {
-		state.accumulator_q16 += static_cast<int32_t>(delta_q16);
+		accumulator_q16 += static_cast<int64_t>(delta_q16);
 	} else {
-		state.accumulator_q16 -= static_cast<int32_t>(delta_q16);
+		accumulator_q16 -= static_cast<int64_t>(delta_q16);
 	}
+
+	const int64_t min_q16 = static_cast<int64_t>(state.min_value) << 16;
+	const int64_t max_q16 = static_cast<int64_t>(state.max_value) << 16;
+	if (accumulator_q16 < min_q16) accumulator_q16 = min_q16;
+	if (accumulator_q16 > max_q16) accumulator_q16 = max_q16;
+	state.accumulator_q16 = static_cast<int32_t>(accumulator_q16);
 
 	int32_t rounded = (state.accumulator_q16 >= 0)
 		? ((state.accumulator_q16 + (1 << 15)) >> 16)
@@ -240,7 +249,6 @@ void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 		state.value = clamped;
 		state.changed = true;
 	}
-	state.accumulator_q16 = state.value << 16;
 }
 
 }  // namespace brain::ui
