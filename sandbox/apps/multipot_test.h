@@ -10,11 +10,11 @@
 namespace sandbox::apps {
 
 /**
- * @brief Manual sandbox app for testing PotMultiFunction behavior.
+ * @brief Manual sandbox app for testing PotMultiFunction modes.
  *
  * Uses one source pot with button-selected functions, LED feedback,
  * and periodic serial status output.
- * PotMultiFunction behavior defines how physical pot movement maps to the
+ * PotMultiFunction mode defines how physical pot movement maps to the
  * logical value: Direct tracks pot position immediately, Pickup waits until
  * the pot crosses the stored value, and ValueScale changes value incrementally
  * relative to movement direction.
@@ -66,7 +66,7 @@ private:
 	uint8_t resolve_function() const;
 
 	/**
-	 * @brief Render current behavior/function state on LED mask.
+	 * @brief Render current mode/function state on LED mask.
 	 *
 	 * @param function_index Active function index
 	 */

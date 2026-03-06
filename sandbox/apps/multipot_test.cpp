@@ -16,33 +16,33 @@ constexpr uint8_t kFunctionVelocity = 0;
 constexpr uint8_t kFunctionTempo = 1;
 constexpr uint8_t kFunctionScale = 2;
 
-// Sandbox knob: choose the behavior used by Pot X.
-constexpr brain::ui::PotBehavior kValuePotBehavior = brain::ui::PotBehavior::kValueScale;
+// Sandbox knob: choose the mode used by Pot X.
+constexpr brain::ui::PotMode kValuePotMode = brain::ui::PotMode::kValueScale;
 
-// Function id table [function] for the selected static behavior.
+// Function id table [function] for the selected static mode.
 constexpr uint8_t kFunctionIdsByFunction[3] = {
 	1, 2, 3
 };
 
-constexpr uint8_t behavior_to_index(brain::ui::PotBehavior behavior) {
-	switch (behavior) {
-		case brain::ui::PotBehavior::kDirect:
+constexpr uint8_t mode_to_index(brain::ui::PotMode mode) {
+	switch (mode) {
+		case brain::ui::PotMode::kDirect:
 			return 0;
-		case brain::ui::PotBehavior::kPickup:
+		case brain::ui::PotMode::kPickup:
 			return 1;
-		case brain::ui::PotBehavior::kValueScale:
+		case brain::ui::PotMode::kValueScale:
 			return 2;
 	}
 	return 0;
 }
 
-const char* behavior_to_name(brain::ui::PotBehavior behavior) {
-	switch (behavior) {
-		case brain::ui::PotBehavior::kDirect:
+const char* mode_to_name(brain::ui::PotMode mode) {
+	switch (mode) {
+		case brain::ui::PotMode::kDirect:
 			return "Direct";
-		case brain::ui::PotBehavior::kPickup:
+		case brain::ui::PotMode::kPickup:
 			return "Pickup";
-		case brain::ui::PotBehavior::kValueScale:
+		case brain::ui::PotMode::kValueScale:
 			return "ValueScale";
 	}
 	return "Unknown";
@@ -89,7 +89,7 @@ void MultipotTest::init() {
 	printf("\n\r--------\n\r");
 	printf("UI Sandbox started\n");
 	printf("Pot X = value source\n");
-	printf("Value behavior = %s (set in code)\n", behavior_to_name(kValuePotBehavior));
+	printf("Value mode = %s (set in code)\n", mode_to_name(kValuePotMode));
 	printf("Button A/B = function selector (Tempo/Scale)\n");
 }
 
@@ -117,7 +117,7 @@ void MultipotTest::register_functions() {
 		cfg.function_id = kFunctionIdsByFunction[function_index];
 		cfg.pot_index = kPotX;
 		cfg.pickup_hysteresis = 1;
-		cfg.behavior = kValuePotBehavior;
+		cfg.mode = kValuePotMode;
 
 		if (function_index == kFunctionVelocity) {
 			cfg.min_value = 0;
@@ -144,9 +144,9 @@ uint8_t MultipotTest::resolve_function() const {
 }
 
 void MultipotTest::render_leds(uint8_t function_index) {
-	// LEDs 1-3 = behavior, 4-6 = function
+	// LEDs 1-3 = mode, 4-6 = function
 	uint8_t mask = 0;
-	mask |= (1 << behavior_to_index(kValuePotBehavior));
+	mask |= (1 << mode_to_index(kValuePotMode));
 	mask |= (1 << (3 + function_index));
 	leds_.set_from_mask(mask);
 }

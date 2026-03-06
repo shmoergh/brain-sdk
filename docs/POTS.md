@@ -91,12 +91,12 @@ pots.set_samples_per_read(8);
 pots.set_change_threshold(2);
 ```
 
-## Multi-function pot helper (takeover behaviors)
+## Multi-function pot helper (takeover modes)
 
 When one physical pot controls multiple logical parameters (depending on buttons/modes), use
 `brain-ui/pot-multi-function.h`.
 
-Available behaviors:
+Available modes:
 - `kDirect` — direct mapping
 - `kPickup` — value updates only after the pot reaches/crosses current stored value
 - `kValueScale` — smooth convergence from current pot position to stored value domain
@@ -114,7 +114,7 @@ velocity_cfg.pot_index = 0;
 velocity_cfg.min_value = 0;
 velocity_cfg.max_value = 127;
 velocity_cfg.initial_value = 12;
-velocity_cfg.behavior = brain::ui::PotBehavior::kPickup;
+velocity_cfg.mode = brain::ui::PotMode::kPickup;
 velocity_cfg.pickup_hysteresis = 1;
 multi.register_function(velocity_cfg);
 
@@ -124,7 +124,7 @@ tempo_cfg.pot_index = 0;
 tempo_cfg.min_value = 20;
 tempo_cfg.max_value = 240;
 tempo_cfg.initial_value = 120;
-tempo_cfg.behavior = brain::ui::PotBehavior::kValueScale;
+tempo_cfg.mode = brain::ui::PotMode::kValueScale;
 tempo_cfg.pickup_hysteresis = 0;
 multi.register_function(tempo_cfg);
 

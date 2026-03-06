@@ -41,7 +41,7 @@ bool PotMultiFunction::register_function(const PotFunctionConfig& config) {
 		functions_[i].min_value = config.min_value;
 		functions_[i].max_value = config.max_value;
 		functions_[i].value = clamp_value(functions_[i], config.initial_value);
-		functions_[i].behavior = config.behavior;
+		functions_[i].mode = config.mode;
 		functions_[i].pickup_hysteresis = config.pickup_hysteresis;
 		functions_[i].changed = false;
 		functions_[i].picked_up = false;
@@ -87,15 +87,15 @@ void PotMultiFunction::update(Pots& pots) {
 			previous_active_function_per_pot_[pot_index] = function_id;
 		}
 
-		switch (state.behavior) {
-			case PotBehavior::kPickup:
+		switch (state.mode) {
+			case PotMode::kPickup:
 				update_pickup(state, raw);
 				state.last_raw = raw;
 				break;
-			case PotBehavior::kValueScale:
+			case PotMode::kValueScale:
 				update_value_scale(state, raw);
 				break;
-			case PotBehavior::kDirect: {
+			case PotMode::kDirect: {
 				int32_t mapped = map_raw_to_range(state, raw);
 				mapped = clamp_value(state, mapped);
 				if (mapped != state.value) {
@@ -156,13 +156,13 @@ uint16_t PotMultiFunction::read_raw_for_function(Pots& pots, const FunctionState
 
 void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw) {
 	state.last_raw = raw;
-	if (state.behavior == PotBehavior::kPickup) {
+	if (state.mode == PotMode::kPickup) {
 		int32_t mapped = map_raw_to_range(state, raw);
 		int32_t diff = mapped - state.value;
 		if (diff < 0) diff = -diff;
 		state.picked_up = (diff <= state.pickup_hysteresis);
 	}
-	if (state.behavior == PotBehavior::kValueScale) {
+	if (state.mode == PotMode::kValueScale) {
 		state.accumulator_q16 = state.value << 16;
 		state.scale_direction = 0;
 		state.scale_anchor_raw = raw;
@@ -198,7 +198,31 @@ void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
 void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
 	static constexpr uint16_t kRawMax = 255;
 	static constexpr uint16_t kNoiseDeadband = 2;
+	static constexpr uint16_t kEdgeSnapThreshold = 2;
+	static constexpr uint16_t kHighEdgeStart = kRawMax - kEdgeSnapThreshold;
+
 	if (raw == state.last_raw) return;
+
+	// Force deterministic endpoints only when crossing from interior to edge.
+	// This avoids immediate snapping on function switch when the pot already sits at an edge.
+	if (raw <= kEdgeSnapThreshold && state.last_raw > kEdgeSnapThreshold) {
+		if (state.value != state.min_value) {
+			state.value = state.min_value;
+			state.changed = true;
+		}
+		state.accumulator_q16 = state.value << 16;
+		state.last_raw = raw;
+		return;
+	}
+	if (raw >= kHighEdgeStart && state.last_raw < kHighEdgeStart) {
+		if (state.value != state.max_value) {
+			state.value = state.max_value;
+			state.changed = true;
+		}
+		state.accumulator_q16 = state.value << 16;
+		state.last_raw = raw;
+		return;
+	}
 
 	uint16_t raw_delta = (raw > state.last_raw) ? (raw - state.last_raw) : (state.last_raw - raw);
 	if (raw_delta <= kNoiseDeadband) return;

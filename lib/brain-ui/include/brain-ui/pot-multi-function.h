@@ -8,9 +8,9 @@
 namespace brain::ui {
 
 /**
- * @brief Pot-to-value mapping behavior for a registered function.
+ * @brief Pot-to-value mapping mode for a registered function.
  */
-enum class PotBehavior : uint8_t {
+enum class PotMode : uint8_t {
 	/// Value directly follows current pot position.
 	kDirect = 0,
 	/// Value changes only after physical pot crosses stored value.
@@ -28,7 +28,7 @@ struct PotFunctionConfig {
 	int32_t min_value;  ///< Inclusive minimum function value.
 	int32_t max_value;  ///< Inclusive maximum function value.
 	int32_t initial_value;  ///< Initial value (clamped to [min_value, max_value]).
-	PotBehavior behavior;  ///< Pot response mode.
+	PotMode mode;  ///< Pot response mode.
 	uint8_t pickup_hysteresis;  ///< Allowed error window for pickup engagement.
 };
 
@@ -36,7 +36,7 @@ struct PotFunctionConfig {
  * @brief Multi-context pot mapper for mode-dependent logical function values.
  *
  * Lets one physical pot control multiple logical parameters, with one active
- * function per pot at runtime. Behavior can be direct, pickup, or value-scale.
+ * function per pot at runtime. Mode can be direct, pickup, or value-scale.
  */
 class PotMultiFunction {
 public:
@@ -89,7 +89,7 @@ public:
 	/**
 	 * @brief Update active functions using current pot readings.
 	 *
-	 * Reads each active pot and applies that function's configured behavior.
+	 * Reads each active pot and applies that function's configured mode.
 	 * When a value changes, the corresponding function changed flag is set.
 	 *
 	 * @param pots Pot reader used for current input values
@@ -125,7 +125,7 @@ private:
 		int32_t min_value;
 		int32_t max_value;
 		int32_t value;
-		PotBehavior behavior;
+		PotMode mode;
 		uint8_t pickup_hysteresis;
 		bool changed;
 
@@ -182,7 +182,7 @@ private:
 	uint16_t read_raw_for_function(Pots& pots, const FunctionState& state);
 
 	/**
-	 * @brief Initialize per-behavior runtime state when function becomes active.
+	 * @brief Initialize per-mode runtime state when function becomes active.
 	 *
 	 * @param state Function state to initialize
 	 * @param raw Current raw pot reading at activation time
