@@ -128,6 +128,15 @@ void set_pitch_channel(brain::io::AudioCvOutChannel cv_channel)
 ```
 - Change which DAC channel outputs pitch CV
 
+```cpp
+void set_mode(MidiToCV::Mode mode)
+```
+- Select output behavior for the non-primary CV channel:
+- `kDefault`: velocity CV
+- `kModWheel`: CC1 (mod wheel) CV
+- `kUnison`: same pitch as primary channel
+- `kDuo`: last-two-note priority split: second-most-recent note on primary channel, most-recent note on other channel (if only one note is held, both channels output that note)
+
 ### Update
 ```cpp
 void update()

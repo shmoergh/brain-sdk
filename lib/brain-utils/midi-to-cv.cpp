@@ -210,21 +210,35 @@ void MidiToCV::reset_note_stack() {
 
 void MidiToCV::set_cv() {
 	NoteVelocity play_note;
+	NoteVelocity duo_primary_note;
+	NoteVelocity duo_secondary_note;
 
 	// Keep last note on the CV output even after releasing all keys
 	if (current_stack_size_ > 0) {
 		play_note = note_stack_[current_stack_size_ - 1];
+		duo_secondary_note = play_note;
+		duo_primary_note = current_stack_size_ > 1 ? note_stack_[current_stack_size_ - 2] : duo_secondary_note;
 		last_note_ = play_note;
 	} else {
 		play_note = last_note_;
+		duo_primary_note = last_note_;
+		duo_secondary_note = last_note_;
 	}
 
 	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
-	dac_.set_voltage(cv_channel_, note_voltage);
 
 	float cc_voltage;
 
 	switch (mode_) {
+		case kDuo: {
+			// Duo mode uses last-two-note priority: newest two held notes are played.
+			float primary_note_voltage = (duo_primary_note.note - kZeroCVMidiNote) / 12.0f;
+			float secondary_note_voltage = (duo_secondary_note.note - kZeroCVMidiNote) / 12.0f;
+			dac_.set_voltage(cv_channel_, primary_note_voltage);
+			set_cc_cv(secondary_note_voltage);
+			return;
+		}
+
 		case kUnison: {
 			cc_voltage = note_voltage;
 			break;
@@ -241,6 +255,7 @@ void MidiToCV::set_cv() {
 		}
 	}
 
+	dac_.set_voltage(cv_channel_, note_voltage);
 	set_cc_cv(cc_voltage);
 }
 
