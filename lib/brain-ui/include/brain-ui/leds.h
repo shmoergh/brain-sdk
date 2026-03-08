@@ -25,7 +25,13 @@ constexpr uint8_t led_pins[NO_OF_LEDS] = {
 class Leds {
 
 	public:
+		explicit Leds(LedMode mode);
+		explicit Leds(bool simple_mode = false);
+
 		void init();
+		void init(LedMode mode);
+		void set_mode(LedMode mode);
+		LedMode get_mode() const;
 		void update();
 
 		// Single LED methods
@@ -50,6 +56,7 @@ class Leds {
 
 	private:
 		std::vector<Led> leds_;
+		LedMode mode_;	///< Current operating mode for all LEDs
 
 		bool validate_led(uint8_t led);
 };

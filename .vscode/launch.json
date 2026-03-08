@@ -1,12 +1,13 @@
 {
     "version": "0.2.0",
     "configurations": [
-        {   "name": "Pico Debug (RP2040)",
+        {
+            "name": "Test - RP2040",
             "device": "RP2040",
             "gdbPath": "arm-none-eabi-gdb",
-            "cwd": "${workspaceRoot}",
-            "executable": "${workspaceFolder}/build/sandbox/sandbox.elf",
-            "preLaunchTask": "CMake Build",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2040/test/test.elf",
+            "preLaunchTask": "CMake Build Test RP2040",
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",
@@ -21,12 +22,55 @@
                 "continue"
             ]
         },
-        {   "name": "Pico 2 Debug (RP2350)",
+        {
+            "name": "Test - RP2350",
             "device": "RP2350",
             "gdbPath": "arm-none-eabi-gdb",
-            "cwd": "${workspaceRoot}",
-            "executable": "${workspaceFolder}/build/sandbox/sandbox.elf",
-            "preLaunchTask": "CMake Build",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2350/test/test.elf",
+            "preLaunchTask": "CMake Build Test RP2350",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2350.cfg"
+            ],
+            "svdFile": "${env:PICO_SDK_PATH}/src/rp2350/hardware_regs/RP2350.svd",
+            "runToEntryPoint": "main",
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ]
+        },
+        {
+            "name": "Sandbox - RP2040",
+            "device": "RP2040",
+            "gdbPath": "arm-none-eabi-gdb",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2040/sandbox/sandbox.elf",
+            "preLaunchTask": "CMake Build Sandbox RP2040",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg"
+            ],
+            "svdFile": "${env:PICO_SDK_PATH}/src/rp2040/hardware_regs/rp2040.svd",
+            "runToEntryPoint": "main",
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ]
+        },
+        {
+            "name": "Sandbox - RP2350",
+            "device": "RP2350",
+            "gdbPath": "arm-none-eabi-gdb",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2350/sandbox/sandbox.elf",
+            "preLaunchTask": "CMake Build Sandbox RP2350",
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",

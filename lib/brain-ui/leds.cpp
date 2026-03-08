@@ -2,13 +2,45 @@
 
 namespace brain::ui {
 
+Leds::Leds(LedMode mode) : mode_(mode) {}
+
+Leds::Leds(bool simple_mode) : Leds(simple_mode ? LedMode::kSimple : LedMode::kPwm) {}
+
 void Leds::init() {
-	leds_.reserve(NO_OF_LEDS);
+	init(mode_);
+}
+
+void Leds::init(LedMode mode) {
+	mode_ = mode;
+
+	if (leds_.size() != NO_OF_LEDS) {
+		leds_.clear();
+		leds_.reserve(NO_OF_LEDS);
+		for (size_t i = 0; i < NO_OF_LEDS; i++) {
+			leds_.emplace_back(led_pins[i]);
+		}
+	}
 
 	for (size_t i = 0; i < NO_OF_LEDS; i++) {
-		leds_.emplace_back(led_pins[i]);
-		leds_[i].init();
+		leds_[i].init(mode_);
 		leds_[i].off();
+	}
+}
+
+void Leds::set_mode(LedMode mode) {
+	mode_ = mode;
+	for (size_t i = 0; i < leds_.size(); i++) {
+		leds_[i].set_mode(mode_);
+	}
+}
+
+LedMode Leds::get_mode() const {
+	return mode_;
+}
+
+void Leds::update() {
+	for (size_t i = 0; i < leds_.size(); i++) {
+		leds_[i].update();
 	}
 }
 
@@ -85,7 +117,7 @@ void Leds::startup_animation() {
 }
 
 bool Leds::validate_led(uint8_t led) {
-	return (led >= 0 && led < 6);
+	return led < NO_OF_LEDS;
 }
 
 }

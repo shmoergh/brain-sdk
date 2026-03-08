@@ -4,8 +4,10 @@
 
 namespace brain::ui {
 
-Led::Led(uint gpio_pin) :
+Led::Led(uint gpio_pin, bool simple_mode) :
 	gpio_pin_(gpio_pin),
+	mode_(simple_mode ? LedMode::kSimple : LedMode::kPwm),
+	initialized_(false),
 	brightness_(255),
 	state_(false),
 	blinking_(false),
@@ -16,12 +18,37 @@ Led::Led(uint gpio_pin) :
 	last_blink_time_(0) {}
 
 void Led::init() {
-	gpio_set_function(gpio_pin_, GPIO_FUNC_PWM);
-	uint slice = pwm_gpio_to_slice_num(gpio_pin_);
-	pwm_set_wrap(slice, 255);
-	pwm_set_enabled(slice, true);
+	initialized_ = true;
+	configure_pin_for_mode();
 	set_brightness(0);
 	state_ = false;
+}
+
+void Led::init(LedMode mode) {
+	mode_ = mode;
+	init();
+}
+
+void Led::set_mode(LedMode mode) {
+	if (mode_ == mode) {
+		return;
+	}
+
+	mode_ = mode;
+	if (!initialized_) {
+		return;
+	}
+
+	configure_pin_for_mode();
+	if (mode_ == LedMode::kSimple) {
+		gpio_put(gpio_pin_, brightness_ > 0);
+	} else {
+		pwm_set_gpio_level(gpio_pin_, brightness_);
+	}
+}
+
+LedMode Led::get_mode() const {
+	return mode_;
 }
 
 void Led::on() {
@@ -50,8 +77,11 @@ void Led::toggle() {
 
 void Led::set_brightness(uint8_t value) {
 	brightness_ = value;
-	uint slice = pwm_gpio_to_slice_num(gpio_pin_);
-	pwm_set_gpio_level(gpio_pin_, brightness_);
+	if (mode_ == LedMode::kSimple) {
+		gpio_put(gpio_pin_, brightness_ > 0);
+	} else {
+		pwm_set_gpio_level(gpio_pin_, brightness_);
+	}
 	state_ = (brightness_ > 0);
 	if (on_state_change_) {
 		on_state_change_(state_);
@@ -139,6 +169,18 @@ void Led::set_on_blink_end(std::function<void()> callback) {
 
 bool Led::is_on() const {
 	return state_;
+}
+
+void Led::configure_pin_for_mode() {
+	if (mode_ == LedMode::kSimple) {
+		gpio_init(gpio_pin_);
+		gpio_set_dir(gpio_pin_, GPIO_OUT);
+	} else {
+		gpio_set_function(gpio_pin_, GPIO_FUNC_PWM);
+		uint slice = pwm_gpio_to_slice_num(gpio_pin_);
+		pwm_set_wrap(slice, 255);
+		pwm_set_enabled(slice, true);
+	}
 }
 
 }  // namespace brain::ui

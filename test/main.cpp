@@ -1,7 +1,7 @@
-#include "apps/blink.h"
+#include "apps/leds_test.h"
 
 int main() {
-	sandbox::apps::Blink app;
+	sandbox::apps::LedsTest app;
 	app.init();
 	while (true) {
 		app.update();

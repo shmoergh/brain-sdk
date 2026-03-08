@@ -1,13 +1,20 @@
-# Sandbox Firmware (`sandbox`)
+# Sandbox Firmware Wrapper (`sandbox`)
 
-Purpose: quick manual testbed for Brain SDK components.
+This directory contains:
+- `main.cpp`: selected app entrypoint
+- `apps/blink.*`: default Pico LED blink app
+- `CMakeLists.txt`: `sandbox` target definition
+- `README.md`: wrapper notes
 
-## Available apps
-- `MidiToCvTest` (`apps/midi_to_cv_test.cpp`): MIDI-to-CV manual test app. Uses hardcoded MIDI channel/pitch channel/mode constants in source and prints note on/off events over USB serial.
-- `MultipotTest` (`apps/multipot_test.cpp`): UI helper test app for `PotMultiFunction` mappings and button-selected functions with LED + serial feedback.
+Hardware test app implementations live in `test/apps/`.
 
-## Notes
-- To switch apps, replace the include and instantiated class in `sandbox/main.cpp`.
-- `sandbox/CMakeLists.txt` currently compiles both app source files into the `sandbox` target.
+## Switching active app
 
-This firmware is intended as a reusable sandbox for validating Brain SDK building blocks before using them in product firmware.
+Edit `sandbox/main.cpp`:
+- change the include from `#include "apps/blink.h"` to the target app header
+- change the instantiated class in `main()`
+
+Then rebuild:
+```bash
+cmake --build build -j4
+```

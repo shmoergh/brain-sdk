@@ -7,6 +7,11 @@
 
 namespace brain::ui {
 
+enum class LedMode : uint8_t {
+	kSimple = 0,
+	kPwm = 1
+};
+
 /**
  * @brief LED handler for PWM brightness, blinking, and state callbacks.
  *
@@ -20,13 +25,35 @@ class Led {
 	 * @brief Construct a new LED object
 	 *
 	 * @param gpio_pin GPIO pin number connected to LED driver transistor
+	 * @param simple_mode If true, start in direct GPIO mode, otherwise PWM mode
 	 */
-	Led(uint gpio_pin);
+	Led(uint gpio_pin, bool simple_mode = false);
 
 	/**
-	 * @brief Initialize GPIO pin and PWM slice for brightness control
+	 * @brief Initialize GPIO using the currently configured mode
 	 */
 	void init();
+
+	/**
+	 * @brief Initialize GPIO and explicitly select mode
+	 *
+	 * @param mode LED operating mode (simple GPIO or PWM)
+	 */
+	void init(LedMode mode);
+
+	/**
+	 * @brief Change LED mode at runtime
+	 *
+	 * Reconfigures the GPIO function and keeps current on/off state.
+	 *
+	 * @param mode LED operating mode (simple GPIO or PWM)
+	 */
+	void set_mode(LedMode mode);
+
+	/**
+	 * @brief Return current LED mode
+	 */
+	LedMode get_mode() const;
 
 	/**
 	 * @brief Turn LED on at current brightness level
@@ -115,7 +142,11 @@ class Led {
 	bool is_blinking() const;
 
 	private:
+	void configure_pin_for_mode();
+
 	uint gpio_pin_;	 ///< GPIO pin number for LED output
+	LedMode mode_;  ///< Current operating mode for this LED
+	bool initialized_;  ///< True after init() has configured GPIO
 	uint8_t brightness_;  ///< Current brightness level (0-255)
 	bool state_;  ///< Current LED state (on/off)
 	bool blinking_;	 ///< True if any blink pattern is active

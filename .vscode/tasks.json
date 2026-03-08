@@ -2,9 +2,27 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "CMake Build",
+			"label": "CMake Build Test RP2040",
 			"type": "shell",
-			"command": "cmake --build ${workspaceFolder}/build --target sandbox",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2040 -DPICO_BOARD=pico -DPICO_PLATFORM=rp2040 && cmake --build ${workspaceFolder}/build-rp2040 --target test",
+			"problemMatcher": []
+		},
+		{
+			"label": "CMake Build Test RP2350",
+			"type": "shell",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2350 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350-arm-s && cmake --build ${workspaceFolder}/build-rp2350 --target test",
+			"problemMatcher": []
+		},
+		{
+			"label": "CMake Build Sandbox RP2040",
+			"type": "shell",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2040 -DPICO_BOARD=pico -DPICO_PLATFORM=rp2040 && cmake --build ${workspaceFolder}/build-rp2040 --target sandbox",
+			"problemMatcher": []
+		},
+		{
+			"label": "CMake Build Sandbox RP2350",
+			"type": "shell",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2350 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350-arm-s && cmake --build ${workspaceFolder}/build-rp2350 --target sandbox",
 			"group": "build",
 			"problemMatcher": []
 		}

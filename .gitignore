@@ -2,6 +2,8 @@
 _deps
 cmake-*
 build
+build-rp2040
+build-rp2350
 .DS_Store
 *.lck
 **/ai

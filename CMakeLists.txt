@@ -4,13 +4,17 @@ cmake_minimum_required(VERSION 3.22)
 # BOARD CONFIGURATION - Comment/uncomment to switch between boards
 # ============================================================================
 
-# Raspberry Pi Pico (RP2040 - ARM Cortex-M0+) - ACTIVE
+# Raspberry Pi Pico (RP2040 - ARM Cortex-M0+)
 # set(PICO_BOARD pico)
 # set(PICO_PLATFORM rp2040)
 
-# Raspberry Pi Pico 2 (RP2350 - ARM Cortex-M33)
-set(PICO_BOARD pico2)
-set(PICO_PLATFORM rp2350-arm-s)
+# Raspberry Pi Pico 2 (RP2350 - ARM Cortex-M33) - DEFAULT
+if(NOT DEFINED PICO_BOARD)
+    set(PICO_BOARD pico2)
+endif()
+if(NOT DEFINED PICO_PLATFORM)
+    set(PICO_PLATFORM rp2350-arm-s)
+endif()
 
 # Alternative: Raspberry Pi Pico 2 with RISC-V cores
 # set(PICO_BOARD pico2)
@@ -33,5 +37,6 @@ add_subdirectory(lib)
 # Only build sandbox firmware when this is the top-level project
 # (not when included as a submodule in another project)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_subdirectory(test)
     add_subdirectory(sandbox)
 endif()

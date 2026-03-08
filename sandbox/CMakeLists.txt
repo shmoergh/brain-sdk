@@ -1,10 +1,9 @@
-# Sandbox firmware
-# This executable is a manual sandbox for Brain SDK components.
+# Sandbox firmware wrapper
+# Keeps a minimal entrypoint in sandbox/, while test apps live in ../test/apps.
 
 add_executable(sandbox
     main.cpp
-    apps/midi_to_cv_test.cpp
-    apps/multipot_test.cpp
+    apps/blink.cpp
 )
 
 # Link against all Brain SDK libraries
@@ -16,7 +15,7 @@ target_link_libraries(sandbox
     brain-utils
 )
 
-# Enable USB output for printf
+# Enable USB/UART output for printf
 pico_enable_stdio_usb(sandbox 1)
 pico_enable_stdio_uart(sandbox 1)
 
