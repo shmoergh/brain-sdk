@@ -97,6 +97,18 @@ public:
 	void update(Pots& pots);
 
 	/**
+	 * @brief Update active functions using buffered pot readings.
+	 *
+	 * This path can optionally perform a single pots.scan() first, then all
+	 * active functions consume pots.get_buffered() values from the same snapshot.
+	 * Useful for reducing mux/ADC rereads while keeping per-frame consistency.
+	 *
+	 * @param pots Pot reader used for input values
+	 * @param perform_scan When true, calls pots.scan() before processing
+	 */
+	void update_buffered(Pots& pots, bool perform_scan = true);
+
+	/**
 	 * @brief Get current value of a registered function.
 	 *
 	 * @param function_id Function id
@@ -180,6 +192,15 @@ private:
 	 * @return Raw scaled pot reading
 	 */
 	uint16_t read_raw_for_function(Pots& pots, const FunctionState& state);
+
+	/**
+	 * @brief Shared update implementation for direct or buffered read sources.
+	 *
+	 * @param pots Pot source
+	 * @param use_buffered_values True to use get_buffered(), false to use get()
+	 * @param perform_scan When using buffered values, optionally scan first
+	 */
+	void update_internal(Pots& pots, bool use_buffered_values, bool perform_scan);
 
 	/**
 	 * @brief Initialize per-mode runtime state when function becomes active.

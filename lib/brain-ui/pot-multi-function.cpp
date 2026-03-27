@@ -70,6 +70,18 @@ void PotMultiFunction::set_active_functions(const uint8_t* per_pot_function_ids,
 }
 
 void PotMultiFunction::update(Pots& pots) {
+	update_internal(pots, false, false);
+}
+
+void PotMultiFunction::update_buffered(Pots& pots, bool perform_scan) {
+	update_internal(pots, true, perform_scan);
+}
+
+void PotMultiFunction::update_internal(Pots& pots, bool use_buffered_values, bool perform_scan) {
+	if (use_buffered_values && perform_scan) {
+		pots.scan();
+	}
+
 	for (uint8_t pot_index = 0; pot_index < kMaxPots; pot_index++) {
 		uint8_t function_id = active_function_per_pot_[pot_index];
 		int idx = find_index_by_function_id(function_id);
@@ -81,7 +93,9 @@ void PotMultiFunction::update(Pots& pots) {
 		FunctionState& state = functions_[idx];
 		if (state.pot_index != pot_index) continue;
 
-		uint16_t raw = read_raw_for_function(pots, state);
+		uint16_t raw = use_buffered_values
+			? pots.get_buffered(state.pot_index)
+			: read_raw_for_function(pots, state);
 		if (previous_active_function_per_pot_[pot_index] != function_id) {
 			on_function_activated(state, raw);
 			previous_active_function_per_pot_[pot_index] = function_id;
