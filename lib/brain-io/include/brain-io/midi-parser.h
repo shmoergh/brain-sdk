@@ -90,6 +90,13 @@ public:
 	void process_uart();
 
 	/**
+	 * @brief Process UART MIDI input with a per-call byte budget.
+	 * Only works if init_uart() was called first.
+	 * @param byte_budget Maximum bytes read and parsed in this call (0 = unbounded)
+	 */
+	void process_uart_budgeted(uint16_t byte_budget);
+
+	/**
 	 * @brief Check if UART MIDI input is initialized and ready
 	 * @return true if UART is initialized
 	 */

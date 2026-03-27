@@ -177,6 +177,10 @@ bool MidiParser::init_uart(uart_inst_t* uart, uint8_t rx_gpio, uint32_t baud_rat
 }
 
 void MidiParser::process_uart() {
+	process_uart_budgeted(0u);
+}
+
+void MidiParser::process_uart_budgeted(uint16_t byte_budget) {
 	if (!uart_initialized_ || uart_ == nullptr) {
 		return;
 	}
@@ -186,12 +190,16 @@ void MidiParser::process_uart() {
 		UART_UARTDR_OE_BITS | UART_UARTDR_BE_BITS |
 		UART_UARTDR_PE_BITS | UART_UARTDR_FE_BITS;
 
-	// Read any available MIDI bytes and feed them to the parser
-	while (uart_is_readable(uart_)) {
+	const uint16_t bounded_budget = (byte_budget == 0u) ? 0xFFFFu : byte_budget;
+	uint16_t read_budget = bounded_budget;
+
+	// Read available MIDI bytes and feed them to the parser
+	while (read_budget > 0u && uart_is_readable(uart_)) {
 
 		// Read the byte - this also reads the error flags atomically
 		uint32_t data_reg = uart_get_hw(uart_)->dr;
 		uint8_t data = data_reg & 0xFF;
+		--read_budget;
 
 		// Check for UART errors (these are in the same register read)
 		if (data_reg & kUartErrorMask) {
@@ -205,11 +213,12 @@ void MidiParser::process_uart() {
 		}
 	}
 
-	// Read the buffer and process it
-	while (!buffer_.is_empty()) {
+	uint16_t parse_budget = bounded_budget;
+	while (parse_budget > 0u && !buffer_.is_empty()) {
 		uint8_t byte = 0;
 		buffer_.read_byte(byte);
 		parse(byte);
+		--parse_budget;
 	}
 }
 
