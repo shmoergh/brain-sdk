@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "brain-io/audio-cv-out.h"
 #include "brain-storage/storage.h"
 
 namespace sandbox::apps {
@@ -47,6 +48,25 @@ bool calibration_equal(const brain::storage::CvCalibrationV1& a, const brain::st
 	return std::memcmp(&a, &b, sizeof(brain::storage::CvCalibrationV1)) == 0;
 }
 
+int16_t expected_channel_a_offset(float voltage) {
+	if (voltage <= 0.0f) {
+		return 0;
+	}
+	if (voltage < 1.0f) {
+		return -5;	// between 0 and -10 at 0.5V for test case
+	}
+	if (voltage == 1.0f) {
+		return -10;
+	}
+	if (voltage == 5.5f) {
+		return -55;
+	}
+	if (voltage >= 10.0f) {
+		return -100;
+	}
+	return 0;
+}
+
 }  // namespace
 
 void StorageTest::init() {
@@ -54,7 +74,7 @@ void StorageTest::init() {
 	sleep_ms(1200);
 
 	printf("\n\r--------\n\r");
-	printf("Brain Storage Test (Phase 2+3+4)\n");
+	printf("Brain Storage Test (Phase 2+3+4+5)\n");
 	printf("Layout protected: %s\n",
 		brain::storage::is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
@@ -92,6 +112,7 @@ void StorageTest::update() {
 	uint8_t app_blob_oversize_guard = 0xA5;
 	brain::storage::CvCalibrationV1 calibration_in{};
 	brain::storage::CvCalibrationV1 calibration_out{};
+	brain::io::AudioCvOut dac{};
 	size_t app_blob_actual_size = 0;
 
 	for (size_t i = 0; i < sizeof(pattern); i++) {
@@ -354,7 +375,122 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	printf("\nPhase 2+3+4 storage test result: %s\n",
+	step_pass = dac.init();
+	print_result("Initialize AudioCvOut for calibration math tests", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	dac.clear_calibration();
+	step_pass = !dac.has_calibration();
+	print_result("Clear in-memory calibration state", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	const float phase5_test_voltages[] = {0.0f, 0.5f, 1.0f, 5.5f, 10.0f};
+	bool zero_cal_match = true;
+	for (float voltage : phase5_test_voltages) {
+		dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, voltage);
+		uint16_t raw_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, voltage);
+		uint16_t calibrated_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		if (raw_dac != calibrated_dac) {
+			zero_cal_match = false;
+			printf("  mismatch at %.2fV raw=%u calibrated=%u\n",
+				static_cast<double>(voltage),
+				static_cast<unsigned>(raw_dac),
+				static_cast<unsigned>(calibrated_dac));
+		}
+	}
+	print_result("Zero-calibration calibrated output equals raw output", zero_cal_match);
+	if (!zero_cal_match) {
+		overall_pass = false;
+	}
+
+	for (int i = 0; i < 10; i++) {
+		calibration_in.a_offset_lsb[i] = static_cast<int16_t>(-10 * (i + 1));
+		calibration_in.b_offset_lsb[i] = static_cast<int16_t>(5 * (i + 1));
+	}
+	dac.set_calibration(calibration_in);
+	step_pass = dac.has_calibration();
+	print_result("Load synthetic in-memory calibration", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	bool synthetic_delta_match = true;
+	for (float voltage : phase5_test_voltages) {
+		dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, voltage);
+		int32_t raw_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, voltage);
+		int32_t calibrated_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		int32_t expected_delta = expected_channel_a_offset(voltage);
+		if ((calibrated_dac - raw_dac) != expected_delta) {
+			synthetic_delta_match = false;
+			printf("  delta mismatch at %.2fV raw=%ld calibrated=%ld delta=%ld expected=%ld\n",
+				static_cast<double>(voltage),
+				static_cast<long>(raw_dac),
+				static_cast<long>(calibrated_dac),
+				static_cast<long>(calibrated_dac - raw_dac),
+				static_cast<long>(expected_delta));
+		}
+	}
+	print_result("Synthetic calibration produces expected DAC deltas", synthetic_delta_match);
+	if (!synthetic_delta_match) {
+		overall_pass = false;
+	}
+
+	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, -1.0f);
+	int32_t clamped_low_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, 11.0f);
+	int32_t clamped_high_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+
+	step_pass = (clamped_low_dac == 0) && (clamped_high_dac == 3995);
+	print_result("Out-of-range calibrated input clamps safely", step_pass);
+	if (!step_pass) {
+		printf("  clamped_low=%ld (expected 0), clamped_high=%ld (expected 3995)\n",
+			static_cast<long>(clamped_low_dac),
+			static_cast<long>(clamped_high_dac));
+		overall_pass = false;
+	}
+
+	status = brain::storage::write_cv_calibration(&calibration_in);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Write calibration for load-from-flash API test", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	dac.clear_calibration();
+	step_pass = !dac.has_calibration();
+	print_result("Verify calibration cleared before flash load", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	step_pass = dac.load_calibration_from_flash();
+	print_result("Load calibration from flash into AudioCvOut", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 1.0f);
+	int32_t flash_load_raw_1v = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, 1.0f);
+	int32_t flash_load_cal_1v = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+	step_pass = ((flash_load_cal_1v - flash_load_raw_1v) == -10);
+	print_result("Flash-loaded calibration is applied at 1V", step_pass);
+	if (!step_pass) {
+		printf("  raw=%ld calibrated=%ld delta=%ld expected=-10\n",
+			static_cast<long>(flash_load_raw_1v),
+			static_cast<long>(flash_load_cal_1v),
+			static_cast<long>(flash_load_cal_1v - flash_load_raw_1v));
+		overall_pass = false;
+	}
+
+	printf("\nPhase 2+3+4+5 storage test result: %s\n",
 		overall_pass ? "PASS" : "FAIL");
 	printf("Execution complete. Power cycle or reset to run again.\n");
 
