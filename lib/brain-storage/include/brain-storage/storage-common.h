@@ -40,6 +40,7 @@ enum class StorageStatus : uint8_t {
 	kInvalidArgument,
 	kNotFound,
 	kCorrupt,
+	kOutOfBounds,
 	kTooLarge,
 	kUnprotectedLayout,
 	kFlashError,
