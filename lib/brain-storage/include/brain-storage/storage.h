@@ -19,6 +19,11 @@ enum class StorageRegion : uint8_t {
 	kCalibration,
 };
 
+struct CvCalibrationV1 {
+	int16_t a_offset_lsb[10];
+	int16_t b_offset_lsb[10];
+};
+
 // Returns true when the firmware binary ends before the reserved app-data
 // sector starts, meaning storage regions are linker-protected.
 bool is_layout_protected();
@@ -32,5 +37,9 @@ StorageStatus write_region(
 	StorageRegion region, uint32_t offset, const void* data, size_t size);
 
 StorageStatus erase_region(StorageRegion region);
+
+StorageStatus read_cv_calibration(CvCalibrationV1* out);
+StorageStatus write_cv_calibration(const CvCalibrationV1* in);
+StorageStatus clear_cv_calibration();
 
 }  // namespace brain::storage

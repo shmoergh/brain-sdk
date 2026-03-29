@@ -43,6 +43,10 @@ void print_result(const char* name, bool pass) {
 	printf("[%s] %s\n", pass ? "PASS" : "FAIL", name);
 }
 
+bool calibration_equal(const brain::storage::CvCalibrationV1& a, const brain::storage::CvCalibrationV1& b) {
+	return std::memcmp(&a, &b, sizeof(brain::storage::CvCalibrationV1)) == 0;
+}
+
 }  // namespace
 
 void StorageTest::init() {
@@ -50,7 +54,7 @@ void StorageTest::init() {
 	sleep_ms(1200);
 
 	printf("\n\r--------\n\r");
-	printf("Brain Storage Test (Phase 2)\n");
+	printf("Brain Storage Test (Phase 2+3)\n");
 	printf("Layout protected: %s\n",
 		brain::storage::is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
@@ -81,6 +85,8 @@ void StorageTest::update() {
 	uint8_t calibration_after[64] = {0};
 	uint8_t pattern[64] = {0};
 	uint8_t app_readback[64] = {0};
+	brain::storage::CvCalibrationV1 calibration_in{};
+	brain::storage::CvCalibrationV1 calibration_out{};
 
 	for (size_t i = 0; i < sizeof(pattern); i++) {
 		pattern[i] = static_cast<uint8_t>(0xA0 + i);
@@ -160,7 +166,84 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	printf("\nPhase 2 storage test result: %s\n",
+	for (int i = 0; i < 10; i++) {
+		calibration_in.a_offset_lsb[i] = static_cast<int16_t>(i * 3 - 12);
+		calibration_in.b_offset_lsb[i] = static_cast<int16_t>(30 - i * 2);
+	}
+
+	status = brain::storage::write_cv_calibration(&calibration_in);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Write calibration record", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_cv_calibration(&calibration_out);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Read calibration record", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	step_pass = calibration_equal(calibration_in, calibration_out);
+	print_result("Verify calibration payload roundtrip", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	uint8_t calibration_corrupt_byte = 0;
+	status = brain::storage::read_region(
+		brain::storage::StorageRegion::kCalibration,
+		8,
+		&calibration_corrupt_byte,
+		1);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Read one calibration byte for corruption test", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	calibration_corrupt_byte ^= 0x5A;
+	status = brain::storage::write_region(
+		brain::storage::StorageRegion::kCalibration,
+		8,
+		&calibration_corrupt_byte,
+		1);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Corrupt one calibration byte", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_cv_calibration(&calibration_out);
+	step_pass = (status == brain::storage::StorageStatus::kCorrupt);
+	print_result("Detect corrupted calibration record", step_pass);
+	if (!step_pass) {
+		printf("  status=%s (expected kCorrupt)\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::clear_cv_calibration();
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Clear calibration sector", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_cv_calibration(&calibration_out);
+	step_pass = (status == brain::storage::StorageStatus::kNotFound);
+	print_result("Read calibration after clear returns not found", step_pass);
+	if (!step_pass) {
+		printf("  status=%s (expected kNotFound)\n", to_string(status));
+		overall_pass = false;
+	}
+
+	printf("\nPhase 2+3 storage test result: %s\n",
 		overall_pass ? "PASS" : "FAIL");
 	printf("Execution complete. Power cycle or reset to run again.\n");
 
