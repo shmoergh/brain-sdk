@@ -3,9 +3,23 @@
 #include <hardware/gpio.h>
 #include <pico/stdlib.h>
 
+#include <cmath>
 #include <cstdio>
 
+#include "brain-storage/storage.h"
+
 namespace brain::io {
+
+namespace {
+
+int16_t round_to_int16(float value) {
+	if (value >= 0.0f) {
+		return static_cast<int16_t>(value + 0.5f);
+	}
+	return static_cast<int16_t>(value - 0.5f);
+}
+
+}  // namespace
 
 bool AudioCvOut::init(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
 	uint coupling_pin_a, uint coupling_pin_b) {
@@ -61,6 +75,62 @@ bool AudioCvOut::set_voltage(AudioCvOutChannel channel, float voltage) {
 	return true;
 }
 
+bool AudioCvOut::set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage) {
+	float clamped_voltage = clamp_voltage(target_voltage);
+	uint16_t raw_dac_value = voltage_to_dac(clamped_voltage);
+
+	int32_t calibrated_dac_value = raw_dac_value;
+	if (calibration_loaded_) {
+		calibrated_dac_value += interpolated_offset_lsb(channel, clamped_voltage);
+	}
+
+	if (calibrated_dac_value < 0) {
+		calibrated_dac_value = 0;
+	}
+	if (calibrated_dac_value > kMaxDacValue) {
+		calibrated_dac_value = kMaxDacValue;
+	}
+
+	write_dac_channel(channel, static_cast<uint16_t>(calibrated_dac_value));
+	return true;
+}
+
+bool AudioCvOut::set_calibration(const brain::storage::CvCalibrationV1& cal) {
+	for (int i = 0; i < 10; i++) {
+		calibration_a_offset_lsb_[i] = cal.a_offset_lsb[i];
+		calibration_b_offset_lsb_[i] = cal.b_offset_lsb[i];
+	}
+	calibration_loaded_ = true;
+	return true;
+}
+
+void AudioCvOut::clear_calibration() {
+	for (int i = 0; i < 10; i++) {
+		calibration_a_offset_lsb_[i] = 0;
+		calibration_b_offset_lsb_[i] = 0;
+	}
+	calibration_loaded_ = false;
+}
+
+bool AudioCvOut::load_calibration_from_flash() {
+	brain::storage::CvCalibrationV1 calibration{};
+	brain::storage::StorageStatus status = brain::storage::read_cv_calibration(&calibration);
+	if (status != brain::storage::StorageStatus::kOk) {
+		clear_calibration();
+		return false;
+	}
+
+	return set_calibration(calibration);
+}
+
+bool AudioCvOut::has_calibration() const {
+	return calibration_loaded_;
+}
+
+uint16_t AudioCvOut::get_last_dac_value(AudioCvOutChannel channel) const {
+	return (channel == AudioCvOutChannel::kChannelA) ? last_dac_value_a_ : last_dac_value_b_;
+}
+
 bool AudioCvOut::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
 	uint coupling_pin =
 		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
@@ -71,6 +141,12 @@ bool AudioCvOut::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coup
 }
 
 void AudioCvOut::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
+	if (channel == AudioCvOutChannel::kChannelA) {
+		last_dac_value_a_ = dac_value;
+	} else {
+		last_dac_value_b_ = dac_value;
+	}
+
 	// Constructing DAC config
 	uint8_t config =
 		(channel == AudioCvOutChannel::kChannelA ? kMCP4822_CHANNEL_A : kMCP4822_CHANNEL_B) << 3 |
@@ -102,6 +178,42 @@ uint16_t AudioCvOut::voltage_to_dac(float voltage) {
 
 	// Ensure we don't exceed 12-bit range
 	return (dac_value > kMaxDacValue) ? kMaxDacValue : dac_value;
+}
+
+float AudioCvOut::clamp_voltage(float voltage) const {
+	if (voltage < 0.0f) {
+		return 0.0f;
+	}
+	if (voltage > kMaxVoltage) {
+		return kMaxVoltage;
+	}
+	return voltage;
+}
+
+int16_t AudioCvOut::interpolated_offset_lsb(
+	AudioCvOutChannel channel, float clamped_voltage) const {
+	const int16_t* offsets = (channel == AudioCvOutChannel::kChannelA)
+		? calibration_a_offset_lsb_
+		: calibration_b_offset_lsb_;
+
+	if (clamped_voltage <= 0.0f) {
+		return 0;
+	}
+	if (clamped_voltage < 1.0f) {
+		return round_to_int16(static_cast<float>(offsets[0]) * clamped_voltage);
+	}
+	if (clamped_voltage >= kMaxVoltage) {
+		return offsets[9];
+	}
+
+	const int lower_whole_volt = static_cast<int>(clamped_voltage);
+	const int lower_idx = lower_whole_volt - 1;
+	const int upper_idx = lower_idx + 1;
+	const float t = clamped_voltage - static_cast<float>(lower_whole_volt);
+
+	const float lower_offset = static_cast<float>(offsets[lower_idx]);
+	const float upper_offset = static_cast<float>(offsets[upper_idx]);
+	return round_to_int16(lower_offset + (upper_offset - lower_offset) * t);
 }
 
 }  // namespace brain::io

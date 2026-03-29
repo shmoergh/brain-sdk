@@ -6,6 +6,8 @@ Purpose: reusable manual hardware test apps for Brain SDK components.
 - `LedsTest` (`apps/leds_test.cpp`)
 - `MidiToCvTest` (`apps/midi_to_cv_test.cpp`)
 - `MultipotTest` (`apps/multipot_test.cpp`)
+- `StorageTest` (`apps/storage_test.cpp`)
+- `StoragePersistenceCheckTest` (`apps/storage_persistence_check_test.cpp`)
 
 ## Switching Active App
 

@@ -11,6 +11,10 @@
 
 #include "brain-common/brain-gpio-setup.h"
 
+namespace brain::storage {
+struct CvCalibrationV1;
+}
+
 namespace brain::io {
 
 /** DAC output channel selection */
@@ -61,6 +65,27 @@ class AudioCvOut {
 		bool set_voltage(AudioCvOutChannel channel, float voltage);
 
 		/**
+		 * Set output voltage with optional loaded calibration offsets.
+		 * Input voltage is clamped to 0.0V..10.0V before conversion.
+		 */
+		bool set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage);
+
+		/** Load an in-memory calibration table used by set_voltage_calibrated(). */
+		bool set_calibration(const brain::storage::CvCalibrationV1& cal);
+
+		/** Clear in-memory calibration table; calibrated writes become raw writes. */
+		void clear_calibration();
+
+		/** Load calibration from reserved flash through brain::storage. */
+		bool load_calibration_from_flash();
+
+		/** True when an in-memory calibration table is active. */
+		bool has_calibration() const;
+
+		/** Last 12-bit DAC code written for each channel (diagnostics/testing). */
+		uint16_t get_last_dac_value(AudioCvOutChannel channel) const;
+
+		/**
 		 * Configure DC/AC coupling for specified channel
 		 * @param channel Target output channel (A or B)
 		 * @param coupling Desired coupling mode
@@ -75,6 +100,12 @@ class AudioCvOut {
 		/** Convert voltage (0-10V) to 12-bit DAC value (0-4095) */
 		uint16_t voltage_to_dac(float voltage);
 
+		/** Clamp arbitrary voltage into supported 0V..10V output range. */
+		float clamp_voltage(float voltage) const;
+
+		/** Interpolate calibration offset table for clamped target voltage. */
+		int16_t interpolated_offset_lsb(AudioCvOutChannel channel, float clamped_voltage) const;
+
 		// Hardware configuration
 		uint cs_pin_ = 0;
 		uint sck_pin_ = 0;
@@ -82,6 +113,15 @@ class AudioCvOut {
 		uint coupling_pin_a_ = 0;
 		uint coupling_pin_b_ = 0;
 		spi_inst_t* spi_instance_ = nullptr;
+
+		// In-memory calibration state (A/B offsets for 1V..10V)
+		bool calibration_loaded_ = false;
+		int16_t calibration_a_offset_lsb_[10] = {0};
+		int16_t calibration_b_offset_lsb_[10] = {0};
+
+		// Last written DAC codes for diagnostics
+		uint16_t last_dac_value_a_ = 0;
+		uint16_t last_dac_value_b_ = 0;
 };
 
 }  // namespace brain::io

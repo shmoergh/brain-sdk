@@ -23,8 +23,8 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	// DC couple the CV output and set it to 0.0f
 	dac_.set_coupling(brain::io::AudioCvOutChannel::kChannelA, brain::io::AudioCvOutCoupling::kDcCoupled);
 	dac_.set_coupling(brain::io::AudioCvOutChannel::kChannelB, brain::io::AudioCvOutCoupling::kDcCoupled);
-	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
-	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
+	write_cv_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
+	write_cv_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
 
 	// Enable CV
 	enable_cv();
@@ -164,8 +164,8 @@ void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 }
 
 void MidiToCV::set_pitch_channel(brain::io::AudioCvOutChannel cv_channel) {
-	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
-	dac_.set_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
+	write_cv_voltage(brain::io::AudioCvOutChannel::kChannelA, 0.0f);
+	write_cv_voltage(brain::io::AudioCvOutChannel::kChannelB, 0.0f);
 
 	cv_channel_ = cv_channel;
 	cv_other_channel_ = cv_channel == brain::io::AudioCvOutChannel::kChannelA ? brain::io::AudioCvOutChannel::kChannelB : brain::io::AudioCvOutChannel::kChannelA;
@@ -258,7 +258,7 @@ void MidiToCV::set_cv() {
 
 			float primary_note_voltage = (duo_latched_primary_note_.note - kZeroCVMidiNote) / 12.0f;
 			float secondary_note_voltage = (duo_latched_secondary_note_.note - kZeroCVMidiNote) / 12.0f;
-			dac_.set_voltage(cv_channel_, primary_note_voltage);
+			write_cv_voltage(cv_channel_, primary_note_voltage);
 			set_cc_cv(secondary_note_voltage);
 			duo_prev_stack_size_ = current_stack_size_;
 			return;
@@ -280,14 +280,14 @@ void MidiToCV::set_cv() {
 		}
 	}
 
-	dac_.set_voltage(cv_channel_, note_voltage);
+	write_cv_voltage(cv_channel_, note_voltage);
 	set_cc_cv(cc_voltage);
 	duo_prev_stack_size_ = current_stack_size_;
 }
 
 void MidiToCV::set_cc_cv(float cc_voltage) {
 	// Handling modes
-	dac_.set_voltage(cv_other_channel_, cc_voltage);
+	write_cv_voltage(cv_other_channel_, cc_voltage);
 }
 
 void MidiToCV::set_gate(bool state) {
@@ -301,6 +301,37 @@ void MidiToCV::enable_cv() {
 
 void MidiToCV::disable_cv() {
 	cv_enabled_ = false;
+}
+
+bool MidiToCV::enable_calibrated_output(bool load_from_flash) {
+	if (load_from_flash && !dac_.load_calibration_from_flash()) {
+		calibrated_output_enabled_ = false;
+		return false;
+	}
+
+	calibrated_output_enabled_ = true;
+	return true;
+}
+
+void MidiToCV::disable_calibrated_output() {
+	calibrated_output_enabled_ = false;
+}
+
+bool MidiToCV::set_cv_calibration(const brain::storage::CvCalibrationV1& calibration) {
+	dac_.set_calibration(calibration);
+	calibrated_output_enabled_ = true;
+	return true;
+}
+
+bool MidiToCV::is_calibrated_output_enabled() const {
+	return calibrated_output_enabled_;
+}
+
+bool MidiToCV::write_cv_voltage(brain::io::AudioCvOutChannel channel, float voltage) {
+	if (calibrated_output_enabled_) {
+		return dac_.set_voltage_calibrated(channel, voltage);
+	}
+	return dac_.set_voltage(channel, voltage);
 }
 
 void MidiToCV::set_max_cc_voltage(uint8_t max_voltage) {

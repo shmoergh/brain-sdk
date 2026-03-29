@@ -6,9 +6,13 @@
 #include <stdio.h>
 
 #include "brain-io/audio-cv-out.h"
-#include "brain-io/pulse.h"
 #include "brain-io/midi-parser.h"
+#include "brain-io/pulse.h"
 #include "brain-utils/helpers.h"
+
+namespace brain::storage {
+struct CvCalibrationV1;
+}
 
 namespace brain::utils {
 
@@ -49,6 +53,10 @@ class MidiToCV {
 
 		void enable_cv();
 		void disable_cv();
+		bool enable_calibrated_output(bool load_from_flash = true);
+		void disable_calibrated_output();
+		bool set_cv_calibration(const brain::storage::CvCalibrationV1& calibration);
+		bool is_calibrated_output_enabled() const;
 
 	protected:
 		virtual void note_on(uint8_t note, uint8_t velocity, uint8_t channel);
@@ -86,6 +94,7 @@ class MidiToCV {
 		uint8_t duo_prev_stack_size_;
 
 		uint8_t modwheel_value_;
+		bool calibrated_output_enabled_ = false;
 
 		static void note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel);
 		static void note_off_callback(uint8_t note, uint8_t velocity, uint8_t channel);
@@ -101,6 +110,7 @@ class MidiToCV {
 
 		uint8_t max_cc_voltage_;
 		void set_cc_cv(float cc_voltage);
+		bool write_cv_voltage(brain::io::AudioCvOutChannel channel, float voltage);
 
 		void set_cv();
 

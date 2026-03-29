@@ -13,6 +13,7 @@ The MidiToCV utility provides a complete MIDI-to-CV converter implementation, tr
 - Automatic gate timing
 - Note stealing and priority handling
 - Easy-to-use single utility class
+- Optional calibrated CV output (opt-in, disabled by default)
 
 ## Usage
 
@@ -86,6 +87,24 @@ while (true) {
 }
 ```
 
+### Example - Enable Calibrated CV Output
+```cpp
+#include "brain-utils/midi-to-cv.h"
+
+brain::utils::MidiToCV midi_to_cv;
+midi_to_cv.init(brain::io::AudioCvOutChannel::kChannelA, 1);
+
+// Opt-in path: load calibration from reserved flash and use calibrated writes.
+if (!midi_to_cv.enable_calibrated_output(true)) {
+    printf("Calibration not found/corrupt; continuing with uncalibrated output.\n");
+}
+
+while (true) {
+    midi_to_cv.update();
+    sleep_ms(1);
+}
+```
+
 ### Example - Note Detection
 ```cpp
 #include "brain-utils/midi-to-cv.h"
@@ -136,6 +155,16 @@ void set_mode(MidiToCV::Mode mode)
 - `kModWheel`: CC1 (mod wheel) CV
 - `kUnison`: same pitch as primary channel
 - `kDuo`: last-two-note priority split: second-most-recent note on primary channel, most-recent note on other channel. When falling from 2 notes to 1, the duo pair stays latched until all notes are released and a new first note starts a new phrase.
+
+```cpp
+bool enable_calibrated_output(bool load_from_flash = true)
+void disable_calibrated_output()
+bool set_cv_calibration(const brain::storage::CvCalibrationV1& calibration)
+bool is_calibrated_output_enabled() const
+```
+- Calibrated output is opt-in and does not change legacy behavior unless enabled.
+- `enable_calibrated_output(true)` tries to load calibration from flash.
+- `set_cv_calibration(...)` injects a calibration table directly and enables calibrated output.
 
 ### Update
 ```cpp
