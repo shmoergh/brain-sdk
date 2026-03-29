@@ -68,6 +68,7 @@ Use the helper script:
 ./scripts/new-brain-app.sh <program-name>
 ```
 This creates a new app folder (by default one level above `brain-sdk`) with boilerplate files and `brain-sdk` as a submodule.
+Generated apps already include the required flash-reservation CMake snippet for SDK-managed calibration/app storage.
 
 After running, re-run CMake configure/build:
 ```sh
@@ -75,6 +76,17 @@ rm -rf build
 cmake -B build -G "Unix Makefiles"
 cmake --build build
 ```
+
+## Migration note for existing firmware repos
+If your firmware repo was created before storage support was added, update its `CMakeLists.txt` so calibration survives UF2 updates:
+
+```cmake
+include(brain-sdk/cmake/brain-storage-reserve-flash.cmake)
+brain_storage_configure_flash_reservation()
+```
+
+Place those lines after `project(...)` and before `pico_sdk_init()`.
+Without this reservation, app code can overlap the storage sectors and calibration persistence is not guaranteed.
 
 
 ## C++ Linting & Formatting
