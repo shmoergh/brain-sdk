@@ -7,3 +7,4 @@ build-rp2350
 .DS_Store
 *.lck
 **/ai
+wd*.md
