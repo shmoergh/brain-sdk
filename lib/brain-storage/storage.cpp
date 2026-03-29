@@ -15,6 +15,8 @@ namespace {
 
 constexpr uint32_t kCalibrationMagic = 0x4C414342;	   // "BCAL"
 constexpr uint32_t kCalibrationVersion = 1;
+constexpr uint32_t kAppBlobMagic = 0x50415042;		   // "BPAP"
+constexpr uint32_t kAppBlobVersion = 1;
 
 struct CalibrationRecordV1 {
 	uint32_t magic;
@@ -24,10 +26,19 @@ struct CalibrationRecordV1 {
 	uint32_t crc32;
 };
 
+struct AppBlobRecordHeaderV1 {
+	uint32_t magic;
+	uint32_t version;
+	uint32_t payload_size;
+};
+
 static_assert(sizeof(CvCalibrationV1) == 40,
 	"CvCalibrationV1 must remain 40 bytes for storage format compatibility.");
 static_assert(sizeof(CalibrationRecordV1) < layout::kCalibrationRegionSizeBytes,
 	"Calibration record must fit in one calibration sector.");
+static_assert(sizeof(AppBlobRecordHeaderV1) + sizeof(uint32_t) <
+	layout::kAppDataRegionSizeBytes,
+	"App blob record framing must fit in one app-data sector.");
 
 struct FlashProgramRequest {
 	uint32_t offset_bytes;
@@ -64,6 +75,12 @@ uint32_t crc32_calculate(const uint8_t* data, size_t length) {
 		}
 	}
 	return ~crc;
+}
+
+constexpr size_t app_blob_max_payload_size() {
+	return layout::kAppDataRegionSizeBytes
+		- sizeof(AppBlobRecordHeaderV1)
+		- sizeof(uint32_t);
 }
 
 StorageStatus validate_access(
@@ -248,6 +265,92 @@ StorageStatus write_cv_calibration(const CvCalibrationV1* in) {
 
 StorageStatus clear_cv_calibration() {
 	return erase_region(StorageRegion::kCalibration);
+}
+
+StorageStatus read_app_blob(void* out, size_t max_size, size_t* actual_size) {
+	if (!actual_size) {
+		return StorageStatus::kInvalidArgument;
+	}
+	*actual_size = 0;
+
+	uint8_t sector_buffer[layout::kAppDataRegionSizeBytes];
+	StorageStatus read_status = read_region(
+		StorageRegion::kAppData, 0, sector_buffer, sizeof(sector_buffer));
+	if (read_status != StorageStatus::kOk) {
+		return read_status;
+	}
+
+	AppBlobRecordHeaderV1 header{};
+	std::memcpy(&header, sector_buffer, sizeof(header));
+
+	if (header.magic == 0xFFFFFFFFu) {
+		return StorageStatus::kNotFound;
+	}
+	if (header.magic != kAppBlobMagic) {
+		return StorageStatus::kCorrupt;
+	}
+	if (header.version != kAppBlobVersion) {
+		return StorageStatus::kCorrupt;
+	}
+	if (header.payload_size > app_blob_max_payload_size()) {
+		return StorageStatus::kCorrupt;
+	}
+
+	const size_t crc_offset = sizeof(header) + header.payload_size;
+	uint32_t stored_crc = 0;
+	std::memcpy(&stored_crc, sector_buffer + crc_offset, sizeof(stored_crc));
+
+	const uint32_t computed_crc =
+		crc32_calculate(sector_buffer, sizeof(header) + header.payload_size);
+	if (stored_crc != computed_crc) {
+		return StorageStatus::kCorrupt;
+	}
+
+	if (header.payload_size > max_size) {
+		return StorageStatus::kTooLarge;
+	}
+	if (header.payload_size > 0 && !out) {
+		return StorageStatus::kInvalidArgument;
+	}
+
+	if (header.payload_size > 0) {
+		std::memcpy(out, sector_buffer + sizeof(header), header.payload_size);
+	}
+	*actual_size = header.payload_size;
+	return StorageStatus::kOk;
+}
+
+StorageStatus write_app_blob(const void* data, size_t size) {
+	if (!data) {
+		return StorageStatus::kInvalidArgument;
+	}
+	if (size > app_blob_max_payload_size()) {
+		return StorageStatus::kTooLarge;
+	}
+
+	uint8_t sector_buffer[layout::kAppDataRegionSizeBytes];
+	std::memset(sector_buffer, 0xFF, sizeof(sector_buffer));
+
+	AppBlobRecordHeaderV1 header{};
+	header.magic = kAppBlobMagic;
+	header.version = kAppBlobVersion;
+	header.payload_size = static_cast<uint32_t>(size);
+	std::memcpy(sector_buffer, &header, sizeof(header));
+	std::memcpy(sector_buffer + sizeof(header), data, size);
+
+	const uint32_t crc =
+		crc32_calculate(sector_buffer, sizeof(header) + size);
+	std::memcpy(sector_buffer + sizeof(header) + size, &crc, sizeof(crc));
+
+	return write_region(
+		StorageRegion::kAppData,
+		0,
+		sector_buffer,
+		sizeof(sector_buffer));
+}
+
+StorageStatus clear_app_blob() {
+	return erase_region(StorageRegion::kAppData);
 }
 
 }  // namespace brain::storage

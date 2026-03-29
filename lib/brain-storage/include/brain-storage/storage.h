@@ -42,4 +42,8 @@ StorageStatus read_cv_calibration(CvCalibrationV1* out);
 StorageStatus write_cv_calibration(const CvCalibrationV1* in);
 StorageStatus clear_cv_calibration();
 
+StorageStatus read_app_blob(void* out, size_t max_size, size_t* actual_size);
+StorageStatus write_app_blob(const void* data, size_t size);
+StorageStatus clear_app_blob();
+
 }  // namespace brain::storage

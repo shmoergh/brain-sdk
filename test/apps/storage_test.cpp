@@ -54,7 +54,7 @@ void StorageTest::init() {
 	sleep_ms(1200);
 
 	printf("\n\r--------\n\r");
-	printf("Brain Storage Test (Phase 2+3)\n");
+	printf("Brain Storage Test (Phase 2+3+4)\n");
 	printf("Layout protected: %s\n",
 		brain::storage::is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
@@ -83,13 +83,22 @@ void StorageTest::update() {
 
 	uint8_t calibration_before[64] = {0};
 	uint8_t calibration_after[64] = {0};
+	uint8_t calibration_before_app_blob[64] = {0};
+	uint8_t calibration_after_app_blob[64] = {0};
 	uint8_t pattern[64] = {0};
 	uint8_t app_readback[64] = {0};
+	uint8_t app_blob_pattern[96] = {0};
+	uint8_t app_blob_readback[96] = {0};
+	uint8_t app_blob_oversize_guard = 0xA5;
 	brain::storage::CvCalibrationV1 calibration_in{};
 	brain::storage::CvCalibrationV1 calibration_out{};
+	size_t app_blob_actual_size = 0;
 
 	for (size_t i = 0; i < sizeof(pattern); i++) {
 		pattern[i] = static_cast<uint8_t>(0xA0 + i);
+	}
+	for (size_t i = 0; i < sizeof(app_blob_pattern); i++) {
+		app_blob_pattern[i] = static_cast<uint8_t>(0x31 + (i % 57));
 	}
 
 	brain::storage::StorageStatus status = brain::storage::read_region(
@@ -243,7 +252,109 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	printf("\nPhase 2+3 storage test result: %s\n",
+	status = brain::storage::write_cv_calibration(&calibration_in);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Re-write calibration baseline for app-blob isolation test", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_region(
+		brain::storage::StorageRegion::kCalibration,
+		0,
+		calibration_before_app_blob,
+		sizeof(calibration_before_app_blob));
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Read calibration snapshot before app blob ops", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::write_app_blob(app_blob_pattern, sizeof(app_blob_pattern));
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Write app blob record", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_app_blob(
+		app_blob_readback,
+		sizeof(app_blob_readback),
+		&app_blob_actual_size);
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Read app blob record", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	step_pass = (app_blob_actual_size == sizeof(app_blob_pattern))
+		&& (std::memcmp(
+				app_blob_pattern,
+				app_blob_readback,
+				sizeof(app_blob_pattern)) == 0);
+	print_result("Verify app blob payload roundtrip", step_pass);
+	if (!step_pass) {
+		printf("  actual_size=%u expected=%u\n",
+			static_cast<unsigned>(app_blob_actual_size),
+			static_cast<unsigned>(sizeof(app_blob_pattern)));
+		overall_pass = false;
+	}
+
+	status = brain::storage::write_app_blob(
+		&app_blob_oversize_guard,
+		brain::storage::region_size(brain::storage::StorageRegion::kAppData));
+	step_pass = (status == brain::storage::StorageStatus::kTooLarge);
+	print_result("Reject oversize app blob write", step_pass);
+	if (!step_pass) {
+		printf("  status=%s (expected kTooLarge)\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::clear_app_blob();
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Clear app blob sector", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_app_blob(
+		app_blob_readback,
+		sizeof(app_blob_readback),
+		&app_blob_actual_size);
+	step_pass = (status == brain::storage::StorageStatus::kNotFound);
+	print_result("Read app blob after clear returns not found", step_pass);
+	if (!step_pass) {
+		printf("  status=%s (expected kNotFound)\n", to_string(status));
+		overall_pass = false;
+	}
+
+	status = brain::storage::read_region(
+		brain::storage::StorageRegion::kCalibration,
+		0,
+		calibration_after_app_blob,
+		sizeof(calibration_after_app_blob));
+	step_pass = (status == brain::storage::StorageStatus::kOk);
+	print_result("Read calibration snapshot after app blob ops", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	step_pass = (std::memcmp(
+		calibration_before_app_blob,
+		calibration_after_app_blob,
+		sizeof(calibration_before_app_blob)) == 0);
+	print_result("Verify calibration unchanged by app blob ops", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	printf("\nPhase 2+3+4 storage test result: %s\n",
 		overall_pass ? "PASS" : "FAIL");
 	printf("Execution complete. Power cycle or reset to run again.\n");
 
