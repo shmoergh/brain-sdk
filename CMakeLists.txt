@@ -28,6 +28,10 @@ include(pico_sdk_import.cmake)
 
 project(brain-sdk VERSION 1.0.0)
 
+# Reserve top-of-flash sectors for SDK-managed persistent storage.
+include(cmake/brain-storage-reserve-flash.cmake)
+brain_storage_configure_flash_reservation()
+
 # Initialize the Pico SDK
 pico_sdk_init()
 
