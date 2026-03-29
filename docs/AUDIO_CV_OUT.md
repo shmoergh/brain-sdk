@@ -8,6 +8,7 @@ The AudioCvOut component provides a two-channel analog output interface using an
 - 12-bit DAC resolution (4096 steps)
 - 0-10V output range per channel
 - Switchable DC/AC coupling per channel via CD4053 analog switch
+- Optional calibrated voltage output path (loaded from flash or injected in-memory)
 - SPI-based communication with MCP4822
 - Configurable GPIO pins for flexibility
 - Eurorack-compatible output levels
@@ -105,6 +106,23 @@ float voltage = (midi_note - 24) / 12.0f;
 cv_out.set_voltage(brain::io::AudioCvOutChannel::kChannelA, voltage);
 ```
 
+### Example - Calibrated Output
+```cpp
+#include "brain-io/audio-cv-out.h"
+
+brain::io::AudioCvOut cv_out;
+cv_out.init();
+cv_out.set_coupling(brain::io::AudioCvOutChannel::kChannelA,
+                    brain::io::AudioCvOutCoupling::kDcCoupled);
+
+// Load calibration from reserved flash. If unavailable/corrupt, keep going.
+if (!cv_out.load_calibration_from_flash()) {
+    printf("Calibration not found or invalid, using raw output.\n");
+}
+
+cv_out.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, 3.0f);
+```
+
 ## API Reference
 
 ### Initialization
@@ -127,8 +145,27 @@ bool set_voltage(AudioCvOutChannel channel, float voltage)
 - Set output voltage for specified channel
 - `channel`: `kChannelA` or `kChannelB`
 - `voltage`: 0.0V to 10.0V
-- Returns `true` if successful
-- Values outside range are clamped to 0-10V
+- Returns `true` if successful, `false` if out-of-range (`<0V` or `>10V`)
+
+```cpp
+bool set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage)
+```
+- Set output voltage using in-memory calibration table when loaded
+- `target_voltage` is clamped to `0.0V..10.0V`
+- Applies interpolated DAC-LSB offset and clamps final DAC code to `0..4095`
+
+```cpp
+bool set_calibration(const brain::storage::CvCalibrationV1& cal)
+void clear_calibration()
+bool load_calibration_from_flash()
+bool has_calibration() const
+uint16_t get_last_dac_value(AudioCvOutChannel channel) const
+```
+- `set_calibration(...)`: loads calibration table into memory
+- `clear_calibration()`: disables calibration for calibrated writes
+- `load_calibration_from_flash()`: reads calibration via `brain::storage`
+- `has_calibration()`: reports in-memory calibration state
+- `get_last_dac_value(...)`: diagnostics helper for tests/debug
 
 ### Coupling Control
 ```cpp
@@ -179,7 +216,8 @@ bool set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling)
 
 ## Important Notes
 - Voltage range is 0-10V (Eurorack standard)
-- Out-of-range values are automatically clamped
+- `set_voltage()` rejects out-of-range values
+- `set_voltage_calibrated()` clamps input voltage and DAC output safely
 - Default coupling mode is DC coupled
 - MCP4822 provides simultaneous buffered outputs
 - SPI communication is fast but blocking

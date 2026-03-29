@@ -40,6 +40,9 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 - [MIDI to CV](docs/MIDI_TO_CV.md) - Complete MIDI-to-CV converter with note priority
 - [Utilities](docs/UTILITIES.md) - RingBuffer and helper functions (map, clamp)
 
+#### Storage (`brain::storage`)
+- [Storage](docs/STORAGE.md) - Reserved flash layout, calibration persistence, and app blob APIs
+
 
 ### Folder Structure
 ```

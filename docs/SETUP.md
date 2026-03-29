@@ -69,6 +69,7 @@ Use the helper script:
 ```
 This creates a new app folder (by default one level above `brain-sdk`) with boilerplate files and `brain-sdk` as a submodule.
 Generated apps already include the required flash-reservation CMake snippet for SDK-managed calibration/app storage.
+If the checked-out SDK revision does not provide the reservation helper yet, configure prints a warning and build continues without protected storage.
 
 After running, re-run CMake configure/build:
 ```sh
@@ -87,6 +88,8 @@ brain_storage_configure_flash_reservation()
 
 Place those lines after `project(...)` and before `pico_sdk_init()`.
 Without this reservation, app code can overlap the storage sectors and calibration persistence is not guaranteed.
+If your repo uses `brain-sdk` as submodule, make sure the submodule commit is updated to a revision that contains `cmake/brain-storage-reserve-flash.cmake`.
+On RP2350, the SDK reserves an extra top guard sector (12KB total) to avoid UF2 absolute-block side effects on calibration data.
 
 
 ## C++ Linting & Formatting

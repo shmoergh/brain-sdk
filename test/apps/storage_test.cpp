@@ -89,6 +89,9 @@ void StorageTest::init() {
 			brain::storage::region_offset(brain::storage::StorageRegion::kCalibration)),
 		static_cast<unsigned>(
 			brain::storage::region_size(brain::storage::StorageRegion::kCalibration)));
+	printf("Guard region offset/size: %u / %u\n",
+		static_cast<unsigned>(brain::storage::layout::kGuardRegionOffsetBytes),
+		static_cast<unsigned>(brain::storage::layout::kGuardRegionSizeBytes));
 
 	initialized_ = true;
 }
