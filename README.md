@@ -42,6 +42,7 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 #### Storage (`brain::storage`)
 - [Storage](docs/STORAGE.md) - Reserved flash layout, calibration persistence, and app blob APIs
+- [Storage Release Notes](docs/RELEASE_NOTES_STORAGE.md) - API additions, migration requirements, and validation summary
 
 
 ### Folder Structure

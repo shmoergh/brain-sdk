@@ -44,6 +44,30 @@ Supported options:
 
 If reservation is disabled and unsafe override is off, write/erase APIs return `kUnprotectedLayout`.
 
+### Unsafe Override (Development Only)
+Unsafe override allows storage writes without linker protection checks.
+Use it only for controlled development scenarios.
+
+- CMake option: `-DBRAIN_STORAGE_ALLOW_UNPROTECTED_LAYOUT=ON`
+- Default is `OFF`.
+- With override enabled, accidental overlap with firmware image is possible.
+
+Examples:
+
+```bash
+cmake -S . -B build-rp2350 \
+	-DPICO_BOARD=pico2 \
+	-DPICO_PLATFORM=rp2350-arm-s \
+	-DBRAIN_STORAGE_ALLOW_UNPROTECTED_LAYOUT=ON
+```
+
+```bash
+cmake -S . -B build-rp2040 \
+	-DPICO_BOARD=pico \
+	-DPICO_PLATFORM=rp2040 \
+	-DBRAIN_STORAGE_ALLOW_UNPROTECTED_LAYOUT=ON
+```
+
 ## Public APIs
 Low-level region helpers:
 
