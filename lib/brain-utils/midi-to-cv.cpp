@@ -39,6 +39,7 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 	midi_parser_.set_note_on_callback(note_on_callback);
 	midi_parser_.set_note_off_callback(note_off_callback);
 	midi_parser_.set_control_change_callback(control_change_callback);
+	midi_parser_.set_pitch_bend_callback(pitch_bend_callback);
 
 	if (!midi_parser_.init_uart()) {
 		printf("[ERROR] Brain SDK / Midi to CV: MIDI parser failed to initialize.\n");
@@ -54,6 +55,8 @@ bool MidiToCV::init(brain::io::AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	// Modwheel
 	modwheel_value_ = 0;
+	pitch_bend_value_ = 0;
+	pitch_bend_range_semitones_ = kDefaultPitchBendRangeSemitones;
 
 	// Set up CV
 	max_cc_voltage_ = brain::io::AudioCvOut::kMaxVoltage;
@@ -101,6 +104,12 @@ void MidiToCV::control_change_callback(uint8_t cc, uint8_t value, uint8_t channe
 	}
 }
 
+void MidiToCV::pitch_bend_callback(int16_t value, uint8_t channel) {
+	if (instance_) {
+		instance_->pitch_bend(value, channel);
+	}
+}
+
 void MidiToCV::note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
 	// Handle velocity 0 as note off
 	if (velocity == 0) {
@@ -143,10 +152,28 @@ void MidiToCV::note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 }
 
 void MidiToCV::control_change(uint8_t cc, uint8_t value, uint8_t channel) {
+	(void)channel;
+
 	// Modwheel
 	if (cc == 1 && mode_ == Mode::kModWheel) {
 		modwheel_value_ = value;
 		set_cc_cv(midi_value_to_voltage(modwheel_value_));
+	}
+}
+
+void MidiToCV::pitch_bend(int16_t value, uint8_t channel) {
+	(void)channel;
+
+	if (value < kPitchBendMin) {
+		value = kPitchBendMin;
+	} else if (value > kPitchBendMax) {
+		value = kPitchBendMax;
+	}
+
+	pitch_bend_value_ = value;
+
+	if (cv_enabled_) {
+		set_cv();
 	}
 }
 
@@ -239,8 +266,10 @@ void MidiToCV::set_cv() {
 	}
 
 	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
+	float pitch_bend_voltage = pitch_bend_to_voltage(pitch_bend_value_);
+	note_voltage += pitch_bend_voltage;
 
-	float cc_voltage;
+	float cc_voltage = 0.0f;
 
 	switch (mode_) {
 		case kDuo: {
@@ -258,6 +287,8 @@ void MidiToCV::set_cv() {
 
 			float primary_note_voltage = (duo_latched_primary_note_.note - kZeroCVMidiNote) / 12.0f;
 			float secondary_note_voltage = (duo_latched_secondary_note_.note - kZeroCVMidiNote) / 12.0f;
+			primary_note_voltage += pitch_bend_voltage;
+			secondary_note_voltage += pitch_bend_voltage;
 			write_cv_voltage(cv_channel_, primary_note_voltage);
 			set_cc_cv(secondary_note_voltage);
 			duo_prev_stack_size_ = current_stack_size_;
@@ -335,11 +366,28 @@ bool MidiToCV::write_cv_voltage(brain::io::AudioCvOutChannel channel, float volt
 }
 
 void MidiToCV::set_max_cc_voltage(uint8_t max_voltage) {
-	max_cc_voltage_ = clamp(0, brain::io::AudioCvOut::kMaxDacValue, max_voltage);
+	max_cc_voltage_ = clamp(0, static_cast<int32_t>(brain::io::AudioCvOut::kMaxVoltage), max_voltage);
 }
 
 float MidiToCV::midi_value_to_voltage(uint8_t value) {
 	return value * max_cc_voltage_ / 127.0;
+}
+
+float MidiToCV::pitch_bend_to_voltage(int16_t value) const {
+	if (value == 0) {
+		return 0.0f;
+	}
+
+	// Use integer fixed-point math (milli-semitones) and only convert to float at the end.
+	static constexpr int32_t kMilliSemitoneScale = 1000;
+	const int32_t bend_denominator = (value > 0) ? kPitchBendMax : -kPitchBendMin;
+	const int64_t scaled_numerator =
+		static_cast<int64_t>(value) *
+		static_cast<int64_t>(pitch_bend_range_semitones_) *
+		kMilliSemitoneScale;
+	const int32_t bend_milli_semitones = static_cast<int32_t>(scaled_numerator / bend_denominator);
+
+	return static_cast<float>(bend_milli_semitones) / 12000.0f;
 }
 
 }

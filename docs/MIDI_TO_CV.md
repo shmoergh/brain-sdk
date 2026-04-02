@@ -5,6 +5,7 @@ The MidiToCV utility provides a complete MIDI-to-CV converter implementation, tr
 
 ## Features
 - Converts MIDI note on/off to CV pitch (1V/octave) and gate
+- Applies MIDI pitch bend to pitch CV (14-bit, default range: +/-2 semitones)
 - Last-note priority with note stack (up to 25 notes)
 - Configurable MIDI channel (1-16)
 - Configurable CV output channel (A or B)
@@ -263,7 +264,7 @@ protected:
 - 0V reference point is MIDI note 24 (C1)
 - Maximum CV output is limited by DAC (10V = MIDI note 144)
 - MIDI velocity is parsed but not used for CV (use callback if needed)
-- Only responds to Note On/Off messages (not CC, pitch bend, etc.)
+- Responds to Note On/Off, CC1 (modwheel in `kModWheel` mode), and Pitch Bend
 - Gate output is digital (high/low), not velocity-sensitive
 
 ## Integration with Other Components

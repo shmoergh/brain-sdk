@@ -62,10 +62,14 @@ class MidiToCV {
 		virtual void note_on(uint8_t note, uint8_t velocity, uint8_t channel);
 		virtual void note_off(uint8_t note, uint8_t velocity, uint8_t channel);
 		virtual void control_change(uint8_t cc, uint8_t value, uint8_t channel);
+		virtual void pitch_bend(int16_t value, uint8_t channel);
 
 	private:
 		static constexpr uint8_t kNoteStackSize = 25;
 		static constexpr uint8_t kZeroCVMidiNote = 24; // 0V CV is mapped to C1
+		static constexpr int16_t kPitchBendMin = -8192;
+		static constexpr int16_t kPitchBendMax = 8191;
+		static constexpr uint8_t kDefaultPitchBendRangeSemitones = 2;
 
 		struct NoteVelocity {
 			uint8_t note;
@@ -94,11 +98,14 @@ class MidiToCV {
 		uint8_t duo_prev_stack_size_;
 
 		uint8_t modwheel_value_;
+		int16_t pitch_bend_value_;
+		uint8_t pitch_bend_range_semitones_;
 		bool calibrated_output_enabled_ = false;
 
 		static void note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel);
 		static void note_off_callback(uint8_t note, uint8_t velocity, uint8_t channel);
 		static void control_change_callback(uint8_t cc, uint8_t value, uint8_t channel);
+		static void pitch_bend_callback(int16_t value, uint8_t channel);
 
 		NoteOnCallback note_on_callback_ = nullptr;
 		NoteOffCallback note_off_callback_ = nullptr;
@@ -113,7 +120,7 @@ class MidiToCV {
 		bool write_cv_voltage(brain::io::AudioCvOutChannel channel, float voltage);
 
 		void set_cv();
-
+		float pitch_bend_to_voltage(int16_t value) const;
 		float midi_value_to_voltage(uint8_t value);
 	};
 
