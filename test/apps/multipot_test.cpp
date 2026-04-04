@@ -4,7 +4,7 @@
 
 #include "pico/stdlib.h"
 
-#include "brain-common/brain-common.h"
+#include "common.h"
 
 namespace {
 

@@ -25,7 +25,7 @@ The MidiToCV utility provides a complete MIDI-to-CV converter implementation, tr
 
 ### Example - Simple MIDI to CV
 ```cpp
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 brain::utils::MidiToCV midi_to_cv;
 
@@ -43,7 +43,7 @@ while (true) {
 
 ### Example - With Custom Callbacks
 ```cpp
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 brain::utils::MidiToCV midi_to_cv;
 
@@ -71,7 +71,7 @@ while (true) {
 
 ### Example - Changing Configuration
 ```cpp
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 brain::utils::MidiToCV midi_to_cv;
 midi_to_cv.init(brain::io::AudioCvOutChannel::kChannelA, 1);
@@ -90,7 +90,7 @@ while (true) {
 
 ### Example - Enable Calibrated CV Output
 ```cpp
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 brain::utils::MidiToCV midi_to_cv;
 midi_to_cv.init(brain::io::AudioCvOutChannel::kChannelA, 1);
@@ -108,7 +108,7 @@ while (true) {
 
 ### Example - Note Detection
 ```cpp
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 brain::utils::MidiToCV midi_to_cv;
 midi_to_cv.init(brain::io::AudioCvOutChannel::kChannelA, 1);

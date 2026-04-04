@@ -22,7 +22,7 @@ A thread-safe circular buffer (ring buffer) implementation for byte-oriented dat
 
 #### Basic Setup
 ```cpp
-#include "brain-utils/ringbuffer.h"
+#include "ringbuffer.h"
 
 // Create buffer storage (256 bytes)
 uint8_t buffer_storage[256];
@@ -76,7 +76,7 @@ if (ring_buffer.is_full()) {
 
 ### Example - UART ISR to Main Loop
 ```cpp
-#include "brain-utils/ringbuffer.h"
+#include "ringbuffer.h"
 #include <hardware/uart.h>
 
 // Buffer for UART data
@@ -185,7 +185,7 @@ static inline long map(long x, long in_min, long in_max, long out_min, long out_
 
 **Example:**
 ```cpp
-#include "brain-utils/helpers.h"
+#include "helpers.h"
 
 // Map ADC value (0-4095) to MIDI range (0-127)
 uint16_t adc_value = 2048;
@@ -212,7 +212,7 @@ static inline int clamp(int min, int max, int value)
 
 **Example:**
 ```cpp
-#include "brain-utils/helpers.h"
+#include "helpers.h"
 
 // Ensure value stays in valid range
 int user_input = 150;
@@ -273,12 +273,12 @@ param = clamp(0, 100, param);  // Constrain to valid range
 
 ```cpp
 // Include specific utilities
-#include "brain-utils/ringbuffer.h"
-#include "brain-utils/helpers.h"
+#include "ringbuffer.h"
+#include "helpers.h"
 
 // Or if you need both
-#include "brain-utils/ringbuffer.h"
-#include "brain-utils/helpers.h"
+#include "ringbuffer.h"
+#include "helpers.h"
 ```
 
 All utilities are in the `brain::utils` namespace (except helper functions which are global/inline).

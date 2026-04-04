@@ -23,26 +23,31 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 ### Core Components
 
-#### I/O Components (`brain::io`)
+#### I/O Components
 - [Audio/CV Input](docs/AUDIO_CV_IN.md) - Two-channel analog input with voltage conversion
 - [Audio/CV Output](docs/AUDIO_CV_OUT.md) - Two-channel DAC output with DC/AC coupling
 - [Pulse I/O](docs/PULSE.md) - Digital pulse input/output for gates and triggers
 - [MIDI Parser](docs/MIDI_PARSER.md) - UART-based MIDI input with message parsing
 
-#### UI Components (`brain::ui`)
+#### UI Components
 - [Button](docs/BUTTON.md) - Debounced pushbutton input with callbacks
 - [ButtonLed](docs/BUTTON_LED.md) - Dedicated on/off controller for the illuminated button LED
 - [LED](docs/LED.md) - Individual LED control with runtime-selectable SIMPLE/PWM mode
 - [Leds](docs/LEDS.md) - Group LED controller for all 6 Brain module LEDs
 - [Pots](docs/POTS.md) - Multiplexed potentiometer reader
 
-#### Utilities (`brain::utils`)
+#### Utilities
 - [MIDI to CV](docs/MIDI_TO_CV.md) - Complete MIDI-to-CV converter with note priority
 - [Utilities](docs/UTILITIES.md) - RingBuffer and helper functions (map, clamp)
 
-#### Storage (`brain::storage`)
+#### Storage
 - [Storage](docs/STORAGE.md) - Reserved flash layout, calibration persistence, and app blob APIs
 - [Storage Release Notes](docs/RELEASE_NOTES_STORAGE.md) - API additions, migration requirements, and validation summary
+
+#### Flat API Entry Point
+- Include `brain/brain.h`
+- Use `Brain` and top-level classes like `Leds`, `Buttons`, `Inputs`, `Outputs`, and `Pots`
+- No namespace qualification is required for new code
 
 
 ### Folder Structure
@@ -51,12 +56,11 @@ brain-sdk/
 ├── build/         # CMake build output (default)
 ├── build-rp2040/  # Optional board-specific build output
 ├── build-rp2350/  # Optional board-specific build output
+├── brain/         # SDK module
+│   ├── brain.h    # Main entry point (Brain wrapper)
+│   ├── include/   # Component headers (core + utils)
+│   └── src/       # Component implementations
 ├── docs/          # Documentation and conventions
-├── lib/           # Reusable libraries
-│   ├── brain-common/    # Common definitions and GPIO setup
-│   ├── brain-io/        # I/O components (ADC, DAC, MIDI, Pulse)
-│   ├── brain-ui/        # UI components (Button, LED, Leds, Pots)
-│   └── brain-utils/     # Utilities (MIDI to CV, RingBuffer, helpers)
 ├── pico-sdk/      # Pico SDK (as a git submodule)
 ├── scripts/       # Helper scripts (e.g. new-brain-app.sh)
 ├── test/          # Manual hardware test apps and docs

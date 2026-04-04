@@ -3,9 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "brain-ui/button-led.h"
-#include "brain-ui/led.h"
-#include "brain-ui/leds.h"
+#include "leds.h"
 
 namespace sandbox::apps {
 

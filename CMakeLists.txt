@@ -35,8 +35,8 @@ brain_storage_configure_flash_reservation()
 # Initialize the Pico SDK
 pico_sdk_init()
 
-# Add subdirectories for libraries
-add_subdirectory(lib)
+# Add SDK library
+add_subdirectory(brain)
 
 # Only build sandbox firmware when this is the top-level project
 # (not when included as a submodule in another project)

@@ -10,13 +10,10 @@ add_executable(test
     apps/storage_persistence_check_test.cpp
 )
 
-# Link against all Brain SDK libraries
+# Link against the simplified Brain SDK target
 target_link_libraries(test
     pico_stdlib
-    brain-common
-    brain-io
-    brain-ui
-    brain-utils
+    brain
 )
 
 # Enable USB output for printf

@@ -2,10 +2,9 @@
 
 #include <cstdint>
 
-#include "brain-ui/button.h"
-#include "brain-ui/leds.h"
-#include "brain-ui/pot-multi-function.h"
-#include "brain-ui/pots.h"
+#include "button.h"
+#include "leds.h"
+#include "pots.h"
 
 namespace sandbox::apps {
 

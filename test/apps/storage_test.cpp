@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "brain-io/audio-cv-out.h"
-#include "brain-storage/storage.h"
+#include "audio-cv-out.h"
+#include "storage.h"
 
 namespace sandbox::apps {
 

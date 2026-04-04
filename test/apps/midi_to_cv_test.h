@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "brain-utils/midi-to-cv.h"
+#include "midi-to-cv.h"
 
 namespace sandbox::apps {
 

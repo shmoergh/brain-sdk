@@ -3,7 +3,7 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-#include "brain-storage/storage.h"
+#include "storage.h"
 
 namespace sandbox::apps {
 
