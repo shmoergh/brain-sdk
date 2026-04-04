@@ -46,8 +46,35 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 #### Flat API Entry Point
 - Include `brain/brain.h`
-- Use `Brain` and top-level classes like `Leds`, `Buttons`, `Inputs`, `Outputs`, and `Pots`
+- Use `Brain` (all features enabled) or `BrainT<...>` for compile-time feature selection
+- Available feature flags: `kBrainFeatureLeds`, `kBrainFeatureButtons`, `kBrainFeatureInputs`, `kBrainFeatureOutputs`, `kBrainFeaturePots`
+- Presets: `BrainAll`, `BrainIO`, `BrainUI`, `BrainMinimal`
 - No namespace qualification is required for new code
+
+Example:
+```cpp
+#include "brain/brain.h"
+
+// Full wrapper (all components compiled in)
+Brain brain_full;
+
+// Compile-time reduced wrapper: only LEDs + outputs
+using BrainLedsOut = BrainT<kBrainFeatureLeds | kBrainFeatureOutputs>;
+BrainLedsOut brain;
+
+int main() {
+	brain.init_leds(LedMode::kSimple);
+	brain.init_outputs();
+
+	brain.leds.on(0);
+	brain.outputs.set_voltage(AudioCvOutChannel::kChannelA, 2.5f);
+	brain.outputs.pulse_set(true);
+
+	while (true) {
+		brain.update_leds();
+	}
+}
+```
 
 
 ### Folder Structure
