@@ -25,8 +25,6 @@ private:
 	};
 
 	brain::ui::Leds leds_;
-	brain::ui::Led direct_led_;
-	brain::ui::ButtonLed button_led_;
 	bool initialized_;
 	bool completed_;
 	bool aborted_;
@@ -66,8 +64,6 @@ private:
 	void announce_expected_mask(uint8_t mask) const;
 	void spin_wait_ms(uint32_t ms) const;
 	void wait_with_leds_update(brain::ui::Leds& leds, uint32_t ms) const;
-	void wait_with_led_update(brain::ui::Led& led, uint32_t ms) const;
-	void wait_with_button_led_update(brain::ui::ButtonLed& led, uint32_t ms) const;
 };
 
 }  // namespace sandbox::apps

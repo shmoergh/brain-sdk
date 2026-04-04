@@ -1,8 +1,6 @@
 add_library(brain
-    src/button-led.cpp
     src/button.cpp
     src/inputs.cpp
-    src/led.cpp
     src/leds.cpp
     src/midi-parser.cpp
     src/midi-to-cv.cpp
