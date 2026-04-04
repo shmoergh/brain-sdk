@@ -33,9 +33,9 @@ public:
 	uint16_t get_raw(int channel) const;
 	uint16_t get_raw_channel_a() const;
 	uint16_t get_raw_channel_b() const;
-	float get_voltage(int channel) const;
-	float get_voltage_channel_a() const;
-	float get_voltage_channel_b() const;
+	int32_t get_voltage_millivolts(int channel) const;
+	int32_t get_voltage_millivolts_channel_a() const;
+	int32_t get_voltage_millivolts_channel_b() const;
 
 	bool pulse_read() const;
 	bool pulse_read_raw() const;
@@ -46,7 +46,7 @@ public:
 	void pulse_disable_interrupts();
 
 private:
-	float adc_to_voltage(uint16_t adc_value) const;
+	int32_t adc_to_millivolts(uint16_t adc_value) const;
 	void calculate_conversion_parameters();
 	bool init_audio_cv_dma();
 	void release_audio_cv_dma();
@@ -55,9 +55,11 @@ private:
 	static void gpio_irq_handler(uint gpio, uint32_t events);
 	void handle_edge(bool raw_state);
 
+	int32_t adc_low_millivolts_ = 0;
+	int32_t adc_span_millivolts_ = 1;
+	int32_t signal_min_millivolts_ = 0;
+	int32_t signal_span_millivolts_ = 0;
 	uint16_t channel_raw_[2] = {0, 0};
-	float voltage_scale_ = 1.0f;
-	float voltage_offset_ = 0.0f;
 	bool audio_cv_dma_enabled_ = true;
 	bool audio_cv_dma_active_ = false;
 	int audio_cv_dma_channel_ = -1;

@@ -13,6 +13,14 @@ namespace {
 
 static Inputs* pulse_irq_instances[NUM_BANK0_GPIOS] = {nullptr};
 
+int32_t round_div_i64(int64_t numerator, int64_t denominator) {
+	if (denominator == 0) return 0;
+	if (numerator >= 0) {
+		return static_cast<int32_t>((numerator + denominator / 2) / denominator);
+	}
+	return static_cast<int32_t>((numerator - denominator / 2) / denominator);
+}
+
 }  // namespace
 
 Inputs::Inputs(uint pulse_in_gpio)
@@ -171,19 +179,19 @@ uint16_t Inputs::get_raw_channel_b() const {
 	return channel_raw_[AudioCvInChannel::kChannelB];
 }
 
-float Inputs::get_voltage(int channel) const {
+int32_t Inputs::get_voltage_millivolts(int channel) const {
 	if (channel == AudioCvInChannel::kChannelA || channel == AudioCvInChannel::kChannelB) {
-		return adc_to_voltage(channel_raw_[channel]);
+		return adc_to_millivolts(channel_raw_[channel]);
 	}
-	return 0.0f;
+	return 0;
 }
 
-float Inputs::get_voltage_channel_a() const {
-	return adc_to_voltage(channel_raw_[AudioCvInChannel::kChannelA]);
+int32_t Inputs::get_voltage_millivolts_channel_a() const {
+	return adc_to_millivolts(channel_raw_[AudioCvInChannel::kChannelA]);
 }
 
-float Inputs::get_voltage_channel_b() const {
-	return adc_to_voltage(channel_raw_[AudioCvInChannel::kChannelB]);
+int32_t Inputs::get_voltage_millivolts_channel_b() const {
+	return adc_to_millivolts(channel_raw_[AudioCvInChannel::kChannelB]);
 }
 
 bool Inputs::pulse_read() const {
@@ -224,17 +232,29 @@ void Inputs::pulse_disable_interrupts() {
 	}
 }
 
-float Inputs::adc_to_voltage(uint16_t adc_value) const {
-	float adc_voltage = (static_cast<float>(adc_value) / kAdcMaxValue) * kAdcVoltageRef;
-	return (adc_voltage * voltage_scale_) + voltage_offset_;
+int32_t Inputs::adc_to_millivolts(uint16_t adc_value) const {
+	const int32_t adc_millivolts =
+		round_div_i64(static_cast<int64_t>(adc_value) * 3300, kAdcMaxValue);
+	const int32_t signal_delta_millivolts =
+		round_div_i64(
+			static_cast<int64_t>(adc_millivolts - adc_low_millivolts_) * signal_span_millivolts_,
+			adc_span_millivolts_);
+	return signal_min_millivolts_ + signal_delta_millivolts;
 }
 
 void Inputs::calculate_conversion_parameters() {
-	float voltage_span = kAudioCvInVoltageAtPlus5V - kAudioCvInVoltageAtMinus5V;
-	float signal_span = kAudioCvInMaxVoltage - kAudioCvInMinVoltage;
+	const int32_t adc_low_mv = static_cast<int32_t>(kAudioCvInVoltageAtMinus5V * 1000.0f + 0.5f);
+	const int32_t adc_high_mv = static_cast<int32_t>(kAudioCvInVoltageAtPlus5V * 1000.0f + 0.5f);
+	const int32_t signal_min_mv = static_cast<int32_t>(kAudioCvInMinVoltage * 1000.0f);
+	const int32_t signal_max_mv = static_cast<int32_t>(kAudioCvInMaxVoltage * 1000.0f);
 
-	voltage_scale_ = signal_span / voltage_span;
-	voltage_offset_ = kAudioCvInMinVoltage - (kAudioCvInVoltageAtMinus5V * voltage_scale_);
+	adc_low_millivolts_ = adc_low_mv;
+	adc_span_millivolts_ = adc_high_mv - adc_low_mv;
+	if (adc_span_millivolts_ <= 0) {
+		adc_span_millivolts_ = 1;
+	}
+	signal_min_millivolts_ = signal_min_mv;
+	signal_span_millivolts_ = signal_max_mv - signal_min_mv;
 }
 
 void Inputs::gpio_irq_handler(uint gpio, uint32_t events) {
