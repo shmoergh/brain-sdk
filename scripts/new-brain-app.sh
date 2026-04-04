@@ -19,6 +19,17 @@ fi
 INPUT="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SDK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SDK_URL="$(git -C "$SDK_DIR" remote get-url origin 2>/dev/null || echo "git@github.com:shmoergh/brain-sdk.git")"
+SDK_BRANCH="$(git -C "$SDK_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+
+if [ "$SDK_BRANCH" = "HEAD" ] || [ -z "$SDK_BRANCH" ]; then
+  SDK_BRANCH="main"
+fi
+
+if ! git ls-remote --exit-code --heads "$SDK_URL" "$SDK_BRANCH" >/dev/null 2>&1; then
+  echo "Warning: Branch '$SDK_BRANCH' not found on remote '$SDK_URL'. Falling back to 'main'."
+  SDK_BRANCH="main"
+fi
 
 # Determine if input is a path or just a name
 if [[ "$INPUT" == */* ]] || [[ "$INPUT" == ~* ]]; then
@@ -168,7 +179,8 @@ EOF
 cat > "$APP_DIR/.gitmodules" <<EOF
 [submodule "brain-sdk"]
 	path = brain-sdk
-	url = git@github.com:shmoergh/brain-sdk.git
+	url = $SDK_URL
+	branch = $SDK_BRANCH
 EOF
 
 # Create README.md
@@ -196,7 +208,7 @@ This project includes brain-sdk as a git submodule. To update the SDK:
 
 \`\`\`bash
 cd brain-sdk
-git pull origin main
+git pull origin $SDK_BRANCH
 cd ..
 git add brain-sdk
 git commit -m "Update brain-sdk"
@@ -359,13 +371,16 @@ if [[ "$1" == "--push" ]]; then
   PUSH=true
 fi
 
+SDK_BRANCH="$(git config -f .gitmodules submodule.brain-sdk.branch || echo "main")"
+
 echo "Updating brain-sdk submodule..."
+echo "Target branch: $SDK_BRANCH"
 echo ""
 
 cd brain-sdk
 git fetch origin
-git checkout main
-git pull origin main
+git checkout "$SDK_BRANCH"
+git pull origin "$SDK_BRANCH"
 cd ..
 
 echo ""
@@ -407,7 +422,7 @@ echo "Initializing git repository..."
 # Initialize git repo and add brain-sdk as submodule
 cd "$APP_DIR"
 git init
-git submodule add git@github.com:shmoergh/brain-sdk.git brain-sdk
+git submodule add -b "$SDK_BRANCH" "$SDK_URL" brain-sdk
 git submodule update --init --recursive
 
 echo ""
