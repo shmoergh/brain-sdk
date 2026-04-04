@@ -1,167 +1,40 @@
-# LED Component
+# LED Channel API (via `Leds`)
 
 ## Overview
-The LED component manages individual LEDs in the Brain module, supporting two output modes:
-- `LedMode::kPwm` for brightness control via PWM
-- `LedMode::kSimple` for direct GPIO high/low control
+The old standalone `Led` class was removed.
 
-It also supports multiple blinking patterns and event-driven callbacks.
+Use `Leds` and control one channel by index (`0..5`).
 
-## Features
-- Controls LED state (on/off/toggle)
-- Runtime-selectable output mode (`kSimple` / `kPwm`)
-- Adjustable brightness using Pico PWM (0-255) in PWM mode
-- Multiple blinking modes:
-  - Count-based blinking (blink N times)
-  - Duration-based blinking (blink for N milliseconds)
-  - Continuous blinking (until stopped)
-- Event callbacks for state changes and blink completion
-- Status queries (is_on, is_blinking)
-
-## Usage
-1. **Initialization**: Create an `Led` instance with GPIO pin, then call `init()` or `init(mode)`
-2. **Control**: Use methods to set brightness, turn on/off, toggle, or start blinking
-3. **Polling**: Call `update()` in the main loop for blink timing
-4. **Callbacks**: Register callbacks for state changes or blink completion
-
-## Example - Basic Control
+## Include
 ```cpp
-#include "brain-ui/led.h"
+#include "brain/include/leds.h"
+```
 
-brain::ui::Led status_led(10);  // GPIO 10, default PWM mode
-status_led.init(brain::ui::LedMode::kPwm);
+## Single-LED Usage
+```cpp
+Leds leds;
+leds.init(LedMode::kPwm);
 
-status_led.set_brightness(128);  // 50% brightness
-status_led.on();                 // Turn on
-status_led.toggle();             // Toggle state
-status_led.off();                // Turn off
+const uint8_t kLed = 0;
+leds.set_brightness(kLed, 128);
+leds.on(kLed);
+leds.blink(kLed, 3, 150);
 
 while (true) {
-    status_led.update();
+	leds.update();
 }
 ```
 
-## Example - Runtime Mode Switch
-```cpp
-#include "brain-ui/led.h"
-
-brain::ui::Led led(10);
-led.init(brain::ui::LedMode::kSimple);  // direct GPIO mode
-led.on();
-
-// Switch to PWM mode at runtime
-led.set_mode(brain::ui::LedMode::kPwm);
-led.set_brightness(96);
-```
-
-## Example - Blinking Patterns
-```cpp
-#include "brain-ui/led.h"
-
-brain::ui::Led led(10);
-led.init();
-
-// Blink 5 times with 200ms interval
-led.blink(5, 200);
-
-// Blink for 2 seconds with 100ms interval
-led.blink_duration(2000, 100);
-
-// Start continuous blinking with 500ms interval
-led.start_blink(500);
-
-// Later, stop blinking
-led.stop_blink();
-
-while (true) {
-    led.update();  // Required for blink timing
-}
-```
-
-## Example - Callbacks
-```cpp
-#include "brain-ui/led.h"
-
-brain::ui::Led led(10);
-led.init();
-
-// Callback when LED state changes (on/off)
-led.set_on_state_change([](bool is_on) {
-    printf("LED is now: %s\n", is_on ? "ON" : "OFF");
-});
-
-// Callback when blink sequence completes
-led.set_on_blink_end([]() {
-    printf("Blink sequence finished\n");
-});
-
-led.blink(3, 250);  // Blink 3 times, callbacks will be triggered
-
-while (true) {
-    led.update();
-}
-```
-
-## Example - Status Queries
-```cpp
-#include "brain-ui/led.h"
-
-brain::ui::Led led(10);
-led.init();
-led.start_blink(500);
-
-while (true) {
-    led.update();
-
-    if (led.is_on()) {
-        // LED is currently on
-    }
-
-    if (led.is_blinking()) {
-        // LED is in a blink pattern
-    }
-}
-```
-
-## API Reference
-
-### Constructor
-- `Led(uint gpio_pin, bool simple_mode = false)` - Create LED on specified GPIO pin
-
-### Initialization
-- `void init()` - Initialize LED using currently configured mode
-- `void init(LedMode mode)` - Initialize LED and explicitly select mode
-- `void set_mode(LedMode mode)` - Change mode at runtime (reconfigures GPIO function)
-- `LedMode get_mode() const` - Get current mode
-
-### Basic Control
-- `void on()` - Turn LED on at current brightness
-- `void off()` - Turn LED off (0% brightness)
-- `void toggle()` - Toggle LED state
-- `void set_brightness(uint8_t value)` - Set brightness (0-255)
-
-### Blinking
-- `void blink(uint times, uint interval_ms)` - Blink N times with interval
-- `void blink_duration(uint duration_ms, uint interval_ms)` - Blink for duration
-- `void start_blink(uint interval_ms)` - Start continuous blinking
-- `void stop_blink()` - Stop any active blinking
-
-### Update
-- `void update()` - Update LED state and handle timing (call in main loop)
-
-### Callbacks
-- `void set_on_state_change(std::function<void(bool)> callback)` - Called when LED changes state
-- `void set_on_blink_end(std::function<void()> callback)` - Called when blink sequence ends
-
-### Status
-- `bool is_on() const` - Check if LED is currently on
-- `bool is_blinking() const` - Check if LED is in a blink pattern
-
-## Notes
-- Designed for transistor-driven LEDs (Eurorack compatible)
-- Must call `update()` regularly for blinking to work
-- In `kSimple` mode, brightness behaves like thresholded on/off (`>0` -> HIGH, `0` -> LOW)
-- In `kPwm` mode, brightness uses PWM hardware
-- Avoid blocking operations in callbacks
-- Multiple LEDs can be managed independently
-- For managing all 6 Brain module LEDs together, see [Leds](LEDS.md)
+## Per-Channel Methods
+- `on(index)`
+- `off(index)`
+- `toggle(index)`
+- `set_brightness(index, value)`
+- `blink(index, times, interval_ms)`
+- `blink_duration(index, duration_ms, interval_ms)`
+- `start_blink(index, interval_ms)`
+- `stop_blink(index)`
+- `set_on_state_change(index, cb)`
+- `set_on_blink_end(index, cb)`
+- `is_on(index)`
+- `is_blinking(index)`

@@ -5,7 +5,7 @@ The Brain SDK is a firmware and library collection for the Brain module of the [
 ## Features
 Brain uses a Raspberry Pi Pico or Pico 2 (depending on what the builder chose to connect) in it's Core board. It's a universal digital module for Eurorack synths with flexible inputs and outputs.
 - 2 analog inputs for CV and audio signals using 2 of the the Pico's ADCs
-- 2 analog outputs which uses an MCP4822 DAC. The output of the DAC can be programmatically AC or DC coupled, using a CD4053 IC.
+- 2 analog outputs which uses an MCP4822 DAC. Output range can be set per channel to `0..10V` or `-5..+5V` (hardware offset path via CD4053).
 - 1 pulse input, using digital GPIO, preceded by a transistor switch (for safety)
 - 1 pulse output, using digital GPIO with a simple transistor switch
 - 1 dedicated MIDI input. This input is not universal because MIDI requires special input circuitry
@@ -24,15 +24,14 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 ### Core Components
 
 #### I/O Components
-- [Audio/CV Input](docs/AUDIO_CV_IN.md) - Two-channel analog input with voltage conversion
-- [Audio/CV Output](docs/AUDIO_CV_OUT.md) - Two-channel DAC output with DC/AC coupling
-- [Pulse I/O](docs/PULSE.md) - Digital pulse input/output for gates and triggers
+- [Inputs](docs/INPUTS.md) - Audio/CV input + pulse input in one class
+- [Outputs](docs/OUTPUTS.md) - Audio/CV output + pulse output in one class
 - [MIDI Parser](docs/MIDI_PARSER.md) - UART-based MIDI input with message parsing
 
 #### UI Components
 - [Button](docs/BUTTON.md) - Debounced pushbutton input with callbacks
-- [ButtonLed](docs/BUTTON_LED.md) - Dedicated on/off controller for the illuminated button LED
-- [LED](docs/LED.md) - Individual LED control with runtime-selectable SIMPLE/PWM mode
+- [Button LED](docs/BUTTON_LED.md) - Button LED control via `Leds::button_*` methods
+- [LED Channel](docs/LED.md) - Per-channel LED control via `Leds`
 - [Leds](docs/LEDS.md) - Group LED controller for all 6 Brain module LEDs
 - [Pots](docs/POTS.md) - Multiplexed potentiometer reader
 
@@ -50,6 +49,7 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 - Available feature flags: `kBrainFeatureLeds`, `kBrainFeatureButtons`, `kBrainFeatureInputs`, `kBrainFeatureOutputs`, `kBrainFeaturePots`
 - Presets: `BrainAll`, `BrainIO`, `BrainUI`, `BrainMinimal`
 - No namespace qualification is required for new code
+- Full wrapper reference: [Brain class docs](docs/BRAIN.md)
 
 Example:
 ```cpp
@@ -67,7 +67,8 @@ int main() {
 	brain.init_outputs();
 
 	brain.leds.on(0);
-	brain.outputs.set_voltage(AudioCvOutChannel::kChannelA, 2.5f);
+	brain.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
+	brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 2500);
 	brain.outputs.pulse_set(true);
 
 	while (true) {

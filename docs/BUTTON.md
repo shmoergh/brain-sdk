@@ -23,10 +23,10 @@ The Button component provides a robust interface for pushbutton inputs in the Br
 
 ## Example - Basic Press/Release
 ```cpp
-#include "brain-ui/button.h"
+#include "brain/include/button.h"
 
 // Create button on GPIO 5 with default debounce (50ms) and long press (500ms)
-brain::ui::Button my_button(5);
+Button my_button(5);
 my_button.init(true);  // true = pull-up (button connects to GND)
 
 my_button.set_on_press([]() {
@@ -45,10 +45,10 @@ while (true) {
 
 ## Example - Long Press Detection
 ```cpp
-#include "brain-ui/button.h"
+#include "brain/include/button.h"
 
 // Create button with custom debounce (30ms) and long press (1000ms)
-brain::ui::Button button(5, 30, 1000);
+Button button(5, 30, 1000);
 button.init(true);
 
 button.set_on_press([]() {
@@ -67,9 +67,9 @@ while (true) {
 
 ## Example - Single Tap Detection
 ```cpp
-#include "brain-ui/button.h"
+#include "brain/include/button.h"
 
-brain::ui::Button button(5);
+Button button(5);
 button.init(true);
 
 // Single tap is triggered on quick press-release
@@ -90,9 +90,9 @@ while (true) {
 
 ## Example - Pull-Down Configuration
 ```cpp
-#include "brain-ui/button.h"
+#include "brain/include/button.h"
 
-brain::ui::Button button(5);
+Button button(5);
 button.init(false);  // false = pull-down (button connects to VCC)
 
 button.set_on_press([]() {
