@@ -113,13 +113,3 @@ private:
 	LedMode mode_;
 };
 
-namespace brain {
-namespace ui {
-using ::LedMode;
-using ::NO_OF_LEDS;
-using ::kLedCount;
-using ::led_pin;
-using ::led_pins;
-using ::Leds;
-}  // namespace ui
-}  // namespace brain

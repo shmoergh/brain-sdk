@@ -71,10 +71,3 @@ private:
 	void update_value_scale(FunctionState& state, uint16_t raw);
 };
 
-namespace brain {
-namespace ui {
-using ::PotMode;
-using ::PotFunctionConfig;
-using ::PotMultiFunction;
-}  // namespace ui
-}  // namespace brain

@@ -61,10 +61,3 @@ private:
 
 using AudioCvIn = Inputs;
 
-namespace brain {
-namespace io {
-using ::AudioCvInChannel;
-using ::Inputs;
-using ::AudioCvIn;
-}  // namespace io
-}  // namespace brain

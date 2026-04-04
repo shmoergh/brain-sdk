@@ -75,11 +75,3 @@ private:
 
 using AudioCvOut = Outputs;
 
-namespace brain {
-namespace io {
-using ::AudioCvOutChannel;
-using ::AudioCvOutCoupling;
-using ::Outputs;
-using ::AudioCvOut;
-}  // namespace io
-}  // namespace brain

@@ -30,17 +30,3 @@ constexpr float kAudioCvInVoltageAtPlus5V = 3.000f;
 constexpr float kAudioCvInMinVoltage = -5.0f;
 constexpr float kAudioCvInMaxVoltage = 5.0f;
 
-namespace brain {
-namespace constants {
-constexpr uint32_t kMicrosPerSecond = ::kMicrosPerSecond;
-constexpr uint32_t kMillisPerSecond = ::kMillisPerSecond;
-constexpr uint16_t kAdcMaxValue = ::kAdcMaxValue;
-constexpr float kAdcVoltageRef = ::kAdcVoltageRef;
-constexpr uint32_t kDefaultAudioSampleRate = ::kDefaultAudioSampleRate;
-constexpr uint32_t kDefaultControlRate = ::kDefaultControlRate;
-constexpr float kAudioCvInVoltageAtMinus5V = ::kAudioCvInVoltageAtMinus5V;
-constexpr float kAudioCvInVoltageAtPlus5V = ::kAudioCvInVoltageAtPlus5V;
-constexpr float kAudioCvInMinVoltage = ::kAudioCvInMinVoltage;
-constexpr float kAudioCvInMaxVoltage = ::kAudioCvInMaxVoltage;
-}  // namespace constants
-}  // namespace brain

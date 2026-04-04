@@ -119,9 +119,9 @@ void Outputs::clear_calibration() {
 }
 
 bool Outputs::load_calibration_from_flash() {
-	brain::storage::CvCalibrationV1 calibration{};
-	brain::storage::StorageStatus status = brain::storage::read_cv_calibration(&calibration);
-	if (status != brain::storage::StorageStatus::kOk) {
+	CvCalibrationV1 calibration{};
+	StorageStatus status = read_cv_calibration(&calibration);
+	if (status != StorageStatus::kOk) {
 		clear_calibration();
 		return false;
 	}

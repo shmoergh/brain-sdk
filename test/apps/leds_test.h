@@ -24,7 +24,7 @@ private:
 		kSkip
 	};
 
-	brain::ui::Leds leds_;
+	Leds leds_;
 	bool initialized_;
 	bool completed_;
 	bool aborted_;
@@ -36,7 +36,7 @@ private:
 	void print_test_menu() const;
 	bool prompt_test_selection(bool& run_all, uint8_t& selected_case);
 	void run_case(uint8_t case_index);
-	void ensure_leds_mode(brain::ui::LedMode mode);
+	void ensure_leds_mode(LedMode mode);
 	void print_led_map() const;
 	void record_case(const char* name, CaseResult result);
 	void clear_pending_input();
@@ -63,7 +63,7 @@ private:
 
 	void announce_expected_mask(uint8_t mask) const;
 	void spin_wait_ms(uint32_t ms) const;
-	void wait_with_leds_update(brain::ui::Leds& leds, uint32_t ms) const;
+	void wait_with_leds_update(Leds& leds, uint32_t ms) const;
 };
 
 }  // namespace sandbox::apps

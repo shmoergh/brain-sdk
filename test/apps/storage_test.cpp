@@ -13,27 +13,27 @@ namespace sandbox::apps {
 
 namespace {
 
-const char* to_string(brain::storage::StorageStatus status) {
+const char* to_string(StorageStatus status) {
 	switch (status) {
-		case brain::storage::StorageStatus::kOk:
+		case StorageStatus::kOk:
 			return "kOk";
-		case brain::storage::StorageStatus::kInvalidArgument:
+		case StorageStatus::kInvalidArgument:
 			return "kInvalidArgument";
-		case brain::storage::StorageStatus::kNotFound:
+		case StorageStatus::kNotFound:
 			return "kNotFound";
-		case brain::storage::StorageStatus::kCorrupt:
+		case StorageStatus::kCorrupt:
 			return "kCorrupt";
-		case brain::storage::StorageStatus::kOutOfBounds:
+		case StorageStatus::kOutOfBounds:
 			return "kOutOfBounds";
-		case brain::storage::StorageStatus::kTooLarge:
+		case StorageStatus::kTooLarge:
 			return "kTooLarge";
-		case brain::storage::StorageStatus::kUnprotectedLayout:
+		case StorageStatus::kUnprotectedLayout:
 			return "kUnprotectedLayout";
-		case brain::storage::StorageStatus::kFlashError:
+		case StorageStatus::kFlashError:
 			return "kFlashError";
-		case brain::storage::StorageStatus::kTimeout:
+		case StorageStatus::kTimeout:
 			return "kTimeout";
-		case brain::storage::StorageStatus::kNotPermitted:
+		case StorageStatus::kNotPermitted:
 			return "kNotPermitted";
 		default:
 			return "unknown";
@@ -44,8 +44,8 @@ void print_result(const char* name, bool pass) {
 	printf("[%s] %s\n", pass ? "PASS" : "FAIL", name);
 }
 
-bool calibration_equal(const brain::storage::CvCalibrationV1& a, const brain::storage::CvCalibrationV1& b) {
-	return std::memcmp(&a, &b, sizeof(brain::storage::CvCalibrationV1)) == 0;
+bool calibration_equal(const CvCalibrationV1& a, const CvCalibrationV1& b) {
+	return std::memcmp(&a, &b, sizeof(CvCalibrationV1)) == 0;
 }
 
 int16_t expected_channel_a_offset(float voltage) {
@@ -76,22 +76,22 @@ void StorageTest::init() {
 	printf("\n\r--------\n\r");
 	printf("Brain Storage Test (Phase 2+3+4+5)\n");
 	printf("Layout protected: %s\n",
-		brain::storage::is_layout_protected() ? "yes" : "no");
+		is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
-		brain::storage::kAllowUnprotectedLayout ? "yes" : "no");
+		kAllowUnprotectedLayout ? "yes" : "no");
 	printf("App region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			brain::storage::region_offset(brain::storage::StorageRegion::kAppData)),
+			region_offset(StorageRegion::kAppData)),
 		static_cast<unsigned>(
-			brain::storage::region_size(brain::storage::StorageRegion::kAppData)));
+			region_size(StorageRegion::kAppData)));
 	printf("Cal region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			brain::storage::region_offset(brain::storage::StorageRegion::kCalibration)),
+			region_offset(StorageRegion::kCalibration)),
 		static_cast<unsigned>(
-			brain::storage::region_size(brain::storage::StorageRegion::kCalibration)));
+			region_size(StorageRegion::kCalibration)));
 	printf("Guard region offset/size: %u / %u\n",
-		static_cast<unsigned>(brain::storage::layout::kGuardRegionOffsetBytes),
-		static_cast<unsigned>(brain::storage::layout::kGuardRegionSizeBytes));
+		static_cast<unsigned>(StorageLayout::kGuardRegionOffsetBytes),
+		static_cast<unsigned>(StorageLayout::kGuardRegionSizeBytes));
 
 	initialized_ = true;
 }
@@ -113,9 +113,9 @@ void StorageTest::update() {
 	uint8_t app_blob_pattern[96] = {0};
 	uint8_t app_blob_readback[96] = {0};
 	uint8_t app_blob_oversize_guard = 0xA5;
-	brain::storage::CvCalibrationV1 calibration_in{};
-	brain::storage::CvCalibrationV1 calibration_out{};
-	brain::io::AudioCvOut dac{};
+	CvCalibrationV1 calibration_in{};
+	CvCalibrationV1 calibration_out{};
+	AudioCvOut dac{};
 	size_t app_blob_actual_size = 0;
 
 	for (size_t i = 0; i < sizeof(pattern); i++) {
@@ -125,36 +125,36 @@ void StorageTest::update() {
 		app_blob_pattern[i] = static_cast<uint8_t>(0x31 + (i % 57));
 	}
 
-	brain::storage::StorageStatus status = brain::storage::read_region(
-		brain::storage::StorageRegion::kCalibration,
+	StorageStatus status = read_region(
+		StorageRegion::kCalibration,
 		0,
 		calibration_before,
 		sizeof(calibration_before));
-	bool step_pass = (status == brain::storage::StorageStatus::kOk);
+	bool step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration snapshot before app write", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_region(
-		brain::storage::StorageRegion::kAppData,
+	status = write_region(
+		StorageRegion::kAppData,
 		0,
 		pattern,
 		sizeof(pattern));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Write 64-byte app pattern", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_region(
-		brain::storage::StorageRegion::kAppData,
+	status = read_region(
+		StorageRegion::kAppData,
 		0,
 		app_readback,
 		sizeof(app_readback));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read back app pattern", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -167,12 +167,12 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_region(
-		brain::storage::StorageRegion::kCalibration,
+	status = read_region(
+		StorageRegion::kCalibration,
 		0,
 		calibration_after,
 		sizeof(calibration_after));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration snapshot after app write", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -186,13 +186,13 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_region(
-		brain::storage::StorageRegion::kAppData,
-		static_cast<uint32_t>(brain::storage::region_size(
-			brain::storage::StorageRegion::kAppData) - 8),
+	status = write_region(
+		StorageRegion::kAppData,
+		static_cast<uint32_t>(region_size(
+			StorageRegion::kAppData) - 8),
 		pattern,
 		16);
-	step_pass = (status == brain::storage::StorageStatus::kTooLarge);
+	step_pass = (status == StorageStatus::kTooLarge);
 	print_result("Reject out-of-bounds app write", step_pass);
 	if (!step_pass) {
 		printf("  status=%s (expected kTooLarge)\n", to_string(status));
@@ -204,16 +204,16 @@ void StorageTest::update() {
 		calibration_in.b_offset_lsb[i] = static_cast<int16_t>(30 - i * 2);
 	}
 
-	status = brain::storage::write_cv_calibration(&calibration_in);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = write_cv_calibration(&calibration_in);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Write calibration record", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_cv_calibration(&calibration_out);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = read_cv_calibration(&calibration_out);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration record", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -227,12 +227,12 @@ void StorageTest::update() {
 	}
 
 	uint8_t calibration_corrupt_byte = 0;
-	status = brain::storage::read_region(
-		brain::storage::StorageRegion::kCalibration,
+	status = read_region(
+		StorageRegion::kCalibration,
 		8,
 		&calibration_corrupt_byte,
 		1);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read one calibration byte for corruption test", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -240,75 +240,75 @@ void StorageTest::update() {
 	}
 
 	calibration_corrupt_byte ^= 0x5A;
-	status = brain::storage::write_region(
-		brain::storage::StorageRegion::kCalibration,
+	status = write_region(
+		StorageRegion::kCalibration,
 		8,
 		&calibration_corrupt_byte,
 		1);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Corrupt one calibration byte", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_cv_calibration(&calibration_out);
-	step_pass = (status == brain::storage::StorageStatus::kCorrupt);
+	status = read_cv_calibration(&calibration_out);
+	step_pass = (status == StorageStatus::kCorrupt);
 	print_result("Detect corrupted calibration record", step_pass);
 	if (!step_pass) {
 		printf("  status=%s (expected kCorrupt)\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::clear_cv_calibration();
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = clear_cv_calibration();
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Clear calibration sector", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_cv_calibration(&calibration_out);
-	step_pass = (status == brain::storage::StorageStatus::kNotFound);
+	status = read_cv_calibration(&calibration_out);
+	step_pass = (status == StorageStatus::kNotFound);
 	print_result("Read calibration after clear returns not found", step_pass);
 	if (!step_pass) {
 		printf("  status=%s (expected kNotFound)\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_cv_calibration(&calibration_in);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = write_cv_calibration(&calibration_in);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Re-write calibration baseline for app-blob isolation test", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_region(
-		brain::storage::StorageRegion::kCalibration,
+	status = read_region(
+		StorageRegion::kCalibration,
 		0,
 		calibration_before_app_blob,
 		sizeof(calibration_before_app_blob));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration snapshot before app blob ops", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_app_blob(app_blob_pattern, sizeof(app_blob_pattern));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = write_app_blob(app_blob_pattern, sizeof(app_blob_pattern));
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Write app blob record", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_app_blob(
+	status = read_app_blob(
 		app_blob_readback,
 		sizeof(app_blob_readback),
 		&app_blob_actual_size);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read app blob record", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -328,41 +328,41 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_app_blob(
+	status = write_app_blob(
 		&app_blob_oversize_guard,
-		brain::storage::region_size(brain::storage::StorageRegion::kAppData));
-	step_pass = (status == brain::storage::StorageStatus::kTooLarge);
+		region_size(StorageRegion::kAppData));
+	step_pass = (status == StorageStatus::kTooLarge);
 	print_result("Reject oversize app blob write", step_pass);
 	if (!step_pass) {
 		printf("  status=%s (expected kTooLarge)\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::clear_app_blob();
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = clear_app_blob();
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Clear app blob sector", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_app_blob(
+	status = read_app_blob(
 		app_blob_readback,
 		sizeof(app_blob_readback),
 		&app_blob_actual_size);
-	step_pass = (status == brain::storage::StorageStatus::kNotFound);
+	step_pass = (status == StorageStatus::kNotFound);
 	print_result("Read app blob after clear returns not found", step_pass);
 	if (!step_pass) {
 		printf("  status=%s (expected kNotFound)\n", to_string(status));
 		overall_pass = false;
 	}
 
-	status = brain::storage::read_region(
-		brain::storage::StorageRegion::kCalibration,
+	status = read_region(
+		StorageRegion::kCalibration,
 		0,
 		calibration_after_app_blob,
 		sizeof(calibration_after_app_blob));
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration snapshot after app blob ops", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -394,10 +394,10 @@ void StorageTest::update() {
 	const float phase5_test_voltages[] = {0.0f, 0.5f, 1.0f, 5.5f, 10.0f};
 	bool zero_cal_match = true;
 	for (float voltage : phase5_test_voltages) {
-		dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, voltage);
-		uint16_t raw_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
-		dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, voltage);
-		uint16_t calibrated_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		dac.set_voltage(AudioCvOutChannel::kChannelA, voltage);
+		uint16_t raw_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+		dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, voltage);
+		uint16_t calibrated_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 		if (raw_dac != calibrated_dac) {
 			zero_cal_match = false;
 			printf("  mismatch at %.2fV raw=%u calibrated=%u\n",
@@ -424,10 +424,10 @@ void StorageTest::update() {
 
 	bool synthetic_delta_match = true;
 	for (float voltage : phase5_test_voltages) {
-		dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, voltage);
-		int32_t raw_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
-		dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, voltage);
-		int32_t calibrated_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+		dac.set_voltage(AudioCvOutChannel::kChannelA, voltage);
+		int32_t raw_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+		dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, voltage);
+		int32_t calibrated_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 		int32_t expected_delta = expected_channel_a_offset(voltage);
 		if ((calibrated_dac - raw_dac) != expected_delta) {
 			synthetic_delta_match = false;
@@ -444,10 +444,10 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, -1.0f);
-	int32_t clamped_low_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
-	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, 11.0f);
-	int32_t clamped_high_dac = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, -1.0f);
+	int32_t clamped_low_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, 11.0f);
+	int32_t clamped_high_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 
 	step_pass = (clamped_low_dac == 0) && (clamped_high_dac == 3995);
 	print_result("Out-of-range calibrated input clamps safely", step_pass);
@@ -458,8 +458,8 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = brain::storage::write_cv_calibration(&calibration_in);
-	step_pass = (status == brain::storage::StorageStatus::kOk);
+	status = write_cv_calibration(&calibration_in);
+	step_pass = (status == StorageStatus::kOk);
 	print_result("Write calibration for load-from-flash API test", step_pass);
 	if (!step_pass) {
 		printf("  status=%s\n", to_string(status));
@@ -479,10 +479,10 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	dac.set_voltage(brain::io::AudioCvOutChannel::kChannelA, 1.0f);
-	int32_t flash_load_raw_1v = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
-	dac.set_voltage_calibrated(brain::io::AudioCvOutChannel::kChannelA, 1.0f);
-	int32_t flash_load_cal_1v = dac.get_last_dac_value(brain::io::AudioCvOutChannel::kChannelA);
+	dac.set_voltage(AudioCvOutChannel::kChannelA, 1.0f);
+	int32_t flash_load_raw_1v = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, 1.0f);
+	int32_t flash_load_cal_1v = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 	step_pass = ((flash_load_cal_1v - flash_load_raw_1v) == -10);
 	print_result("Flash-loaded calibration is applied at 1V", step_pass);
 	if (!step_pass) {

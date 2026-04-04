@@ -58,9 +58,3 @@ enum class StorageStatus : uint8_t {
 	kNotPermitted,
 };
 
-namespace brain {
-namespace storage {
-using ::StorageStatus;
-namespace layout = ::StorageLayout;
-}  // namespace storage
-}  // namespace brain

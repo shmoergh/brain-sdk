@@ -31,7 +31,7 @@
 namespace {
 
 constexpr uint8_t kMidiChannel = 1;
-constexpr brain::io::AudioCvOutChannel kPitchCvChannel = brain::io::AudioCvOutChannel::kChannelA;
+constexpr AudioCvOutChannel kPitchCvChannel = AudioCvOutChannel::kChannelA;
 constexpr brain::utils::MidiToCV::Mode kMode = brain::utils::MidiToCV::Mode::kDuo;
 
 void on_note_on(uint8_t note, uint8_t velocity, uint8_t channel) {

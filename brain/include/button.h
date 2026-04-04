@@ -36,8 +36,3 @@ private:
 	absolute_time_t last_change_time_;
 };
 
-namespace brain {
-namespace ui {
-using ::Button;
-}  // namespace ui
-}  // namespace brain

@@ -98,8 +98,3 @@ private:
 	RealtimeCallback realtime_callback_ = nullptr;
 };
 
-namespace brain {
-namespace io {
-using ::MidiParser;
-}  // namespace io
-}  // namespace brain

@@ -50,11 +50,3 @@ private:
 	std::function<void(uint8_t, uint16_t)> on_change_;
 };
 
-namespace brain {
-namespace ui {
-using ::PotsConfig;
-using ::create_default_config;
-using ::Pots;
-using ::kMaxPots;
-}  // namespace ui
-}  // namespace brain
