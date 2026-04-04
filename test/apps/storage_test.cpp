@@ -48,20 +48,73 @@ bool calibration_equal(const CvCalibrationV1& a, const CvCalibrationV1& b) {
 	return std::memcmp(&a, &b, sizeof(CvCalibrationV1)) == 0;
 }
 
-int16_t expected_channel_a_offset(float voltage) {
-	if (voltage <= 0.0f) {
+int16_t legacy_round_to_int16(float value) {
+	if (value >= 0.0f) {
+		return static_cast<int16_t>(value + 0.5f);
+	}
+	return static_cast<int16_t>(value - 0.5f);
+}
+
+int32_t legacy_voltage_to_dac_from_millivolts(int32_t millivolts) {
+	float voltage = static_cast<float>(millivolts) / 1000.0f;
+	float normalized = voltage / 10.0f;
+	uint16_t dac_value = static_cast<uint16_t>(normalized * 4095.0f + 0.5f);
+	return (dac_value > 4095) ? 4095 : dac_value;
+}
+
+int16_t legacy_interpolated_offset_lsb(const int16_t* offsets, int32_t millivolts) {
+	float clamped_voltage = static_cast<float>(millivolts) / 1000.0f;
+
+	if (clamped_voltage <= 0.0f) {
 		return 0;
 	}
-	if (voltage < 1.0f) {
-		return -5;	// between 0 and -10 at 0.5V for test case
+	if (clamped_voltage < 1.0f) {
+		return legacy_round_to_int16(static_cast<float>(offsets[0]) * clamped_voltage);
 	}
-	if (voltage == 1.0f) {
+	if (clamped_voltage >= 10.0f) {
+		return offsets[9];
+	}
+
+	const int lower_whole_volt = static_cast<int>(clamped_voltage);
+	const int lower_idx = lower_whole_volt - 1;
+	const int upper_idx = lower_idx + 1;
+	const float t = clamped_voltage - static_cast<float>(lower_whole_volt);
+
+	const float lower_offset = static_cast<float>(offsets[lower_idx]);
+	const float upper_offset = static_cast<float>(offsets[upper_idx]);
+	return legacy_round_to_int16(lower_offset + (upper_offset - lower_offset) * t);
+}
+
+int32_t legacy_expected_calibrated_dac_channel_a(int32_t requested_millivolts, bool bipolar_range,
+	const CvCalibrationV1& calibration) {
+	int32_t dac_domain_millivolts = requested_millivolts;
+	if (bipolar_range) {
+		dac_domain_millivolts += 5000;
+	}
+	if (dac_domain_millivolts < 0) dac_domain_millivolts = 0;
+	if (dac_domain_millivolts > 10000) dac_domain_millivolts = 10000;
+
+	int32_t raw_dac = legacy_voltage_to_dac_from_millivolts(dac_domain_millivolts);
+	int32_t with_offset = raw_dac + legacy_interpolated_offset_lsb(calibration.a_offset_lsb, dac_domain_millivolts);
+	if (with_offset < 0) return 0;
+	if (with_offset > 4095) return 4095;
+	return with_offset;
+}
+
+int16_t expected_channel_a_offset(int32_t millivolts) {
+	if (millivolts <= 0) {
+		return 0;
+	}
+	if (millivolts < 1000) {
+		return -5;	// between 0 and -10 at 500mV for test case
+	}
+	if (millivolts == 1000) {
 		return -10;
 	}
-	if (voltage == 5.5f) {
+	if (millivolts == 5500) {
 		return -55;
 	}
-	if (voltage >= 10.0f) {
+	if (millivolts >= 10000) {
 		return -100;
 	}
 	return 0;
@@ -391,17 +444,17 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	const float phase5_test_voltages[] = {0.0f, 0.5f, 1.0f, 5.5f, 10.0f};
+	const int32_t phase5_test_millivolts[] = {0, 500, 1000, 5500, 10000};
 	bool zero_cal_match = true;
-	for (float voltage : phase5_test_voltages) {
-		dac.set_voltage(AudioCvOutChannel::kChannelA, voltage);
+	for (int32_t millivolts : phase5_test_millivolts) {
+		dac.set_voltage_millivolts(AudioCvOutChannel::kChannelA, millivolts);
 		uint16_t raw_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
-		dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, voltage);
+		dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, millivolts);
 		uint16_t calibrated_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 		if (raw_dac != calibrated_dac) {
 			zero_cal_match = false;
-			printf("  mismatch at %.2fV raw=%u calibrated=%u\n",
-				static_cast<double>(voltage),
+			printf("  mismatch at %ldmV raw=%u calibrated=%u\n",
+				static_cast<long>(millivolts),
 				static_cast<unsigned>(raw_dac),
 				static_cast<unsigned>(calibrated_dac));
 		}
@@ -423,16 +476,16 @@ void StorageTest::update() {
 	}
 
 	bool synthetic_delta_match = true;
-	for (float voltage : phase5_test_voltages) {
-		dac.set_voltage(AudioCvOutChannel::kChannelA, voltage);
+	for (int32_t millivolts : phase5_test_millivolts) {
+		dac.set_voltage_millivolts(AudioCvOutChannel::kChannelA, millivolts);
 		int32_t raw_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
-		dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, voltage);
+		dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, millivolts);
 		int32_t calibrated_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
-		int32_t expected_delta = expected_channel_a_offset(voltage);
+		int32_t expected_delta = expected_channel_a_offset(millivolts);
 		if ((calibrated_dac - raw_dac) != expected_delta) {
 			synthetic_delta_match = false;
-			printf("  delta mismatch at %.2fV raw=%ld calibrated=%ld delta=%ld expected=%ld\n",
-				static_cast<double>(voltage),
+			printf("  delta mismatch at %ldmV raw=%ld calibrated=%ld delta=%ld expected=%ld\n",
+				static_cast<long>(millivolts),
 				static_cast<long>(raw_dac),
 				static_cast<long>(calibrated_dac),
 				static_cast<long>(calibrated_dac - raw_dac),
@@ -444,9 +497,9 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, -1.0f);
+	dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, -1000);
 	int32_t clamped_low_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
-	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, 11.0f);
+	dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, 11000);
 	int32_t clamped_high_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 
 	step_pass = (clamped_low_dac == 0) && (clamped_high_dac == 3995);
@@ -479,9 +532,9 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	dac.set_voltage(AudioCvOutChannel::kChannelA, 1.0f);
+	dac.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 1000);
 	int32_t flash_load_raw_1v = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
-	dac.set_voltage_calibrated(AudioCvOutChannel::kChannelA, 1.0f);
+	dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, 1000);
 	int32_t flash_load_cal_1v = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
 	step_pass = ((flash_load_cal_1v - flash_load_raw_1v) == -10);
 	print_result("Flash-loaded calibration is applied at 1V", step_pass);
@@ -490,6 +543,70 @@ void StorageTest::update() {
 			static_cast<long>(flash_load_raw_1v),
 			static_cast<long>(flash_load_cal_1v),
 			static_cast<long>(flash_load_cal_1v - flash_load_raw_1v));
+		overall_pass = false;
+	}
+
+	CvCalibrationV1 legacy_compat_cal{};
+	for (int i = 0; i < 10; ++i) {
+		legacy_compat_cal.a_offset_lsb[i] = static_cast<int16_t>((i % 2 == 0) ? (12 - i * 2) : (-9 - i * 3));
+		legacy_compat_cal.b_offset_lsb[i] = static_cast<int16_t>((i % 2 == 0) ? (-7 + i) : (6 - i * 2));
+	}
+
+	status = write_cv_calibration(&legacy_compat_cal);
+	step_pass = (status == StorageStatus::kOk);
+	print_result("Write legacy-style calibration payload", step_pass);
+	if (!step_pass) {
+		printf("  status=%s\n", to_string(status));
+		overall_pass = false;
+	}
+
+	step_pass = dac.load_calibration_from_flash();
+	print_result("Load legacy-style calibration payload from flash", step_pass);
+	if (!step_pass) {
+		overall_pass = false;
+	}
+
+	const int32_t legacy_unipolar_points_mv[] = {0, 500, 1000, 2500, 5500, 7500, 10000};
+	bool legacy_unipolar_match = true;
+	dac.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
+	for (int32_t mv : legacy_unipolar_points_mv) {
+		dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, mv);
+		int32_t actual_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+		int32_t expected_dac =
+			legacy_expected_calibrated_dac_channel_a(mv, false, legacy_compat_cal);
+		if (actual_dac != expected_dac) {
+			legacy_unipolar_match = false;
+			printf(
+				"  legacy unipolar mismatch at %ldmV actual=%ld expected=%ld\n",
+				static_cast<long>(mv),
+				static_cast<long>(actual_dac),
+				static_cast<long>(expected_dac));
+		}
+	}
+	print_result("Legacy calibration compatibility (0..10V range)", legacy_unipolar_match);
+	if (!legacy_unipolar_match) {
+		overall_pass = false;
+	}
+
+	const int32_t legacy_bipolar_points_mv[] = {-5000, -2500, 0, 2500, 5000};
+	bool legacy_bipolar_match = true;
+	dac.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRangeMinus5To5V);
+	for (int32_t mv : legacy_bipolar_points_mv) {
+		dac.set_voltage_calibrated_millivolts(AudioCvOutChannel::kChannelA, mv);
+		int32_t actual_dac = dac.get_last_dac_value(AudioCvOutChannel::kChannelA);
+		int32_t expected_dac =
+			legacy_expected_calibrated_dac_channel_a(mv, true, legacy_compat_cal);
+		if (actual_dac != expected_dac) {
+			legacy_bipolar_match = false;
+			printf(
+				"  legacy bipolar mismatch at %ldmV actual=%ld expected=%ld\n",
+				static_cast<long>(mv),
+				static_cast<long>(actual_dac),
+				static_cast<long>(expected_dac));
+		}
+	}
+	print_result("Legacy calibration compatibility (-5..5V range)", legacy_bipolar_match);
+	if (!legacy_bipolar_match) {
 		overall_pass = false;
 	}
 

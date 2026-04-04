@@ -3,18 +3,24 @@
 #include <hardware/gpio.h>
 #include <pico/stdlib.h>
 
-#include <cmath>
 #include <cstdio>
 
 #include "storage.h"
 
 namespace {
 
-int16_t round_to_int16(float value) {
-	if (value >= 0.0f) {
-		return static_cast<int16_t>(value + 0.5f);
+int32_t div_round_nearest(int32_t numerator, int32_t denominator) {
+	if (denominator == 0) return 0;
+	if (numerator >= 0) {
+		return (numerator + denominator / 2) / denominator;
 	}
-	return static_cast<int16_t>(value - 0.5f);
+	return (numerator - denominator / 2) / denominator;
+}
+
+int16_t saturate_int16(int32_t value) {
+	if (value > 32767) return 32767;
+	if (value < -32768) return -32768;
+	return static_cast<int16_t>(value);
 }
 
 }  // namespace
@@ -23,7 +29,7 @@ Outputs::Outputs(uint pulse_out_gpio)
 	: pulse_out_gpio_(pulse_out_gpio) {}
 
 bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
-	uint coupling_pin_a, uint coupling_pin_b) {
+	uint coupling_pin_a, uint coupling_pin_b, AudioCvOutRange range_a, AudioCvOutRange range_b) {
 	if (spi_instance != spi0 && spi_instance != spi1) {
 		fprintf(stderr, "Outputs: Invalid SPI instance\n");
 		return false;
@@ -48,11 +54,11 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 
 	gpio_init(coupling_pin_a_);
 	gpio_set_dir(coupling_pin_a_, GPIO_OUT);
-	gpio_put(coupling_pin_a_, 0);
-
 	gpio_init(coupling_pin_b_);
 	gpio_set_dir(coupling_pin_b_, GPIO_OUT);
-	gpio_put(coupling_pin_b_, 0);
+
+	set_output_range(AudioCvOutChannel::kChannelA, range_a);
+	set_output_range(AudioCvOutChannel::kChannelB, range_b);
 
 	return true;
 }
@@ -70,24 +76,36 @@ bool Outputs::init() {
 	return init_audio_cv();
 }
 
-bool Outputs::set_voltage(AudioCvOutChannel channel, float voltage) {
-	if (voltage < 0.0f || voltage > kMaxVoltage) {
-		fprintf(stderr, "Outputs: Voltage %.2fV out of range (0-%.1fV)\n", voltage, kMaxVoltage);
+bool Outputs::set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivolts) {
+	int32_t dac_input_millivolts = 0;
+	if (!to_dac_input_millivolts(channel, millivolts, false, &dac_input_millivolts)) {
+		AudioCvOutRange range = get_output_range(channel);
+		fprintf(
+			stderr,
+			"Outputs: Voltage %ldmV out of range for %s\n",
+			static_cast<long>(millivolts),
+			range_to_string(range));
 		return false;
 	}
 
-	uint16_t dac_value = voltage_to_dac(voltage);
+	uint16_t dac_value = millivolts_to_dac(dac_input_millivolts);
 	write_dac_channel(channel, dac_value);
+
+	if (channel == AudioCvOutChannel::kChannelA) {
+		last_set_millivolts_a_ = millivolts;
+	} else {
+		last_set_millivolts_b_ = millivolts;
+	}
 	return true;
 }
 
-bool Outputs::set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage) {
-	float clamped_voltage = clamp_voltage(target_voltage);
-	uint16_t raw_dac_value = voltage_to_dac(clamped_voltage);
+bool Outputs::set_voltage_calibrated_millivolts(AudioCvOutChannel channel, int32_t target_millivolts) {
+	int32_t clamped_dac_input_millivolts = 0;
+	to_dac_input_millivolts(channel, target_millivolts, true, &clamped_dac_input_millivolts);
 
-	int32_t calibrated_dac_value = raw_dac_value;
+	int32_t calibrated_dac_value = millivolts_to_dac(clamped_dac_input_millivolts);
 	if (calibration_loaded_) {
-		calibrated_dac_value += interpolated_offset_lsb(channel, clamped_voltage);
+		calibrated_dac_value += interpolated_offset_lsb(channel, clamped_dac_input_millivolts);
 	}
 
 	if (calibrated_dac_value < 0) {
@@ -98,6 +116,12 @@ bool Outputs::set_voltage_calibrated(AudioCvOutChannel channel, float target_vol
 	}
 
 	write_dac_channel(channel, static_cast<uint16_t>(calibrated_dac_value));
+
+	if (channel == AudioCvOutChannel::kChannelA) {
+		last_set_millivolts_a_ = target_millivolts;
+	} else {
+		last_set_millivolts_b_ = target_millivolts;
+	}
 	return true;
 }
 
@@ -137,12 +161,28 @@ uint16_t Outputs::get_last_dac_value(AudioCvOutChannel channel) const {
 	return (channel == AudioCvOutChannel::kChannelA) ? last_dac_value_a_ : last_dac_value_b_;
 }
 
-bool Outputs::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
+int32_t Outputs::get_last_set_millivolts(AudioCvOutChannel channel) const {
+	return (channel == AudioCvOutChannel::kChannelA) ? last_set_millivolts_a_ : last_set_millivolts_b_;
+}
+
+bool Outputs::set_output_range(AudioCvOutChannel channel, AudioCvOutRange range) {
 	uint coupling_pin =
 		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
 
-	gpio_put(coupling_pin, static_cast<bool>(coupling));
+	if (channel == AudioCvOutChannel::kChannelA) {
+		range_a_ = range;
+	} else {
+		range_b_ = range;
+	}
+
+	// Hardware "AC" means subtracting 5V from the DAC/amplified signal.
+	const bool subtract_5v = (range == AudioCvOutRange::kRangeMinus5To5V);
+	gpio_put(coupling_pin, subtract_5v);
 	return true;
+}
+
+AudioCvOutRange Outputs::get_output_range(AudioCvOutChannel channel) const {
+	return (channel == AudioCvOutChannel::kChannelA) ? range_a_ : range_b_;
 }
 
 void Outputs::pulse_set(bool on) {
@@ -185,43 +225,78 @@ void Outputs::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
 	asm volatile("nop \n nop \n nop");
 }
 
-uint16_t Outputs::voltage_to_dac(float voltage) {
-	float normalized = voltage / kMaxVoltage;
-	uint16_t dac_value = static_cast<uint16_t>(normalized * kMaxDacValue + 0.5f);
-	return (dac_value > kMaxDacValue) ? kMaxDacValue : dac_value;
+bool Outputs::to_dac_input_millivolts(
+	AudioCvOutChannel channel,
+	int32_t requested_millivolts,
+	bool clamp_to_range,
+	int32_t* dac_input_millivolts) const {
+	const AudioCvOutRange range = get_output_range(channel);
+
+	int32_t min_mv = kUnipolarMinMillivolts;
+	int32_t max_mv = kUnipolarMaxMillivolts;
+	int32_t offset_mv = 0;
+	if (range == AudioCvOutRange::kRangeMinus5To5V) {
+		min_mv = kBipolarMinMillivolts;
+		max_mv = kBipolarMaxMillivolts;
+		offset_mv = kBipolarOffsetMillivolts;
+	}
+
+	int32_t clamped = requested_millivolts;
+	if (clamped < min_mv || clamped > max_mv) {
+		if (!clamp_to_range) {
+			return false;
+		}
+		if (clamped < min_mv) clamped = min_mv;
+		if (clamped > max_mv) clamped = max_mv;
+	}
+
+	*dac_input_millivolts = clamped + offset_mv;
+	return true;
 }
 
-float Outputs::clamp_voltage(float voltage) const {
-	if (voltage < 0.0f) {
-		return 0.0f;
-	}
-	if (voltage > kMaxVoltage) {
-		return kMaxVoltage;
-	}
-	return voltage;
+uint16_t Outputs::millivolts_to_dac(int32_t dac_input_millivolts) const {
+	if (dac_input_millivolts <= 0) return 0;
+	if (dac_input_millivolts >= kMaxOutputMillivolts) return kMaxDacValue;
+
+	const int32_t scaled = dac_input_millivolts * static_cast<int32_t>(kMaxDacValue);
+	const int32_t rounded = div_round_nearest(scaled, kMaxOutputMillivolts);
+	if (rounded < 0) return 0;
+	if (rounded > static_cast<int32_t>(kMaxDacValue)) return kMaxDacValue;
+	return static_cast<uint16_t>(rounded);
 }
 
-int16_t Outputs::interpolated_offset_lsb(AudioCvOutChannel channel, float clamped_voltage) const {
+int16_t Outputs::interpolated_offset_lsb(AudioCvOutChannel channel, int32_t dac_input_millivolts) const {
 	const int16_t* offsets = (channel == AudioCvOutChannel::kChannelA)
 		? calibration_a_offset_lsb_
 		: calibration_b_offset_lsb_;
 
-	if (clamped_voltage <= 0.0f) {
+	if (dac_input_millivolts <= 0) {
 		return 0;
 	}
-	if (clamped_voltage < 1.0f) {
-		return round_to_int16(static_cast<float>(offsets[0]) * clamped_voltage);
+	if (dac_input_millivolts < 1000) {
+		const int32_t scaled = static_cast<int32_t>(offsets[0]) * dac_input_millivolts;
+		return saturate_int16(div_round_nearest(scaled, 1000));
 	}
-	if (clamped_voltage >= kMaxVoltage) {
+	if (dac_input_millivolts >= kMaxOutputMillivolts) {
 		return offsets[9];
 	}
 
-	const int lower_whole_volt = static_cast<int>(clamped_voltage);
-	const int lower_idx = lower_whole_volt - 1;
-	const int upper_idx = lower_idx + 1;
-	const float t = clamped_voltage - static_cast<float>(lower_whole_volt);
+	const int32_t lower_whole_volt = dac_input_millivolts / 1000;
+	const int32_t lower_idx = lower_whole_volt - 1;
+	const int32_t upper_idx = lower_idx + 1;
+	const int32_t within_volt_millivolts = dac_input_millivolts - (lower_whole_volt * 1000);
 
-	const float lower_offset = static_cast<float>(offsets[lower_idx]);
-	const float upper_offset = static_cast<float>(offsets[upper_idx]);
-	return round_to_int16(lower_offset + (upper_offset - lower_offset) * t);
+	const int32_t lower_offset = offsets[lower_idx];
+	const int32_t upper_offset = offsets[upper_idx];
+	const int32_t delta = upper_offset - lower_offset;
+	const int32_t interpolated =
+		lower_offset + div_round_nearest(delta * within_volt_millivolts, 1000);
+	return saturate_int16(interpolated);
+}
+
+const char* Outputs::range_to_string(AudioCvOutRange range) const {
+	if (range == AudioCvOutRange::kRangeMinus5To5V) {
+		return "-5000..5000mV";
+	}
+	return "0..10000mV";
 }

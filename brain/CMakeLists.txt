@@ -28,6 +28,8 @@ target_link_libraries(brain
     hardware_timer
     hardware_spi
     hardware_adc
+    hardware_dma
+    hardware_sync
     hardware_pwm
     hardware_flash
     pico_flash

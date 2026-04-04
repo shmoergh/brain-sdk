@@ -4,6 +4,18 @@ namespace brain::utils {
 
 MidiToCV* MidiToCV::instance_ = nullptr;
 
+namespace {
+
+int32_t div_round_nearest_i32(int32_t numerator, int32_t denominator) {
+	if (denominator == 0) return 0;
+	if (numerator >= 0) {
+		return (numerator + denominator / 2) / denominator;
+	}
+	return (numerator - denominator / 2) / denominator;
+}
+
+}  // namespace
+
 bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	instance_ = this;
 	midi_channel_ = midi_channel;
@@ -20,11 +32,11 @@ bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 		return false;
 	}
 
-	// DC couple the CV output and set it to 0.0f
-	outputs_.set_coupling(AudioCvOutChannel::kChannelA, AudioCvOutCoupling::kDcCoupled);
-	outputs_.set_coupling(AudioCvOutChannel::kChannelB, AudioCvOutCoupling::kDcCoupled);
-	write_cv_voltage(AudioCvOutChannel::kChannelA, 0.0f);
-	write_cv_voltage(AudioCvOutChannel::kChannelB, 0.0f);
+	// Default CV range is 0..10V on both channels.
+	outputs_.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
+	outputs_.set_output_range(AudioCvOutChannel::kChannelB, AudioCvOutRange::kRange0To10V);
+	write_cv_millivolts(AudioCvOutChannel::kChannelA, 0);
+	write_cv_millivolts(AudioCvOutChannel::kChannelB, 0);
 
 	// Enable CV
 	enable_cv();
@@ -58,7 +70,7 @@ bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	pitch_bend_range_semitones_ = kDefaultPitchBendRangeSemitones;
 
 	// Set up CV
-	max_cc_voltage_ = Outputs::kMaxVoltage;
+	max_cc_voltage_ = static_cast<uint8_t>(Outputs::kMaxOutputMillivolts / 1000);
 	set_pitch_channel(cv_channel);
 
 	return true;
@@ -156,7 +168,7 @@ void MidiToCV::control_change(uint8_t cc, uint8_t value, uint8_t channel) {
 	// Modwheel
 	if (cc == 1 && mode_ == Mode::kModWheel) {
 		modwheel_value_ = value;
-		set_cc_cv(midi_value_to_voltage(modwheel_value_));
+		set_cc_cv(midi_value_to_millivolts(modwheel_value_));
 	}
 }
 
@@ -190,8 +202,8 @@ void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 }
 
 void MidiToCV::set_pitch_channel(AudioCvOutChannel cv_channel) {
-	write_cv_voltage(AudioCvOutChannel::kChannelA, 0.0f);
-	write_cv_voltage(AudioCvOutChannel::kChannelB, 0.0f);
+	write_cv_millivolts(AudioCvOutChannel::kChannelA, 0);
+	write_cv_millivolts(AudioCvOutChannel::kChannelB, 0);
 
 	cv_channel_ = cv_channel;
 	cv_other_channel_ = cv_channel == AudioCvOutChannel::kChannelA ? AudioCvOutChannel::kChannelB : AudioCvOutChannel::kChannelA;
@@ -264,11 +276,13 @@ void MidiToCV::set_cv() {
 		play_note = last_note_;
 	}
 
-	float note_voltage = (play_note.note - kZeroCVMidiNote) / 12.0f;
-	float pitch_bend_voltage = pitch_bend_to_voltage(pitch_bend_value_);
-	note_voltage += pitch_bend_voltage;
+	int32_t note_millivolts =
+		div_round_nearest_i32(
+			(static_cast<int32_t>(play_note.note) - static_cast<int32_t>(kZeroCVMidiNote)) * 1000,
+			12);
+	note_millivolts += pitch_bend_to_millivolts(pitch_bend_value_);
 
-	float cc_voltage = 0.0f;
+	int32_t cc_millivolts = 0;
 
 	switch (mode_) {
 		case kDuo: {
@@ -284,40 +298,46 @@ void MidiToCV::set_cv() {
 				// No notes held: keep duo outputs latched until the next phrase starts.
 			}
 
-			float primary_note_voltage = (duo_latched_primary_note_.note - kZeroCVMidiNote) / 12.0f;
-			float secondary_note_voltage = (duo_latched_secondary_note_.note - kZeroCVMidiNote) / 12.0f;
-			primary_note_voltage += pitch_bend_voltage;
-			secondary_note_voltage += pitch_bend_voltage;
-			write_cv_voltage(cv_channel_, primary_note_voltage);
-			set_cc_cv(secondary_note_voltage);
+			int32_t primary_note_millivolts =
+				div_round_nearest_i32(
+					(static_cast<int32_t>(duo_latched_primary_note_.note) - static_cast<int32_t>(kZeroCVMidiNote)) * 1000,
+					12);
+			int32_t secondary_note_millivolts =
+				div_round_nearest_i32(
+					(static_cast<int32_t>(duo_latched_secondary_note_.note) - static_cast<int32_t>(kZeroCVMidiNote)) * 1000,
+					12);
+			primary_note_millivolts += pitch_bend_to_millivolts(pitch_bend_value_);
+			secondary_note_millivolts += pitch_bend_to_millivolts(pitch_bend_value_);
+			write_cv_millivolts(cv_channel_, primary_note_millivolts);
+			set_cc_cv(secondary_note_millivolts);
 			duo_prev_stack_size_ = current_stack_size_;
 			return;
 		}
 
 		case kUnison: {
-			cc_voltage = note_voltage;
+			cc_millivolts = note_millivolts;
 			break;
 		}
 
 		case kModWheel: {
-			cc_voltage = midi_value_to_voltage(modwheel_value_);
+			cc_millivolts = midi_value_to_millivolts(modwheel_value_);
 			break;
 		}
 
 		default: {
-			cc_voltage = midi_value_to_voltage(play_note.velocity);
+			cc_millivolts = midi_value_to_millivolts(play_note.velocity);
 			break;
 		}
 	}
 
-	write_cv_voltage(cv_channel_, note_voltage);
-	set_cc_cv(cc_voltage);
+	write_cv_millivolts(cv_channel_, note_millivolts);
+	set_cc_cv(cc_millivolts);
 	duo_prev_stack_size_ = current_stack_size_;
 }
 
-void MidiToCV::set_cc_cv(float cc_voltage) {
+void MidiToCV::set_cc_cv(int32_t cc_millivolts) {
 	// Handling modes
-	write_cv_voltage(cv_other_channel_, cc_voltage);
+	write_cv_millivolts(cv_other_channel_, cc_millivolts);
 }
 
 void MidiToCV::set_gate(bool state) {
@@ -357,24 +377,26 @@ bool MidiToCV::is_calibrated_output_enabled() const {
 	return calibrated_output_enabled_;
 }
 
-bool MidiToCV::write_cv_voltage(AudioCvOutChannel channel, float voltage) {
+bool MidiToCV::write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts) {
 	if (calibrated_output_enabled_) {
-		return outputs_.set_voltage_calibrated(channel, voltage);
+		return outputs_.set_voltage_calibrated_millivolts(channel, millivolts);
 	}
-	return outputs_.set_voltage(channel, voltage);
+	return outputs_.set_voltage_millivolts(channel, millivolts);
 }
 
 void MidiToCV::set_max_cc_voltage(uint8_t max_voltage) {
-	max_cc_voltage_ = clamp(0, static_cast<int32_t>(Outputs::kMaxVoltage), max_voltage);
+	max_cc_voltage_ =
+		clamp(0, static_cast<int32_t>(Outputs::kMaxOutputMillivolts / 1000), max_voltage);
 }
 
-float MidiToCV::midi_value_to_voltage(uint8_t value) {
-	return value * max_cc_voltage_ / 127.0;
+int32_t MidiToCV::midi_value_to_millivolts(uint8_t value) {
+	const int32_t max_millivolts = static_cast<int32_t>(max_cc_voltage_) * 1000;
+	return div_round_nearest_i32(static_cast<int32_t>(value) * max_millivolts, 127);
 }
 
-float MidiToCV::pitch_bend_to_voltage(int16_t value) const {
+int32_t MidiToCV::pitch_bend_to_millivolts(int16_t value) const {
 	if (value == 0) {
-		return 0.0f;
+		return 0;
 	}
 
 	// Use integer fixed-point math (milli-semitones) and only convert to float at the end.
@@ -386,7 +408,8 @@ float MidiToCV::pitch_bend_to_voltage(int16_t value) const {
 		kMilliSemitoneScale;
 	const int32_t bend_milli_semitones = static_cast<int32_t>(scaled_numerator / bend_denominator);
 
-	return static_cast<float>(bend_milli_semitones) / 12000.0f;
+	// 1 octave = 1000 mV = 12 semitones => 1 semitone = 1000/12 mV.
+	return div_round_nearest_i32(bend_milli_semitones, 12);
 }
 
 }

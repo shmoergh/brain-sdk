@@ -12,6 +12,11 @@ enum AudioCvInChannel { kChannelA = 0, kChannelB = 1 };
 class Inputs {
 public:
 	explicit Inputs(uint pulse_in_gpio = GPIO_BRAIN_PULSE_INPUT);
+	~Inputs();
+	Inputs(const Inputs&) = delete;
+	Inputs& operator=(const Inputs&) = delete;
+	Inputs(Inputs&&) = delete;
+	Inputs& operator=(Inputs&&) = delete;
 
 	bool init_audio_cv();
 	bool init_pulse();
@@ -21,6 +26,9 @@ public:
 	void update_audio_cv();
 	void pulse_poll();
 	void update();
+	void set_audio_cv_dma_enabled(bool enabled);
+	bool is_audio_cv_dma_enabled() const;
+	bool is_audio_cv_dma_active() const;
 
 	uint16_t get_raw(int channel) const;
 	uint16_t get_raw_channel_a() const;
@@ -40,6 +48,9 @@ public:
 private:
 	float adc_to_voltage(uint16_t adc_value) const;
 	void calculate_conversion_parameters();
+	bool init_audio_cv_dma();
+	void release_audio_cv_dma();
+	void sample_audio_cv_dma();
 
 	static void gpio_irq_handler(uint gpio, uint32_t events);
 	void handle_edge(bool raw_state);
@@ -47,6 +58,10 @@ private:
 	uint16_t channel_raw_[2] = {0, 0};
 	float voltage_scale_ = 1.0f;
 	float voltage_offset_ = 0.0f;
+	bool audio_cv_dma_enabled_ = true;
+	bool audio_cv_dma_active_ = false;
+	int audio_cv_dma_channel_ = -1;
+	uint16_t audio_cv_dma_samples_[2] = {0, 0};
 
 	uint pulse_in_gpio_ = 0;
 	bool pulse_initialized_ = false;
@@ -60,4 +75,3 @@ private:
 };
 
 using AudioCvIn = Inputs;
-

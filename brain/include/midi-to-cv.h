@@ -109,12 +109,12 @@ class MidiToCV {
 		int find_note(uint8_t note);
 
 		uint8_t max_cc_voltage_;
-		void set_cc_cv(float cc_voltage);
-		bool write_cv_voltage(AudioCvOutChannel channel, float voltage);
+		void set_cc_cv(int32_t cc_millivolts);
+		bool write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts);
 
 		void set_cv();
-		float pitch_bend_to_voltage(int16_t value) const;
-		float midi_value_to_voltage(uint8_t value);
+		int32_t pitch_bend_to_millivolts(int16_t value) const;
+		int32_t midi_value_to_millivolts(uint8_t value);
 	};
 
 }

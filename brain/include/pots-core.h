@@ -28,6 +28,8 @@ public:
 	void init(const PotsConfig& cfg);
 
 	void set_simple(bool simple);
+	void set_optimized_sampling_enabled(bool enabled);
+	bool is_optimized_sampling_enabled() const;
 	void set_output_resolution(uint8_t resolution);
 	void set_settling_delay_us(uint32_t delay);
 	void set_samples_per_read(uint8_t samples);
@@ -39,6 +41,7 @@ public:
 	uint16_t get_raw(uint8_t index);
 
 	void set_on_change(std::function<void(uint8_t, uint16_t)> cb);
+	uint8_t get_num_pots() const;
 
 private:
 	void set_mux_channel(uint8_t ch);
@@ -47,6 +50,6 @@ private:
 	PotsConfig config_;
 	uint16_t last_values_[kMaxPots];
 	uint16_t buffered_values_[kMaxPots];
+	bool optimized_sampling_enabled_ = true;
 	std::function<void(uint8_t, uint16_t)> on_change_;
 };
-

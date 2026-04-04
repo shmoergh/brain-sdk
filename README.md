@@ -76,6 +76,33 @@ int main() {
 }
 ```
 
+ADC optimization defaults:
+- `Inputs` uses DMA burst sampling for AudioCV by default.
+- `Pots` uses optimized multiplexed scan (settle + discard + averaged reads) by default.
+- `Brain` coordinates and configures these policies.
+- You can disable either path before `init()`:
+
+```cpp
+Brain brain;
+brain.set_audio_cv_dma_enabled(false);           // fall back to Inputs internal ADC reads
+brain.set_shared_pot_sampling_enabled(false);    // fall back to Pots internal scan reads
+brain.init();
+```
+
+If your app does custom ADC work (for example on core1 or inside IRQ handlers), use `BrainAdcLockGuard` around ADC register/FIFO access so it is serialized with SDK components:
+
+```cpp
+#include "brain/brain.h"
+#include <hardware/adc.h>
+
+void my_custom_adc_read() {
+	BrainAdcLockGuard adc_guard;
+	adc_select_input(0);
+	uint16_t raw = adc_read();
+	(void)raw;
+}
+```
+
 
 ### Folder Structure
 ```

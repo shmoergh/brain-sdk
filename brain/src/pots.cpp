@@ -7,6 +7,7 @@
 #include <hardware/gpio.h>
 #include <pico/stdlib.h>
 
+#include "adc-arbiter.h"
 #include "gpio-setup.h"
 
 
@@ -41,22 +42,33 @@ void Pots::init(const PotsConfig& cfg) {
 		config_.num_pots = kMaxPots;
 	}
 
-	adc_init();
-	gpio_init(cfg.s0_gpio);
-	gpio_set_dir(cfg.s0_gpio, GPIO_OUT);
-	gpio_put(cfg.s0_gpio, 0);
-	gpio_init(cfg.s1_gpio);
-	gpio_set_dir(cfg.s1_gpio, GPIO_OUT);
-	gpio_put(cfg.s1_gpio, 0);
-	adc_gpio_init(cfg.adc_gpio);
-	// Select ADC input (Pico SDK: ADC input = GPIO - 26)
-	adc_select_input(cfg.adc_gpio - 26);
-	// Small guard delay
-	busy_wait_us_32(cfg.settling_delay_us);
+	{
+		BrainAdcLockGuard guard;
+		adc_init();
+		gpio_init(cfg.s0_gpio);
+		gpio_set_dir(cfg.s0_gpio, GPIO_OUT);
+		gpio_put(cfg.s0_gpio, 0);
+		gpio_init(cfg.s1_gpio);
+		gpio_set_dir(cfg.s1_gpio, GPIO_OUT);
+		gpio_put(cfg.s1_gpio, 0);
+		adc_gpio_init(cfg.adc_gpio);
+		// Select ADC input (Pico SDK: ADC input = GPIO - 26)
+		adc_select_input(cfg.adc_gpio - 26);
+		// Small guard delay
+		busy_wait_us_32(cfg.settling_delay_us);
+	}
 }
 
 void Pots::set_simple(bool simple) {
 	config_.simple = simple;
+}
+
+void Pots::set_optimized_sampling_enabled(bool enabled) {
+	optimized_sampling_enabled_ = enabled;
+}
+
+bool Pots::is_optimized_sampling_enabled() const {
+	return optimized_sampling_enabled_;
 }
 
 void Pots::set_output_resolution(uint8_t resolution) {
@@ -82,6 +94,7 @@ void Pots::set_mux_channel(uint8_t ch) {
 }
 
 uint16_t Pots::read_channel_once(uint8_t ch) {
+	BrainAdcLockGuard guard;
 	set_mux_channel(ch);
 
 	// Reselect ADC input to ensure proper synchronization
@@ -89,7 +102,7 @@ uint16_t Pots::read_channel_once(uint8_t ch) {
 
 	// Simple read is just reading the ADC once and that's it. It's the fastest
 	// but lacks precision
-	if (config_.simple) {
+	if (config_.simple || !optimized_sampling_enabled_) {
 		uint16_t adc_value = adc_read();
 		return adc_value;
 
@@ -151,4 +164,8 @@ void Pots::scan() {
 
 void Pots::set_on_change(std::function<void(uint8_t, uint16_t)> cb) {
 	on_change_ = cb;
+}
+
+uint8_t Pots::get_num_pots() const {
+	return config_.num_pots;
 }

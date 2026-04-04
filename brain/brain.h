@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "include/adc-arbiter.h"
 #include "include/buttons.h"
 #include "include/constants.h"
 #include "include/inputs.h"
@@ -53,6 +54,39 @@ public:
 	using InputsType = std::conditional_t<kHasInputs, Inputs, BrainDisabledComponent>;
 	using PotsType = std::conditional_t<kHasPots, Pots, BrainDisabledComponent>;
 
+	BrainT() = default;
+	BrainT(const BrainT&) = delete;
+	BrainT& operator=(const BrainT&) = delete;
+	BrainT(BrainT&&) = delete;
+	BrainT& operator=(BrainT&&) = delete;
+
+	void enable_adc_optimization(bool enabled = true) {
+		adc_optimization_enabled_ = enabled;
+		apply_adc_policy_to_components();
+	}
+
+	void set_audio_cv_dma_enabled(bool enabled) {
+		audio_cv_dma_enabled_ = enabled;
+		apply_adc_policy_to_components();
+	}
+
+	void set_shared_pot_sampling_enabled(bool enabled) {
+		shared_pot_sampling_enabled_ = enabled;
+		apply_adc_policy_to_components();
+	}
+
+	bool is_adc_optimization_enabled() const {
+		return adc_optimization_enabled_;
+	}
+
+	bool is_audio_cv_dma_enabled() const {
+		return audio_cv_dma_enabled_;
+	}
+
+	bool is_shared_pot_sampling_enabled() const {
+		return shared_pot_sampling_enabled_;
+	}
+
 	bool init() {
 		return init_all();
 	}
@@ -62,8 +96,8 @@ public:
 		ok = ok && init_leds();
 		ok = ok && init_buttons();
 		ok = ok && init_outputs();
-		ok = ok && init_inputs();
 		ok = ok && init_pots();
+		ok = ok && init_inputs();
 		return ok;
 	}
 
@@ -103,6 +137,7 @@ public:
 
 	template <bool Enabled = kHasInputs, typename std::enable_if<Enabled, int>::type = 0>
 	bool init_inputs() {
+		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
 		return inputs.init();
 	}
 
@@ -114,6 +149,7 @@ public:
 	template <bool Enabled = kHasPots, typename std::enable_if<Enabled, int>::type = 0>
 	bool init_pots(const PotsConfig& config = create_default_pots_config()) {
 		pots.init(config);
+		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 		return true;
 	}
 
@@ -171,6 +207,32 @@ public:
 	BRAIN_NO_UNIQUE_ADDRESS OutputsType outputs{};
 	BRAIN_NO_UNIQUE_ADDRESS InputsType inputs{};
 	BRAIN_NO_UNIQUE_ADDRESS PotsType pots{};
+
+private:
+	void apply_adc_policy_to_components() {
+		apply_inputs_adc_policy();
+		apply_pots_adc_policy();
+	}
+
+	template <bool Enabled = kHasInputs, typename std::enable_if<Enabled, int>::type = 0>
+	void apply_inputs_adc_policy() {
+		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
+	}
+
+	template <bool Enabled = kHasInputs, typename std::enable_if<!Enabled, int>::type = 0>
+	void apply_inputs_adc_policy() {}
+
+	template <bool Enabled = kHasPots, typename std::enable_if<Enabled, int>::type = 0>
+	void apply_pots_adc_policy() {
+		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
+	}
+
+	template <bool Enabled = kHasPots, typename std::enable_if<!Enabled, int>::type = 0>
+	void apply_pots_adc_policy() {}
+
+	bool adc_optimization_enabled_ = true;
+	bool audio_cv_dma_enabled_ = true;
+	bool shared_pot_sampling_enabled_ = true;
 };
 
 using Brain = BrainT<kBrainFeaturesAll>;
