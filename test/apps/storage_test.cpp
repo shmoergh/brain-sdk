@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "audio-cv-out.h"
+#include "outputs.h"
 #include "storage.h"
 
 namespace sandbox::apps {

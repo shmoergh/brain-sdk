@@ -5,9 +5,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "audio-cv-out.h"
+#include "outputs.h"
 #include "midi-parser.h"
-#include "pulse.h"
 #include "helpers.h"
 
 namespace brain::utils {
@@ -81,9 +80,7 @@ class MidiToCV {
 		AudioCvOutChannel cv_channel_;
 		AudioCvOutChannel cv_other_channel_;
 		uint8_t midi_channel_;
-		AudioCvOut dac_;
-
-		Pulse gate_;
+		Outputs outputs_;
 		bool gate_on_;
 
 		NoteVelocity note_stack_[kNoteStackSize];

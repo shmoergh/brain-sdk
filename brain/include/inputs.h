@@ -1,45 +1,70 @@
 #pragma once
 
-#include "audio-cv-in.h"
-#include "midi-parser.h"
-#include "pulse.h"
+#include <cstdint>
+#include <functional>
+
+#include "common.h"
+#include "gpio-setup.h"
+#include "pico/types.h"
+
+enum AudioCvInChannel { kChannelA = 0, kChannelB = 1 };
 
 class Inputs {
 public:
-	explicit Inputs(Pulse* shared_pulse = nullptr)
-		: audio_cv(),
-		  owned_pulse_(),
-		  pulse(shared_pulse ? *shared_pulse : owned_pulse_) {}
+	explicit Inputs(uint pulse_in_gpio = GPIO_BRAIN_PULSE_INPUT);
 
-	bool init_audio_cv() {
-		return audio_cv.init();
-	}
+	bool init_audio_cv();
+	bool init_pulse();
+	void pulse_end();
+	bool init();
 
-	void init_pulse() {
-		pulse.begin();
-	}
+	void update_audio_cv();
+	void pulse_poll();
+	void update();
 
-	bool init() {
-		init_pulse();
-		return init_audio_cv();
-	}
+	uint16_t get_raw(int channel) const;
+	uint16_t get_raw_channel_a() const;
+	uint16_t get_raw_channel_b() const;
+	float get_voltage(int channel) const;
+	float get_voltage_channel_a() const;
+	float get_voltage_channel_b() const;
 
-	void update_audio_cv() {
-		audio_cv.update();
-	}
-
-	void poll_pulse() {
-		pulse.poll();
-	}
-
-	void update() {
-		update_audio_cv();
-		poll_pulse();
-	}
-
-	AudioCvIn audio_cv;
-	Pulse& pulse;
+	bool pulse_read() const;
+	bool pulse_read_raw() const;
+	void pulse_on_rise(std::function<void()> cb);
+	void pulse_on_fall(std::function<void()> cb);
+	void pulse_set_input_glitch_filter_us(uint32_t us);
+	void pulse_enable_interrupts();
+	void pulse_disable_interrupts();
 
 private:
-	Pulse owned_pulse_;
+	float adc_to_voltage(uint16_t adc_value) const;
+	void calculate_conversion_parameters();
+
+	static void gpio_irq_handler(uint gpio, uint32_t events);
+	void handle_edge(bool raw_state);
+
+	uint16_t channel_raw_[2] = {0, 0};
+	float voltage_scale_ = 1.0f;
+	float voltage_offset_ = 0.0f;
+
+	uint pulse_in_gpio_ = 0;
+	bool pulse_initialized_ = false;
+	bool pulse_last_logical_state_ = false;
+	uint32_t pulse_glitch_filter_us_ = 0;
+	bool pulse_interrupts_enabled_ = false;
+	std::function<void()> pulse_on_rise_callback_;
+	std::function<void()> pulse_on_fall_callback_;
+	uint32_t pulse_last_change_time_us_ = 0;
+	bool pulse_filtered_state_ = false;
 };
+
+using AudioCvIn = Inputs;
+
+namespace brain {
+namespace io {
+using ::AudioCvInChannel;
+using ::Inputs;
+using ::AudioCvIn;
+}  // namespace io
+}  // namespace brain

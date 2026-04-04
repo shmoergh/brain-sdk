@@ -1,15 +1,14 @@
 add_library(brain
-    src/audio-cv-in.cpp
-    src/audio-cv-out.cpp
     src/button-led.cpp
     src/button.cpp
+    src/inputs.cpp
     src/led.cpp
     src/leds.cpp
     src/midi-parser.cpp
     src/midi-to-cv.cpp
+    src/outputs.cpp
     src/pot-multi-function.cpp
     src/pots.cpp
-    src/pulse.cpp
     src/ringbuffer.cpp
     src/storage.cpp
 )

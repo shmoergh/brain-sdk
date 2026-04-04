@@ -14,14 +14,14 @@ public:
 		: leds(false),
 		  buttons(),
 		  outputs(),
-		  inputs(&outputs.pulse),
+		  inputs(),
 		  pots() {}
 
 	bool init() {
 		leds.init(LedMode::kPwm);
 		buttons.init();
 		outputs.init();
-		inputs.init_audio_cv();
+		inputs.init();
 		pots.init(create_default_pots_config());
 		return true;
 	}

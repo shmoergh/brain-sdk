@@ -1,4 +1,4 @@
-#include "audio-cv-out.h"
+#include "outputs.h"
 
 #include <hardware/gpio.h>
 #include <pico/stdlib.h>
@@ -19,15 +19,16 @@ int16_t round_to_int16(float value) {
 
 }  // namespace
 
-bool AudioCvOut::init(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
+Outputs::Outputs(uint pulse_out_gpio)
+	: pulse_out_gpio_(pulse_out_gpio) {}
+
+bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
 	uint coupling_pin_a, uint coupling_pin_b) {
-	// Validate SPI instance
 	if (spi_instance != spi0 && spi_instance != spi1) {
-		fprintf(stderr, "AudioCvOut: Invalid SPI instance\n");
+		fprintf(stderr, "Outputs: Invalid SPI instance\n");
 		return false;
 	}
 
-	// Store configuration
 	spi_instance_ = spi_instance;
 	cs_pin_ = cs_pin;
 	sck_pin_ = sck_pin;
@@ -35,45 +36,52 @@ bool AudioCvOut::init(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint 
 	coupling_pin_a_ = coupling_pin_a;
 	coupling_pin_b_ = coupling_pin_b;
 
-    // Initialize SPI and set explicit 8-bit MSB-first transfers, CPOL=0, CPHA=0
-    spi_init(spi_instance_, kSpiFrequency);
-    spi_set_format(spi_instance_, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+	spi_init(spi_instance_, kSpiFrequency);
+	spi_set_format(spi_instance_, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
-	// Configure SPI pins (SCK and TX/MOSI) for SPI function
 	gpio_set_function(sck_pin_, GPIO_FUNC_SPI);
 	gpio_set_function(tx_pin_, GPIO_FUNC_SPI);
 
-	// Configure CS pin
 	gpio_init(cs_pin_);
 	gpio_set_dir(cs_pin_, GPIO_OUT);
-	gpio_put(cs_pin_, 1);  // CS idle high
+	gpio_put(cs_pin_, 1);
 
-	// Configure coupling control pins
 	gpio_init(coupling_pin_a_);
 	gpio_set_dir(coupling_pin_a_, GPIO_OUT);
-	gpio_put(coupling_pin_a_, 0);  // Default to DC coupling
+	gpio_put(coupling_pin_a_, 0);
 
 	gpio_init(coupling_pin_b_);
 	gpio_set_dir(coupling_pin_b_, GPIO_OUT);
-	gpio_put(coupling_pin_b_, 0);  // Default to DC coupling
+	gpio_put(coupling_pin_b_, 0);
 
 	return true;
 }
 
-bool AudioCvOut::set_voltage(AudioCvOutChannel channel, float voltage) {
-	// Validate voltage range
+void Outputs::init_pulse() {
+	gpio_init(pulse_out_gpio_);
+	gpio_put(pulse_out_gpio_, true);
+	gpio_set_dir(pulse_out_gpio_, GPIO_OUT);
+	pulse_initialized_ = true;
+	pulse_state_ = false;
+}
+
+bool Outputs::init() {
+	init_pulse();
+	return init_audio_cv();
+}
+
+bool Outputs::set_voltage(AudioCvOutChannel channel, float voltage) {
 	if (voltage < 0.0f || voltage > kMaxVoltage) {
-		fprintf(stderr, "AudioCvOut: Voltage %.2fV out of range (0-%.1fV)\n", voltage, kMaxVoltage);
+		fprintf(stderr, "Outputs: Voltage %.2fV out of range (0-%.1fV)\n", voltage, kMaxVoltage);
 		return false;
 	}
 
-	// Convert voltage to DAC value and send command
 	uint16_t dac_value = voltage_to_dac(voltage);
 	write_dac_channel(channel, dac_value);
 	return true;
 }
 
-bool AudioCvOut::set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage) {
+bool Outputs::set_voltage_calibrated(AudioCvOutChannel channel, float target_voltage) {
 	float clamped_voltage = clamp_voltage(target_voltage);
 	uint16_t raw_dac_value = voltage_to_dac(clamped_voltage);
 
@@ -93,7 +101,7 @@ bool AudioCvOut::set_voltage_calibrated(AudioCvOutChannel channel, float target_
 	return true;
 }
 
-bool AudioCvOut::set_calibration(const CvCalibrationV1& cal) {
+bool Outputs::set_calibration(const CvCalibrationV1& cal) {
 	for (int i = 0; i < 10; i++) {
 		calibration_a_offset_lsb_[i] = cal.a_offset_lsb[i];
 		calibration_b_offset_lsb_[i] = cal.b_offset_lsb[i];
@@ -102,7 +110,7 @@ bool AudioCvOut::set_calibration(const CvCalibrationV1& cal) {
 	return true;
 }
 
-void AudioCvOut::clear_calibration() {
+void Outputs::clear_calibration() {
 	for (int i = 0; i < 10; i++) {
 		calibration_a_offset_lsb_[i] = 0;
 		calibration_b_offset_lsb_[i] = 0;
@@ -110,7 +118,7 @@ void AudioCvOut::clear_calibration() {
 	calibration_loaded_ = false;
 }
 
-bool AudioCvOut::load_calibration_from_flash() {
+bool Outputs::load_calibration_from_flash() {
 	brain::storage::CvCalibrationV1 calibration{};
 	brain::storage::StorageStatus status = brain::storage::read_cv_calibration(&calibration);
 	if (status != brain::storage::StorageStatus::kOk) {
@@ -121,64 +129,69 @@ bool AudioCvOut::load_calibration_from_flash() {
 	return set_calibration(calibration);
 }
 
-bool AudioCvOut::has_calibration() const {
+bool Outputs::has_calibration() const {
 	return calibration_loaded_;
 }
 
-uint16_t AudioCvOut::get_last_dac_value(AudioCvOutChannel channel) const {
+uint16_t Outputs::get_last_dac_value(AudioCvOutChannel channel) const {
 	return (channel == AudioCvOutChannel::kChannelA) ? last_dac_value_a_ : last_dac_value_b_;
 }
 
-bool AudioCvOut::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
+bool Outputs::set_coupling(AudioCvOutChannel channel, AudioCvOutCoupling coupling) {
 	uint coupling_pin =
 		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
 
-	// Set coupling: 0 = DC, 1 = AC
 	gpio_put(coupling_pin, static_cast<bool>(coupling));
 	return true;
 }
 
-void AudioCvOut::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
+void Outputs::pulse_set(bool on) {
+	if (!pulse_initialized_) {
+		init_pulse();
+	}
+	if (on != pulse_state_) {
+		pulse_state_ = on;
+		gpio_put(pulse_out_gpio_, !on);
+	}
+}
+
+bool Outputs::pulse_get() const {
+	return pulse_state_;
+}
+
+void Outputs::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
 	if (channel == AudioCvOutChannel::kChannelA) {
 		last_dac_value_a_ = dac_value;
 	} else {
 		last_dac_value_b_ = dac_value;
 	}
 
-	// Constructing DAC config
 	uint8_t config =
 		(channel == AudioCvOutChannel::kChannelA ? kMCP4822_CHANNEL_A : kMCP4822_CHANNEL_B) << 3 |
 		0 << 2 | kMCP4822_GAIN << 1 | kMCP4822_ACTIVE;
 
-	// Get hi-byte
 	uint8_t data[2];
 	data[0] = config << 4 | (dac_value & 0xf00) >> 8;
-
-	// Get lo-byte
 	data[1] = dac_value & 0xff;
 
-	// Send command via SPI
 	asm volatile("nop \n nop \n nop");
-	gpio_put(cs_pin_, 0);  // Assert CS
+	gpio_put(cs_pin_, 0);
 	asm volatile("nop \n nop \n nop");
 
 	spi_write_blocking(spi_instance_, data, 2);
 
 	asm volatile("nop \n nop \n nop");
-	gpio_put(cs_pin_, 1);  // Deassert CS
+	gpio_put(cs_pin_, 1);
 	asm volatile("nop \n nop \n nop");
 }
 
-uint16_t AudioCvOut::voltage_to_dac(float voltage) {
-	// Linear conversion: 0V -> 0, 10V -> 4095
+uint16_t Outputs::voltage_to_dac(float voltage) {
 	float normalized = voltage / kMaxVoltage;
 	uint16_t dac_value = static_cast<uint16_t>(normalized * kMaxDacValue + 0.5f);
-
-	// Ensure we don't exceed 12-bit range
 	return (dac_value > kMaxDacValue) ? kMaxDacValue : dac_value;
 }
 
-float AudioCvOut::clamp_voltage(float voltage) const {
+float Outputs::clamp_voltage(float voltage) const {
 	if (voltage < 0.0f) {
 		return 0.0f;
 	}
@@ -188,8 +201,7 @@ float AudioCvOut::clamp_voltage(float voltage) const {
 	return voltage;
 }
 
-int16_t AudioCvOut::interpolated_offset_lsb(
-	AudioCvOutChannel channel, float clamped_voltage) const {
+int16_t Outputs::interpolated_offset_lsb(AudioCvOutChannel channel, float clamped_voltage) const {
 	const int16_t* offsets = (channel == AudioCvOutChannel::kChannelA)
 		? calibration_a_offset_lsb_
 		: calibration_b_offset_lsb_;
@@ -213,4 +225,3 @@ int16_t AudioCvOut::interpolated_offset_lsb(
 	const float upper_offset = static_cast<float>(offsets[upper_idx]);
 	return round_to_int16(lower_offset + (upper_offset - lower_offset) * t);
 }
-
