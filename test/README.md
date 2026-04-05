@@ -1,6 +1,13 @@
 # Test Apps (`test`)
 
-Purpose: reusable manual hardware test apps for Brain SDK components.
+Purpose: reusable manual hardware regression apps for Brain SDK components.
+
+The `test` firmware is now a single **Critical Issues Test Package**:
+- flash once
+- open serial terminal
+- select a test from the startup menu in `test/main.cpp`
+
+After a test app starts, it owns the loop. Reset the board to return to the startup menu.
 
 ## Available Test Apps
 - `LedsTest` (`apps/leds_test.cpp`)
@@ -10,28 +17,40 @@ Purpose: reusable manual hardware test apps for Brain SDK components.
 - `StorageTest` (`apps/storage_test.cpp`)
 - `StoragePersistenceCheckTest` (`apps/storage_persistence_check_test.cpp`)
 
-## Switching Active App
+## Critical Issues Coverage
 
-The test firmware entrypoint is in `test/main.cpp`.
+- Pot mux bleed / unstable pot reads:
+  - `PotReadStabilityTest`
+- Multi-function pot mode behavior:
+  - `MultipotTest`
+- MIDI input + CV output integration:
+  - `MidiToCvTest`
+- Flash storage correctness + persistence:
+  - `StorageTest`, `StoragePersistenceCheckTest`
+- UI LED behavior regressions:
+  - `LedsTest`
 
-To switch tests:
-1. Update the include in `test/main.cpp` to the desired app header from `test/apps/`.
-2. Update the instantiated class in `main()`.
-3. Rebuild with:
+## Build
+
 ```bash
 cmake --build build --target test -j4
 ```
 
-## Development
+## Adding New Regression Apps
 
-When adding new test apps, follow the same conventions used by `LedsTest`:
+1. Add new app files in `test/apps/` (`*_test.h` + `*_test.cpp`).
+2. Add source file to `test/CMakeLists.txt`.
+3. Add app include + menu entry + switch case in `test/main.cpp`.
+4. Add app to the list in this README.
+5. Keep runtime UX consistent:
+   - print clear startup info
+   - print explicit hardware interaction instructions
+   - report measurable result or explicit `PASS`/`FAIL` conditions
+   - avoid hidden assumptions about board state
 
-1. Communicate through UART/terminal.
-2. Clear the terminal screen at startup.
-3. Print a startup menu/list of available tests.
-4. Wait for user selection before running tests.
-5. Before running each test step, wait for explicit user prompt/confirmation (hardware interaction requires focus on LEDs/controls).
-6. Execute the selected test(s) and report outcomes as `PASS` / `FAIL` / `SKIP`.
-7. Print a final summary of results at the end of a run.
+## Optional: Run One App Directly
 
-These conventions keep manual hardware validation consistent and easier to operate.
+If you want a dedicated firmware image for one app, temporarily instantiate it directly in `test/main.cpp` and rebuild:
+```bash
+cmake --build build --target test -j4
+```
