@@ -101,7 +101,7 @@ private:
 	uint coupling_pin_a_ = kAudioCvOutCouplingAPin;
 
 	int dma_channel_ = -1;
-	uint16_t dma_ring_[kDmaRingSamples] = {0};
+	alignas(512) uint16_t dma_ring_[kDmaRingSamples] = {0};
 	uint16_t dma_read_index_ = 0;
 	bool next_dma_sample_is_audio_ = true;
 	volatile uint16_t latest_audio_raw_ = 2048;
