@@ -12,6 +12,7 @@ After a test app starts, it owns the loop. Reset the board to return to the star
 ## Available Test Apps
 - `LedsTest` (`apps/leds_test.cpp`)
 - `MidiToCvTest` (`apps/midi_to_cv_test.cpp`)
+- `AudioProcessorTest` (`apps/audio_processor_test.cpp`)
 - `MultipotTest` (`apps/multipot_test.cpp`)
 - `PotReadStabilityTest` (`apps/pot_read_stability_test.cpp`)
 - `StorageTest` (`apps/storage_test.cpp`)
@@ -25,6 +26,8 @@ After a test app starts, it owns the loop. Reset the board to return to the star
   - `MultipotTest`
 - MIDI input + CV output integration:
   - `MidiToCvTest`
+- AudioProcessor ISR loop + pot mux + guardrails:
+  - `AudioProcessorTest`
 - Flash storage correctness + persistence:
   - `StorageTest`, `StoragePersistenceCheckTest`
 - UI LED behavior regressions:
