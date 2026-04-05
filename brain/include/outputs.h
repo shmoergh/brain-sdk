@@ -49,6 +49,9 @@ public:
 	void clear_calibration();
 	bool load_calibration_from_flash();
 	bool has_calibration() const;
+	bool is_audio_cv_initialized() const;
+	bool is_pulse_initialized() const;
+	bool is_initialized() const;
 	uint16_t get_last_dac_value(AudioCvOutChannel channel) const;
 	int32_t get_last_set_millivolts(AudioCvOutChannel channel) const;
 	bool set_output_range(AudioCvOutChannel channel, AudioCvOutRange range);
@@ -78,6 +81,7 @@ private:
 	uint coupling_pin_a_ = 0;
 	uint coupling_pin_b_ = 0;
 	spi_inst_t* spi_instance_ = nullptr;
+	bool audio_cv_initialized_ = false;
 
 	bool calibration_loaded_ = false;
 	int16_t calibration_a_offset_lsb_[10] = {0};

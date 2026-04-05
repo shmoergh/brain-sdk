@@ -59,6 +59,7 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 
 	set_output_range(AudioCvOutChannel::kChannelA, range_a);
 	set_output_range(AudioCvOutChannel::kChannelB, range_b);
+	audio_cv_initialized_ = true;
 
 	return true;
 }
@@ -155,6 +156,18 @@ bool Outputs::load_calibration_from_flash() {
 
 bool Outputs::has_calibration() const {
 	return calibration_loaded_;
+}
+
+bool Outputs::is_audio_cv_initialized() const {
+	return audio_cv_initialized_;
+}
+
+bool Outputs::is_pulse_initialized() const {
+	return pulse_initialized_;
+}
+
+bool Outputs::is_initialized() const {
+	return is_audio_cv_initialized() && is_pulse_initialized();
 }
 
 uint16_t Outputs::get_last_dac_value(AudioCvOutChannel channel) const {

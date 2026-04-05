@@ -16,7 +16,31 @@ int32_t div_round_nearest_i32(int32_t numerator, int32_t denominator) {
 
 }  // namespace
 
-bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
+void MidiToCV::set_dependencies(Outputs* outputs, MidiParser* midi_parser) {
+	outputs_ = outputs;
+	midi_parser_ = midi_parser;
+}
+
+BrainInitStatus MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
+	if (initialized_) {
+		return BrainInitStatus::kAlreadyInitialized;
+	}
+
+	if (!dependencies_ready()) {
+		printf("[ERROR] Brain SDK / Midi to CV: dependencies are not set.\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	if (!outputs().is_audio_cv_initialized() || !outputs().is_pulse_initialized()) {
+		printf("[ERROR] Brain SDK / Midi to CV: Outputs dependency not initialized.\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	if (!midi_parser().is_uart_initialized()) {
+		printf("[ERROR] Brain SDK / Midi to CV: MidiParser dependency not initialized.\n");
+		return BrainInitStatus::kFailed;
+	}
+
 	instance_ = this;
 	midi_channel_ = midi_channel;
 
@@ -26,15 +50,9 @@ bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	// Let bits settle
 	sleep_ms(200);
 
-	// Init DAC
-	if (!outputs_.init()) {
-		printf("[ERROR] Brain SDK / Midi to CV: DAC failed to initialize.\n");
-		return false;
-	}
-
 	// Default CV range is 0..10V on both channels.
-	outputs_.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
-	outputs_.set_output_range(AudioCvOutChannel::kChannelB, AudioCvOutRange::kRange0To10V);
+	outputs().set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
+	outputs().set_output_range(AudioCvOutChannel::kChannelB, AudioCvOutRange::kRange0To10V);
 	write_cv_millivolts(AudioCvOutChannel::kChannelA, 0);
 	write_cv_millivolts(AudioCvOutChannel::kChannelB, 0);
 
@@ -45,17 +63,12 @@ bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	set_gate(false);
 
 	// Set MIDI parser stuff
-	midi_parser_.set_channel(midi_channel_);
+	midi_parser().set_channel(midi_channel_);
 
-	midi_parser_.set_note_on_callback(note_on_callback);
-	midi_parser_.set_note_off_callback(note_off_callback);
-	midi_parser_.set_control_change_callback(control_change_callback);
-	midi_parser_.set_pitch_bend_callback(pitch_bend_callback);
-
-	if (!midi_parser_.init_uart()) {
-		printf("[ERROR] Brain SDK / Midi to CV: MIDI parser failed to initialize.\n");
-		return false;
-	}
+	midi_parser().set_note_on_callback(note_on_callback);
+	midi_parser().set_note_off_callback(note_off_callback);
+	midi_parser().set_control_change_callback(control_change_callback);
+	midi_parser().set_pitch_bend_callback(pitch_bend_callback);
 
 	// Reset note stack & last played note
 	reset_note_stack();
@@ -72,8 +85,13 @@ bool MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
 	// Set up CV
 	max_cc_voltage_ = static_cast<uint8_t>(Outputs::kMaxOutputMillivolts / 1000);
 	set_pitch_channel(cv_channel);
+	initialized_ = true;
 
-	return true;
+	return BrainInitStatus::kOk;
+}
+
+bool MidiToCV::is_initialized() const {
+	return initialized_;
 }
 
 void MidiToCV::set_mode(Mode mode) {
@@ -170,6 +188,10 @@ void MidiToCV::control_change(uint8_t cc, uint8_t value, uint8_t channel) {
 		modwheel_value_ = value;
 		set_cc_cv(midi_value_to_millivolts(modwheel_value_));
 	}
+
+	if (control_change_callback_) {
+		control_change_callback_(cc, value, channel);
+	}
 }
 
 void MidiToCV::pitch_bend(int16_t value, uint8_t channel) {
@@ -196,21 +218,28 @@ void MidiToCV::set_note_off_callback(NoteOffCallback callback) {
 	note_off_callback_ = callback;
 }
 
+void MidiToCV::set_control_change_callback(ControlChangeCallback callback) {
+	control_change_callback_ = callback;
+}
+
 void MidiToCV::set_midi_channel(uint8_t midi_channel) {
 	midi_channel_ = midi_channel;
-	midi_parser_.set_channel(midi_channel_);
+	if (!dependencies_ready()) return;
+	midi_parser().set_channel(midi_channel_);
 }
 
 void MidiToCV::set_pitch_channel(AudioCvOutChannel cv_channel) {
-	write_cv_millivolts(AudioCvOutChannel::kChannelA, 0);
-	write_cv_millivolts(AudioCvOutChannel::kChannelB, 0);
-
 	cv_channel_ = cv_channel;
 	cv_other_channel_ = cv_channel == AudioCvOutChannel::kChannelA ? AudioCvOutChannel::kChannelB : AudioCvOutChannel::kChannelA;
+	if (!dependencies_ready()) return;
+
+	write_cv_millivolts(AudioCvOutChannel::kChannelA, 0);
+	write_cv_millivolts(AudioCvOutChannel::kChannelB, 0);
 }
 
 void MidiToCV::update() {
-	midi_parser_.process_uart();
+	if (!dependencies_ready()) return;
+	midi_parser().process_uart();
 }
 
 bool MidiToCV::is_note_playing() {
@@ -266,6 +295,8 @@ void MidiToCV::reset_note_stack() {
 }
 
 void MidiToCV::set_cv() {
+	if (!dependencies_ready()) return;
+
 	NoteVelocity play_note;
 
 	// Keep last note on the CV output even after releasing all keys
@@ -341,8 +372,9 @@ void MidiToCV::set_cc_cv(int32_t cc_millivolts) {
 }
 
 void MidiToCV::set_gate(bool state) {
-	outputs_.pulse_set(state);
 	gate_on_ = state;
+	if (!dependencies_ready()) return;
+	outputs().pulse_set(state);
 }
 
 void MidiToCV::enable_cv() {
@@ -354,7 +386,11 @@ void MidiToCV::disable_cv() {
 }
 
 bool MidiToCV::enable_calibrated_output(bool load_from_flash) {
-	if (load_from_flash && !outputs_.load_calibration_from_flash()) {
+	if (!dependencies_ready()) {
+		return false;
+	}
+
+	if (load_from_flash && !outputs().load_calibration_from_flash()) {
 		calibrated_output_enabled_ = false;
 		return false;
 	}
@@ -368,9 +404,12 @@ void MidiToCV::disable_calibrated_output() {
 }
 
 bool MidiToCV::set_cv_calibration(const CvCalibrationV1& calibration) {
-	outputs_.set_calibration(calibration);
-	calibrated_output_enabled_ = true;
-	return true;
+	if (!dependencies_ready()) {
+		return false;
+	}
+
+	calibrated_output_enabled_ = outputs().set_calibration(calibration);
+	return calibrated_output_enabled_;
 }
 
 bool MidiToCV::is_calibrated_output_enabled() const {
@@ -378,10 +417,34 @@ bool MidiToCV::is_calibrated_output_enabled() const {
 }
 
 bool MidiToCV::write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts) {
-	if (calibrated_output_enabled_) {
-		return outputs_.set_voltage_calibrated_millivolts(channel, millivolts);
+	if (!dependencies_ready()) {
+		return false;
 	}
-	return outputs_.set_voltage_millivolts(channel, millivolts);
+
+	if (calibrated_output_enabled_) {
+		return outputs().set_voltage_calibrated_millivolts(channel, millivolts);
+	}
+	return outputs().set_voltage_millivolts(channel, millivolts);
+}
+
+bool MidiToCV::dependencies_ready() const {
+	return outputs_ != nullptr && midi_parser_ != nullptr;
+}
+
+Outputs& MidiToCV::outputs() {
+	return *outputs_;
+}
+
+const Outputs& MidiToCV::outputs() const {
+	return *outputs_;
+}
+
+MidiParser& MidiToCV::midi_parser() {
+	return *midi_parser_;
+}
+
+const MidiParser& MidiToCV::midi_parser() const {
+	return *midi_parser_;
 }
 
 void MidiToCV::set_max_cc_voltage(uint8_t max_voltage) {

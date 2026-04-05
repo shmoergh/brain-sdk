@@ -145,7 +145,11 @@ int main() {
 	stdio_init_all();
 
 	Brain brain;
-	brain.leds.init(LedMode::kSimple);
+	BrainInitStatus init_status = brain.init_leds(LedMode::kSimple);
+	if (!brain_init_succeeded(init_status)) {
+		printf("Failed to initialize LEDs\\n");
+		return 1;
+	}
 	brain.leds.off_all();
 
 	printf("$APP_NAME started\\n");

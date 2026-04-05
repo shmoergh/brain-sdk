@@ -8,6 +8,7 @@
 #include "outputs.h"
 #include "midi-parser.h"
 #include "helpers.h"
+#include "init-status.h"
 
 namespace brain::utils {
 
@@ -26,7 +27,9 @@ class MidiToCV {
 		void set_mode(Mode mode);
 		Mode get_mode() const;
 
-		bool init(AudioCvOutChannel cv_channel, uint8_t midi_channel);
+		void set_dependencies(Outputs* outputs, MidiParser* midi_parser);
+		BrainInitStatus init(AudioCvOutChannel cv_channel, uint8_t midi_channel);
+		bool is_initialized() const;
 		void set_midi_channel(uint8_t midi_channel);
 		void set_pitch_channel(AudioCvOutChannel cv_channel);
 
@@ -72,27 +75,28 @@ class MidiToCV {
 		};
 
 		static MidiToCV* instance_;
-		MidiParser midi_parser_;
+		MidiParser* midi_parser_ = nullptr;
 
-		Mode mode_;
+		Mode mode_ = Mode::kDefault;
 
-		bool cv_enabled_;
-		AudioCvOutChannel cv_channel_;
-		AudioCvOutChannel cv_other_channel_;
-		uint8_t midi_channel_;
-		Outputs outputs_;
-		bool gate_on_;
+		bool cv_enabled_ = false;
+		AudioCvOutChannel cv_channel_ = AudioCvOutChannel::kChannelA;
+		AudioCvOutChannel cv_other_channel_ = AudioCvOutChannel::kChannelB;
+		uint8_t midi_channel_ = 1;
+		Outputs* outputs_ = nullptr;
+		bool gate_on_ = false;
+		bool initialized_ = false;
 
 		NoteVelocity note_stack_[kNoteStackSize];
-		uint8_t current_stack_size_;
-		NoteVelocity last_note_;
-		NoteVelocity duo_latched_primary_note_;
-		NoteVelocity duo_latched_secondary_note_;
-		uint8_t duo_prev_stack_size_;
+		uint8_t current_stack_size_ = 0;
+		NoteVelocity last_note_ = {kZeroCVMidiNote, 0};
+		NoteVelocity duo_latched_primary_note_ = {kZeroCVMidiNote, 0};
+		NoteVelocity duo_latched_secondary_note_ = {kZeroCVMidiNote, 0};
+		uint8_t duo_prev_stack_size_ = 0;
 
-		uint8_t modwheel_value_;
-		int16_t pitch_bend_value_;
-		uint8_t pitch_bend_range_semitones_;
+		uint8_t modwheel_value_ = 0;
+		int16_t pitch_bend_value_ = 0;
+		uint8_t pitch_bend_range_semitones_ = kDefaultPitchBendRangeSemitones;
 		bool calibrated_output_enabled_ = false;
 
 		static void note_on_callback(uint8_t note, uint8_t velocity, uint8_t channel);
@@ -108,9 +112,14 @@ class MidiToCV {
 		void pop_note(uint8_t note);
 		int find_note(uint8_t note);
 
-		uint8_t max_cc_voltage_;
+		uint8_t max_cc_voltage_ = 10;
 		void set_cc_cv(int32_t cc_millivolts);
 		bool write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts);
+		bool dependencies_ready() const;
+		Outputs& outputs();
+		const Outputs& outputs() const;
+		MidiParser& midi_parser();
+		const MidiParser& midi_parser() const;
 
 		void set_cv();
 		int32_t pitch_bend_to_millivolts(int16_t value) const;

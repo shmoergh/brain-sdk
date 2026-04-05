@@ -46,10 +46,11 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 #### Flat API Entry Point
 - Include `brain/brain.h`
 - Use `Brain` (all features enabled) or `BrainT<...>` for compile-time feature selection
-- Available feature flags: `kBrainFeatureLeds`, `kBrainFeatureButtons`, `kBrainFeatureInputs`, `kBrainFeatureOutputs`, `kBrainFeaturePots`
+- Available feature flags: `kBrainFeatureLeds`, `kBrainFeatureButtons`, `kBrainFeatureInputs`, `kBrainFeatureOutputs`, `kBrainFeaturePots`, `kBrainFeatureMidiParser`, `kBrainFeatureMidiToCv`
 - Presets: `BrainAll`, `BrainIO`, `BrainUI`, `BrainMinimal`
 - No namespace qualification is required for new code
 - Full wrapper reference: [Brain class docs](docs/BRAIN.md)
+- `init_all()` initializes enabled core components; utility init (for example `init_midi_to_cv()`) stays explicit.
 
 Example:
 ```cpp
@@ -63,8 +64,11 @@ using BrainLedsOut = BrainT<kBrainFeatureLeds | kBrainFeatureOutputs>;
 BrainLedsOut brain;
 
 int main() {
-	brain.init_leds(LedMode::kSimple);
-	brain.init_outputs();
+	BrainInitStatus status = brain.init_leds(LedMode::kSimple);
+	if (!brain_init_succeeded(status)) return 1;
+
+	status = brain.init_outputs();
+	if (!brain_init_succeeded(status)) return 1;
 
 	brain.leds.on(0);
 	brain.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
@@ -76,6 +80,11 @@ int main() {
 	}
 }
 ```
+
+Init calls are idempotent and return explicit status:
+- `BrainInitStatus::kOk`
+- `BrainInitStatus::kAlreadyInitialized`
+- `BrainInitStatus::kFailed`
 
 ADC optimization defaults:
 - `Inputs` uses DMA burst sampling for AudioCV by default.
