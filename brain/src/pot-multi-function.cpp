@@ -3,6 +3,7 @@
 
 PotMultiFunction::PotMultiFunction()
 	: max_functions_(kMaxFunctions) {
+	raw_max_ = static_cast<uint16_t>((1u << kDefaultPotsOutputResolution) - 1u);
 	for (uint8_t i = 0; i < kMaxPots; i++) {
 		active_function_per_pot_[i] = 255;
 		previous_active_function_per_pot_[i] = 255;
@@ -16,6 +17,7 @@ PotMultiFunction::PotMultiFunction()
 
 void PotMultiFunction::init(uint8_t max_functions) {
 	max_functions_ = (max_functions > kMaxFunctions) ? kMaxFunctions : max_functions;
+	raw_max_ = static_cast<uint16_t>((1u << kDefaultPotsOutputResolution) - 1u);
 	for (uint8_t i = 0; i < kMaxPots; i++) {
 		active_function_per_pot_[i] = 255;
 		previous_active_function_per_pot_[i] = 255;
@@ -106,6 +108,9 @@ void PotMultiFunction::update_internal(Pots& pots, bool use_buffered_values, boo
 		pots.scan();
 	}
 
+	const uint16_t configured_raw_max = pots.get_output_max();
+	raw_max_ = configured_raw_max > 0 ? configured_raw_max : 1;
+
 	for (uint8_t pot_index = 0; pot_index < kMaxPots; pot_index++) {
 		uint8_t function_id = active_function_per_pot_[pot_index];
 		int idx = find_index_by_function_id(function_id);
@@ -180,19 +185,25 @@ int32_t PotMultiFunction::clamp_value(const FunctionState& state, int32_t value)
 	return value;
 }
 
-int32_t PotMultiFunction::map_raw_to_range(const FunctionState& state, uint16_t raw) const {
-	uint16_t raw_max = (1 << 8) - 1;
-	if (raw > raw_max) raw = raw_max;
+int32_t PotMultiFunction::map_raw_to_range(
+	const FunctionState& state,
+	uint16_t raw) const {
+	if (raw_max_ == 0) {
+		return state.min_value;
+	}
+	if (raw > raw_max_) raw = raw_max_;
 	int32_t span = state.max_value - state.min_value;
 	if (span <= 0) return state.min_value;
-	return state.min_value + (static_cast<int32_t>(raw) * span) / raw_max;
+	return state.min_value + (static_cast<int32_t>(raw) * span) / raw_max_;
 }
 
 uint16_t PotMultiFunction::read_raw_for_function(Pots& pots, const FunctionState& state) {
 	return pots.get_single(state.pot_index);
 }
 
-void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw) {
+void PotMultiFunction::on_function_activated(
+	FunctionState& state,
+	uint16_t raw) {
 	state.last_raw = raw;
 	if (state.mode == PotMode::kPickup) {
 		int32_t mapped = map_raw_to_range(state, raw);
@@ -209,7 +220,9 @@ void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw)
 	}
 }
 
-void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
+void PotMultiFunction::update_pickup(
+	FunctionState& state,
+	uint16_t raw) {
 	int32_t mapped_prev = map_raw_to_range(state, state.last_raw);
 	int32_t mapped_curr = map_raw_to_range(state, raw);
 
@@ -233,11 +246,15 @@ void PotMultiFunction::update_pickup(FunctionState& state, uint16_t raw) {
 	}
 }
 
-void PotMultiFunction::update_value_scale(FunctionState& state, uint16_t raw) {
-	static constexpr uint16_t kRawMax = 255;
+void PotMultiFunction::update_value_scale(
+	FunctionState& state,
+	uint16_t raw) {
+	const uint16_t kRawMax = raw_max_;
 	static constexpr uint16_t kNoiseDeadband = 2;
 	static constexpr uint16_t kEdgeSnapThreshold = 2;
-	static constexpr uint16_t kHighEdgeStart = kRawMax - kEdgeSnapThreshold;
+	const uint16_t kHighEdgeStart = (kRawMax > kEdgeSnapThreshold)
+		? static_cast<uint16_t>(kRawMax - kEdgeSnapThreshold)
+		: 0;
 
 	if (raw == state.last_raw) return;
 

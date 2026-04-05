@@ -16,9 +16,26 @@ int32_t div_round_nearest_i32(int32_t numerator, int32_t denominator) {
 
 }  // namespace
 
+MidiToCV::~MidiToCV() {
+	if (instance_ == this) {
+		detach_parser_callbacks();
+		instance_ = nullptr;
+	}
+	initialized_ = false;
+}
+
 void MidiToCV::set_dependencies(Outputs* outputs, MidiParser* midi_parser) {
+	if (initialized_ && instance_ == this && midi_parser_ != nullptr && midi_parser_ != midi_parser) {
+		detach_parser_callbacks();
+	}
+
 	outputs_ = outputs;
 	midi_parser_ = midi_parser;
+
+	if (initialized_ && instance_ == this && midi_parser_ != nullptr) {
+		attach_parser_callbacks();
+		midi_parser_->set_channel(midi_channel_);
+	}
 }
 
 BrainInitStatus MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channel) {
@@ -38,6 +55,11 @@ BrainInitStatus MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	if (!midi_parser().is_uart_initialized()) {
 		printf("[ERROR] Brain SDK / Midi to CV: MidiParser dependency not initialized.\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	if (instance_ != nullptr && instance_ != this) {
+		printf("[ERROR] Brain SDK / Midi to CV: only one active MidiToCV instance is supported.\n");
 		return BrainInitStatus::kFailed;
 	}
 
@@ -64,11 +86,7 @@ BrainInitStatus MidiToCV::init(AudioCvOutChannel cv_channel, uint8_t midi_channe
 
 	// Set MIDI parser stuff
 	midi_parser().set_channel(midi_channel_);
-
-	midi_parser().set_note_on_callback(note_on_callback);
-	midi_parser().set_note_off_callback(note_off_callback);
-	midi_parser().set_control_change_callback(control_change_callback);
-	midi_parser().set_pitch_bend_callback(pitch_bend_callback);
+	attach_parser_callbacks();
 
 	// Reset note stack & last played note
 	reset_note_stack();
@@ -425,6 +443,28 @@ bool MidiToCV::write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts
 		return outputs().set_voltage_calibrated_millivolts(channel, millivolts);
 	}
 	return outputs().set_voltage_millivolts(channel, millivolts);
+}
+
+void MidiToCV::attach_parser_callbacks() {
+	if (midi_parser_ == nullptr) {
+		return;
+	}
+
+	midi_parser_->set_note_on_callback(note_on_callback);
+	midi_parser_->set_note_off_callback(note_off_callback);
+	midi_parser_->set_control_change_callback(control_change_callback);
+	midi_parser_->set_pitch_bend_callback(pitch_bend_callback);
+}
+
+void MidiToCV::detach_parser_callbacks() {
+	if (midi_parser_ == nullptr) {
+		return;
+	}
+
+	midi_parser_->set_note_on_callback(nullptr);
+	midi_parser_->set_note_off_callback(nullptr);
+	midi_parser_->set_control_change_callback(nullptr);
+	midi_parser_->set_pitch_bend_callback(nullptr);
 }
 
 bool MidiToCV::dependencies_ready() const {

@@ -10,6 +10,19 @@
 #include "adc-arbiter.h"
 #include "gpio-setup.h"
 
+namespace {
+
+uint16_t output_max_for_resolution(uint8_t resolution) {
+	if (resolution == 0) {
+		return 0;
+	}
+
+	const uint8_t clamped_resolution = (resolution > 15) ? 15 : resolution;
+	return static_cast<uint16_t>((1u << clamped_resolution) - 1u);
+}
+
+}  // namespace
+
 
 PotsConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 	PotsConfig cfg = {};
@@ -157,6 +170,14 @@ uint16_t Pots::get_raw(uint8_t index) {
 	return read_channel_once(config_.channel_map[index]);
 }
 
+uint8_t Pots::get_output_resolution() const {
+	return config_.output_resolution;
+}
+
+uint16_t Pots::get_output_max() const {
+	return output_max_for_resolution(config_.output_resolution);
+}
+
 uint16_t Pots::get(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
 	if (!buffer_valid_) {
@@ -173,7 +194,10 @@ uint16_t Pots::get_single(uint8_t index) {
 
 	// Map from 12-bit ADC (0-4095) to desired output resolution
 	static constexpr uint16_t kAdcMaxValue = 4095;	// 12-bit ADC
-	uint16_t output_max = (1 << config_.output_resolution) - 1;
+	uint16_t output_max = output_max_for_resolution(config_.output_resolution);
+	if (output_max == 0) {
+		return 0;
+	}
 
 	return (raw * output_max) / kAdcMaxValue;
 }

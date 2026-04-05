@@ -14,6 +14,13 @@ namespace brain::utils {
 
 class MidiToCV {
 	public:
+		MidiToCV() = default;
+		~MidiToCV();
+		MidiToCV(const MidiToCV&) = delete;
+		MidiToCV& operator=(const MidiToCV&) = delete;
+		MidiToCV(MidiToCV&&) = delete;
+		MidiToCV& operator=(MidiToCV&&) = delete;
+
 		enum Mode {
 			kDefault = 0, 	// Pitch on selected channel, velocity on the other
 			kModWheel = 1, 	// Pitch on selected channel, modwheel on the other
@@ -116,6 +123,8 @@ class MidiToCV {
 		void set_cc_cv(int32_t cc_millivolts);
 		bool write_cv_millivolts(AudioCvOutChannel channel, int32_t millivolts);
 		bool dependencies_ready() const;
+		void attach_parser_callbacks();
+		void detach_parser_callbacks();
 		Outputs& outputs();
 		const Outputs& outputs() const;
 		MidiParser& midi_parser();

@@ -12,7 +12,7 @@
 ## Quick Start
 ```cpp
 Pots pots;
-auto cfg = create_default_pots_config(3, 7); // 3 pots, 7-bit output
+auto cfg = create_default_pots_config(3, 8); // 3 pots, default 8-bit output (0..255)
 pots.init(cfg);
 
 while (true) {
@@ -41,6 +41,11 @@ while (true) {
 
 ## PotMultiFunction
 Use `PotMultiFunction` when one physical pot controls multiple logical parameters.
+
+Resolution behavior:
+- Default pot domain is 8-bit (`0..255`).
+- Override with `pots.set_output_resolution(bits)` (or via `create_default_pots_config(..., bits)`).
+- `PotMultiFunction` automatically uses the active pot resolution for all mappings/modes.
 
 Modes:
 - `PotMode::kDirect`

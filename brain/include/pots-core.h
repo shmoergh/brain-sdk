@@ -6,6 +6,7 @@
 #include "gpio-setup.h"
 
 static constexpr uint8_t kMaxPots = 4;
+static constexpr uint8_t kDefaultPotsOutputResolution = 8;
 
 struct PotsConfig {
 	bool simple;
@@ -20,7 +21,9 @@ struct PotsConfig {
 	uint16_t change_threshold;
 };
 
-PotsConfig create_default_config(uint8_t num_pots = 3, uint8_t output_resolution = 7);
+PotsConfig create_default_config(
+	uint8_t num_pots = 3,
+	uint8_t output_resolution = kDefaultPotsOutputResolution);
 
 class Pots {
 public:
@@ -41,6 +44,8 @@ public:
 	uint16_t get(uint8_t index);
 	uint16_t get_buffered(uint8_t index) const;
 	uint16_t get_raw(uint8_t index);
+	uint8_t get_output_resolution() const;
+	uint16_t get_output_max() const;
 
 	void set_on_change(std::function<void(uint8_t, uint16_t)> cb);
 	uint8_t get_num_pots() const;

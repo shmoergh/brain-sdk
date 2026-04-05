@@ -63,9 +63,9 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 	gpio_init(coupling_pin_b_);
 	gpio_set_dir(coupling_pin_b_, GPIO_OUT);
 
+	audio_cv_initialized_ = true;
 	set_output_range(AudioCvOutChannel::kChannelA, range_a);
 	set_output_range(AudioCvOutChannel::kChannelB, range_b);
-	audio_cv_initialized_ = true;
 
 	return true;
 }
@@ -84,6 +84,11 @@ bool Outputs::init() {
 }
 
 bool Outputs::set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivolts) {
+	if (!audio_cv_initialized_ || spi_instance_ == nullptr) {
+		fprintf(stderr, "Outputs: Audio/CV not initialized\n");
+		return false;
+	}
+
 	int32_t dac_input_millivolts = 0;
 	if (!to_dac_input_millivolts(channel, millivolts, false, &dac_input_millivolts)) {
 		AudioCvOutRange range = get_output_range(channel);
@@ -107,6 +112,11 @@ bool Outputs::set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivol
 }
 
 bool Outputs::set_voltage_calibrated_millivolts(AudioCvOutChannel channel, int32_t target_millivolts) {
+	if (!audio_cv_initialized_ || spi_instance_ == nullptr) {
+		fprintf(stderr, "Outputs: Audio/CV not initialized\n");
+		return false;
+	}
+
 	int32_t clamped_dac_input_millivolts = 0;
 	to_dac_input_millivolts(channel, target_millivolts, true, &clamped_dac_input_millivolts);
 
@@ -202,14 +212,18 @@ int32_t Outputs::get_last_set_millivolts(AudioCvOutChannel channel) const {
 }
 
 bool Outputs::set_output_range(AudioCvOutChannel channel, AudioCvOutRange range) {
-	uint coupling_pin =
-		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
-
 	if (channel == AudioCvOutChannel::kChannelA) {
 		range_a_ = range;
 	} else {
 		range_b_ = range;
 	}
+
+	if (!audio_cv_initialized_) {
+		return true;
+	}
+
+	uint coupling_pin =
+		(channel == AudioCvOutChannel::kChannelA) ? coupling_pin_a_ : coupling_pin_b_;
 
 	// Hardware "AC" means subtracting 5V from the DAC/amplified signal.
 	const bool subtract_5v = (range == AudioCvOutRange::kRangeMinus5To5V);

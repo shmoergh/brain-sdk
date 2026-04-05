@@ -61,6 +61,8 @@ private:
 	uint8_t max_functions_;
 	uint8_t active_function_per_pot_[kMaxPots];
 	uint8_t previous_active_function_per_pot_[kMaxPots];
+	uint16_t raw_max_ =
+		static_cast<uint16_t>((1u << kDefaultPotsOutputResolution) - 1u);
 	FunctionState functions_[kMaxFunctions];
 
 	int find_index_by_function_id(uint8_t function_id) const;
