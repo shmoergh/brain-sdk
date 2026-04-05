@@ -6,6 +6,7 @@ add_executable(test
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp
     apps/multipot_test.cpp
+    apps/pot_read_stability_test.cpp
     apps/storage_test.cpp
     apps/storage_persistence_check_test.cpp
 )

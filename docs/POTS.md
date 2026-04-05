@@ -17,15 +17,17 @@ pots.init(cfg);
 
 while (true) {
 	pots.scan();
-	uint16_t p0 = pots.get_buffered(0);
+	uint16_t p0 = pots.get(0); // default: buffered/safe read
 	(void)p0;
 }
 ```
 
 ## Pots API
 - `void init(const PotsConfig& cfg)`
+- `void reconfigure(const PotsConfig& cfg)`
 - `void scan()`
-- `uint16_t get(uint8_t index)`
+- `uint16_t get(uint8_t index)` (buffered default path)
+- `uint16_t get_single(uint8_t index)` (explicit direct read path)
 - `uint16_t get_buffered(uint8_t index) const`
 - `uint16_t get_raw(uint8_t index)`
 - `void set_on_change(std::function<void(uint8_t, uint16_t)> cb)`
@@ -48,5 +50,5 @@ Modes:
 Typical flow:
 1. register function configs
 2. set active function per pot each frame
-3. call `update(...)` or `update_buffered(...)`
+3. call `update(...)` (buffered default) or `update_single(...)` for direct reads
 4. read function value with `get_value(function_id)`

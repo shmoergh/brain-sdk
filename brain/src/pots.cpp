@@ -33,6 +33,7 @@ Pots::Pots() {
 		last_values_[i] = 0;
 		buffered_values_[i] = 0;
 	}
+	buffer_valid_ = false;
 }
 
 void Pots::init(const PotsConfig& cfg) {
@@ -57,14 +58,32 @@ void Pots::init(const PotsConfig& cfg) {
 		// Small guard delay
 		busy_wait_us_32(cfg.settling_delay_us);
 	}
+
+	for (uint8_t i = 0; i < kMaxPots; ++i) {
+		last_values_[i] = 0;
+		buffered_values_[i] = 0;
+	}
+
+	for (uint8_t i = 0; i < config_.num_pots && i < kMaxPots; ++i) {
+		uint16_t val = get_single(i);
+		last_values_[i] = val;
+		buffered_values_[i] = val;
+	}
+	buffer_valid_ = true;
+}
+
+void Pots::reconfigure(const PotsConfig& cfg) {
+	init(cfg);
 }
 
 void Pots::set_simple(bool simple) {
 	config_.simple = simple;
+	buffer_valid_ = false;
 }
 
 void Pots::set_optimized_sampling_enabled(bool enabled) {
 	optimized_sampling_enabled_ = enabled;
+	buffer_valid_ = false;
 }
 
 bool Pots::is_optimized_sampling_enabled() const {
@@ -73,14 +92,17 @@ bool Pots::is_optimized_sampling_enabled() const {
 
 void Pots::set_output_resolution(uint8_t resolution) {
 	config_.output_resolution = resolution;
+	buffer_valid_ = false;
 }
 
 void Pots::set_settling_delay_us(uint32_t delay) {
 	config_.settling_delay_us = delay;
+	buffer_valid_ = false;
 }
 
 void Pots::set_samples_per_read(uint8_t samples) {
 	config_.samples_per_read = samples;
+	buffer_valid_ = false;
 }
 
 void Pots::set_change_threshold (uint16_t threshold) {
@@ -103,6 +125,10 @@ uint16_t Pots::read_channel_once(uint8_t ch) {
 	// Simple read is just reading the ADC once and that's it. It's the fastest
 	// but lacks precision
 	if (config_.simple || !optimized_sampling_enabled_) {
+		// Fast path still performs a small settle + one throwaway read to reduce
+		// mux channel carry-over.
+		busy_wait_us_32(config_.settling_delay_us > 20 ? 20 : config_.settling_delay_us);
+		(void) adc_read();
 		uint16_t adc_value = adc_read();
 		return adc_value;
 
@@ -133,6 +159,15 @@ uint16_t Pots::get_raw(uint8_t index) {
 
 uint16_t Pots::get(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
+	if (!buffer_valid_) {
+		scan();
+		buffer_valid_ = true;
+	}
+	return buffered_values_[index];
+}
+
+uint16_t Pots::get_single(uint8_t index) {
+	if (index >= config_.num_pots || index >= kMaxPots) return 0;
 
 	uint16_t raw = get_raw(index);
 
@@ -150,7 +185,7 @@ uint16_t Pots::get_buffered(uint8_t index) const {
 
 void Pots::scan() {
 	for (uint8_t i = 0; i < config_.num_pots && i < kMaxPots; ++i) {
-		uint16_t val = get(i);
+		uint16_t val = get_single(i);
 		buffered_values_[i] = val;
 		if (val > last_values_[i] + config_.change_threshold ||
 			val + config_.change_threshold < last_values_[i]) {
@@ -160,6 +195,7 @@ void Pots::scan() {
 			}
 		}
 	}
+	buffer_valid_ = true;
 }
 
 void Pots::set_on_change(std::function<void(uint8_t, uint16_t)> cb) {

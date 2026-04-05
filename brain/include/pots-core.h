@@ -26,6 +26,7 @@ class Pots {
 public:
 	Pots();
 	void init(const PotsConfig& cfg);
+	void reconfigure(const PotsConfig& cfg);
 
 	void set_simple(bool simple);
 	void set_optimized_sampling_enabled(bool enabled);
@@ -36,6 +37,7 @@ public:
 	void set_change_threshold(uint16_t threshold);
 
 	void scan();
+	uint16_t get_single(uint8_t index);
 	uint16_t get(uint8_t index);
 	uint16_t get_buffered(uint8_t index) const;
 	uint16_t get_raw(uint8_t index);
@@ -50,6 +52,7 @@ private:
 	PotsConfig config_;
 	uint16_t last_values_[kMaxPots];
 	uint16_t buffered_values_[kMaxPots];
+	bool buffer_valid_ = false;
 	bool optimized_sampling_enabled_ = true;
 	std::function<void(uint8_t, uint16_t)> on_change_;
 };

@@ -68,7 +68,32 @@ void PotMultiFunction::set_active_functions(const uint8_t* per_pot_function_ids,
 	}
 }
 
+void PotMultiFunction::reset_for_mode_change(bool clear_active_mappings) {
+	for (uint8_t i = 0; i < kMaxPots; i++) {
+		previous_active_function_per_pot_[i] = 255;
+		if (clear_active_mappings) {
+			active_function_per_pot_[i] = 255;
+		}
+	}
+
+	for (uint8_t i = 0; i < max_functions_; i++) {
+		if (!functions_[i].registered) continue;
+		functions_[i].changed = false;
+		functions_[i].picked_up = false;
+		functions_[i].last_raw = 0;
+		functions_[i].accumulator_q16 = functions_[i].value << 16;
+		functions_[i].scale_direction = 0;
+		functions_[i].scale_anchor_raw = 0;
+		functions_[i].scale_anchor_value = functions_[i].value;
+		functions_[i].scale_step_q16 = 0;
+	}
+}
+
 void PotMultiFunction::update(Pots& pots) {
+	update_internal(pots, true, true);
+}
+
+void PotMultiFunction::update_single(Pots& pots) {
 	update_internal(pots, false, false);
 }
 
@@ -164,7 +189,7 @@ int32_t PotMultiFunction::map_raw_to_range(const FunctionState& state, uint16_t 
 }
 
 uint16_t PotMultiFunction::read_raw_for_function(Pots& pots, const FunctionState& state) {
-	return pots.get(state.pot_index);
+	return pots.get_single(state.pot_index);
 }
 
 void PotMultiFunction::on_function_activated(FunctionState& state, uint16_t raw) {

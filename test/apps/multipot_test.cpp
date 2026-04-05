@@ -96,7 +96,6 @@ void MultipotTest::init() {
 void MultipotTest::update() {
 	button_a_.update();
 	button_b_.update();
-	pots_.scan();
 
 	uint8_t function_index = resolve_function();
 	uint8_t function_id = kFunctionIdsByFunction[function_index];

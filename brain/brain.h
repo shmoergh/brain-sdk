@@ -266,6 +266,26 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	BrainInitStatus reconfigure_pots(
+		const PotsConfig& config,
+		bool reset_pot_multi_state = true,
+		bool clear_pot_multi_active_mappings = false) {
+		if (!pots_initialized_) {
+			return init_pots(config);
+		}
+
+		pots.reconfigure(config);
+		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
+
+#if BRAIN_CFG_POT_MULTI_FUNCTION
+		if (reset_pot_multi_state && pot_multi_initialized_) {
+			pot_multi.reset_for_mode_change(clear_pot_multi_active_mappings);
+		}
+#endif
+
+		return BrainInitStatus::kOk;
+	}
+
 	void update_pots() {
 		pots.scan();
 	}
@@ -333,13 +353,19 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	void update_pot_multi(bool use_buffered_values = true, bool perform_scan = false) {
+	void update_pot_multi(bool perform_scan = false) {
 		if (!pot_multi_initialized_) return;
-		if (use_buffered_values) {
-			pot_multi.update_buffered(pots, perform_scan);
-		} else {
-			pot_multi.update(pots);
-		}
+		pot_multi.update_buffered(pots, perform_scan);
+	}
+
+	void update_pot_multi_single() {
+		if (!pot_multi_initialized_) return;
+		pot_multi.update_single(pots);
+	}
+
+	void reset_pot_multi_for_mode_change(bool clear_active_mappings = false) {
+		if (!pot_multi_initialized_) return;
+		pot_multi.reset_for_mode_change(clear_active_mappings);
 	}
 
 	bool is_pot_multi_initialized() const {

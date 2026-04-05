@@ -11,8 +11,10 @@ No `brain::ui` namespace is required for new code.
 - `register_function(const PotFunctionConfig&)`
 - `set_active_function(...)`
 - `set_active_functions(...)`
-- `update(Pots&)`
+- `update(Pots&)` (buffered default path)
+- `update_single(Pots&)` (explicit direct path)
 - `update_buffered(Pots&, bool perform_scan = true)`
+- `reset_for_mode_change(bool clear_active_mappings = true)`
 - `get_value(function_id)`
 - `get_changed(function_id)`
 - `clear_changed_flags()`
@@ -23,7 +25,7 @@ No `brain::ui` namespace is required for new code.
 - `PotMode::kValueScale`
 
 ## Recommended Runtime Pattern
-1. `pots.scan()` once per frame (or use `update_buffered(..., true)`)
+1. call `update(...)` each frame (safe buffered default), or use `update_buffered(...)` for explicit scan control
 2. route active function IDs from button/context state
 3. run `PotMultiFunction` update
 4. consume logical values with `get_value(...)`

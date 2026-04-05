@@ -128,6 +128,8 @@ This still compiles the same `Brain` type; only enabled modules are compiled int
 ADC optimization defaults:
 - `Inputs` uses DMA burst sampling for AudioCV by default.
 - `Pots` uses optimized multiplexed scan (settle + discard + averaged reads) by default.
+- `Pots::get()` is buffered/safe by default; use `Pots::get_single()` only when you explicitly want direct single reads.
+- `PotMultiFunction::update()` is buffered/safe by default; use `update_single()` only for explicit direct mode.
 - `Brain` coordinates and configures these policies.
 - You can disable either path before `init()`:
 
@@ -142,6 +144,8 @@ int main() {
 	brain.init();
 }
 ```
+
+For mode-switching firmware where one shared `Brain` instance is reused across engines, use `brain.reconfigure_pots(...)` to apply the new pots profile explicitly and reset pot utility state boundaries.
 
 If your app does custom ADC work (for example on core1 or inside IRQ handlers), use `BrainAdcLockGuard` around ADC register/FIFO access so it is serialized with SDK components:
 

@@ -134,7 +134,20 @@ State query helpers:
 
 Pot utility init/update:
 - `init_pot_multi(...)` (auto-inits `pots` if needed)
-- `update_pot_multi(...)`
+- `update_pot_multi(...)` (buffered default)
+- `update_pot_multi_single()` (explicit direct read path)
+- `reset_pot_multi_for_mode_change(...)`
+
+Pots lifecycle:
+- `init_pots(...)` initializes once (idempotent).
+- `reconfigure_pots(...)` explicitly reapplies a pots profile after mode switch.
+- `reconfigure_pots(...)` can also reset `pot_multi` runtime state so stale profile assumptions do not leak across modes.
+
+Sampling semantics:
+- `Pots::get()` is the safe default and returns buffered values.
+- `Pots::get_single()` is the direct/single-read path.
+- `PotMultiFunction::update()` is buffered by default.
+- `PotMultiFunction::update_single()` is the direct path.
 
 ## ADC Policy Controls
 `Brain` can configure ADC optimization policy:

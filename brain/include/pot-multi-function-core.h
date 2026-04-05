@@ -30,7 +30,9 @@ public:
 	bool register_function(const PotFunctionConfig& config);
 	void set_active_function(uint8_t pot_index, uint8_t function_id);
 	void set_active_functions(const uint8_t* per_pot_function_ids, uint8_t count);
+	void reset_for_mode_change(bool clear_active_mappings = true);
 	void update(Pots& pots);
+	void update_single(Pots& pots);
 	void update_buffered(Pots& pots, bool perform_scan = true);
 	int32_t get_value(uint8_t function_id) const;
 	bool get_changed(uint8_t function_id) const;
@@ -70,4 +72,3 @@ private:
 	void update_pickup(FunctionState& state, uint16_t raw);
 	void update_value_scale(FunctionState& state, uint16_t raw);
 };
-
