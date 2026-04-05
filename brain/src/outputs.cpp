@@ -24,7 +24,15 @@ int16_t saturate_int16(int32_t value) {
 }  // namespace
 
 Outputs::Outputs(uint pulse_out_gpio)
-	: pulse_out_gpio_(pulse_out_gpio) {}
+	: pulse_out_gpio_(pulse_out_gpio),
+	  storage_(&default_storage_) {}
+
+void Outputs::set_dependencies(Storage* storage) {
+	if (!storage) {
+		return;
+	}
+	storage_ = storage;
+}
 
 bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin, uint tx_pin,
 	uint coupling_pin_a, uint coupling_pin_b, AudioCvOutRange range_a, AudioCvOutRange range_b) {
@@ -57,7 +65,6 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 
 	set_output_range(AudioCvOutChannel::kChannelA, range_a);
 	set_output_range(AudioCvOutChannel::kChannelB, range_b);
-	storage_.init(false);
 	audio_cv_initialized_ = true;
 
 	return true;
@@ -143,12 +150,25 @@ void Outputs::clear_calibration() {
 }
 
 bool Outputs::load_calibration_from_flash() {
-	if (!storage_.is_initialized()) {
-		(void)storage_.init(false);
+	if (!storage_) {
+		clear_calibration();
+		return false;
+	}
+
+	if (!storage_->is_initialized()) {
+		if (storage_ == &default_storage_) {
+			if (!storage_->init(false)) {
+				clear_calibration();
+				return false;
+			}
+		} else {
+			clear_calibration();
+			return false;
+		}
 	}
 
 	CvCalibrationV1 calibration{};
-	StorageStatus status = storage_.read_cv_calibration(&calibration);
+	StorageStatus status = storage_->read_cv_calibration(&calibration);
 	if (status != StorageStatus::kOk) {
 		clear_calibration();
 		return false;

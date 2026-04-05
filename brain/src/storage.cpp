@@ -218,9 +218,18 @@ StorageStatus erase_region_impl(StorageRegion region, bool require_protected_lay
 }  // namespace
 
 bool Storage::init(bool require_protected_layout) {
+	if (initialized_) {
+		if (require_protected_layout) {
+			require_protected_layout_ = true;
+		}
+		if (require_protected_layout_ && !layout_protected_impl()) {
+			return false;
+		}
+		return true;
+	}
+
 	require_protected_layout_ = require_protected_layout;
 	if (require_protected_layout_ && !layout_protected_impl()) {
-		initialized_ = false;
 		return false;
 	}
 	initialized_ = true;

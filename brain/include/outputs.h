@@ -38,6 +38,7 @@ public:
 		uint coupling_pin_b = GPIO_BRAIN_AUDIO_CV_OUT_COUPLING_B,
 		AudioCvOutRange range_a = AudioCvOutRange::kRange0To10V,
 		AudioCvOutRange range_b = AudioCvOutRange::kRange0To10V);
+	void set_dependencies(Storage* storage);
 
 	void init_pulse();
 	bool init();
@@ -85,7 +86,8 @@ private:
 	bool calibration_loaded_ = false;
 	int16_t calibration_a_offset_lsb_[10] = {0};
 	int16_t calibration_b_offset_lsb_[10] = {0};
-	Storage storage_{};
+	Storage* storage_ = nullptr;
+	Storage default_storage_{};
 
 	AudioCvOutRange range_a_ = AudioCvOutRange::kRange0To10V;
 	AudioCvOutRange range_b_ = AudioCvOutRange::kRange0To10V;

@@ -85,6 +85,7 @@ Use `BRAIN_USE_*` macros before including `brain/brain.h`:
 Rules:
 - At least one macro must be defined (explicit config required).
 - `BRAIN_USE_ALL=1` enables all modules explicitly.
+- `BRAIN_USE_OUTPUTS=1` requires `BRAIN_USE_STORAGE=1`.
 - `BRAIN_USE_MIDI_TO_CV=1` requires `BRAIN_USE_OUTPUTS=1` and `BRAIN_USE_MIDI_PARSER=1`.
 - `BRAIN_USE_POT_MULTI_FUNCTION=1` requires `BRAIN_USE_POTS=1`.
 
@@ -93,6 +94,7 @@ Recommended shared-config pattern (multi-file firmware):
 // brain_user_config.h
 #pragma once
 #define BRAIN_USE_LEDS 1
+#define BRAIN_USE_STORAGE 1
 #define BRAIN_USE_OUTPUTS 1
 #define BRAIN_USE_MIDI_PARSER 1
 #define BRAIN_USE_MIDI_TO_CV 1
@@ -111,6 +113,7 @@ Equivalent CMake-based config:
 ```cmake
 target_compile_definitions(my_firmware PRIVATE
     BRAIN_USE_LEDS=1
+    BRAIN_USE_STORAGE=1
     BRAIN_USE_OUTPUTS=1
 )
 ```

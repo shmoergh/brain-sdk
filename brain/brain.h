@@ -81,6 +81,8 @@ static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_MIDI_PARSER),
 	"BRAIN_USE_MIDI_TO_CV requires BRAIN_USE_MIDI_PARSER=1 or BRAIN_USE_ALL=1");
 static_assert(!(BRAIN_CFG_POT_MULTI_FUNCTION && !BRAIN_CFG_POTS),
 	"BRAIN_USE_POT_MULTI_FUNCTION requires BRAIN_USE_POTS=1 or BRAIN_USE_ALL=1");
+static_assert(!(BRAIN_CFG_OUTPUTS && !BRAIN_CFG_STORAGE),
+	"BRAIN_USE_OUTPUTS requires BRAIN_USE_STORAGE=1 or BRAIN_USE_ALL=1");
 
 class Brain {
 public:
@@ -251,6 +253,11 @@ public:
 #if BRAIN_CFG_OUTPUTS
 	BrainInitStatus init_outputs() {
 		if (outputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
+#if BRAIN_CFG_STORAGE
+		BrainInitStatus storage_status = init_storage();
+		if (storage_status == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
+		outputs.set_dependencies(&storage);
+#endif
 		if (!outputs.init()) return BrainInitStatus::kFailed;
 		outputs_initialized_ = true;
 		return BrainInitStatus::kOk;

@@ -88,6 +88,7 @@ Selective compile-time feature example:
 // brain_user_config.h
 #pragma once
 #define BRAIN_USE_LEDS 1
+#define BRAIN_USE_STORAGE 1
 #define BRAIN_USE_OUTPUTS 1
 ```
 
@@ -108,6 +109,7 @@ CMake define mode:
 ```cmake
 target_compile_definitions(my_firmware PRIVATE
     BRAIN_USE_LEDS=1
+    BRAIN_USE_STORAGE=1
     BRAIN_USE_OUTPUTS=1
 )
 ```
@@ -118,6 +120,7 @@ Init calls are idempotent and return explicit status:
 - `BrainInitStatus::kFailed`
 
 Compile-time dependency rule:
+- `BRAIN_USE_OUTPUTS=1` requires `BRAIN_USE_STORAGE=1` (or `BRAIN_USE_ALL=1`).
 - `BRAIN_USE_MIDI_TO_CV=1` requires `BRAIN_USE_OUTPUTS=1` and `BRAIN_USE_MIDI_PARSER=1` (or `BRAIN_USE_ALL=1`).
 - `BRAIN_USE_POT_MULTI_FUNCTION=1` requires `BRAIN_USE_POTS=1` (or `BRAIN_USE_ALL=1`).
 
