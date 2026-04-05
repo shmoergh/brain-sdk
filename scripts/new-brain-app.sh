@@ -134,11 +134,22 @@ pico_enable_stdio_uart($APP_NAME 1)
 pico_add_extra_outputs($APP_NAME)
 EOF
 
+# Create Brain feature config header (recommended shared config)
+cat > "$APP_DIR/brain_user_config.h" <<EOF
+#pragma once
+
+// Explicit Brain SDK feature configuration.
+// Set BRAIN_USE_ALL=1 for the easiest full-feature setup, or replace this with
+// selective BRAIN_USE_* defines (LEDS, BUTTONS, OUTPUTS, INPUTS, POTS, MIDI_PARSER, MIDI_TO_CV).
+#define BRAIN_USE_ALL 1
+EOF
+
 # Create main.cpp with simple boilerplate
 cat > "$APP_DIR/main.cpp" <<EOF
 #include <pico/stdlib.h>
 #include <stdio.h>
 
+#include "brain_user_config.h"
 #include "brain/brain.h"
 
 int main() {
@@ -217,6 +228,11 @@ cd ..
 git add brain-sdk
 git commit -m "Update brain-sdk"
 \`\`\`
+
+## Brain Feature Config
+
+The app uses an explicit Brain SDK config in \`brain_user_config.h\`.
+Edit that file to switch between \`BRAIN_USE_ALL\` and selective \`BRAIN_USE_*\` feature flags.
 EOF
 
 # Create .vscode/launch.json

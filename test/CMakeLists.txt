@@ -16,6 +16,10 @@ target_link_libraries(test
     brain
 )
 
+target_compile_definitions(test PRIVATE
+    BRAIN_USE_ALL=1
+)
+
 # Enable USB output for printf
 pico_enable_stdio_usb(test 1)
 pico_enable_stdio_uart(test 1)

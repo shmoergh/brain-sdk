@@ -18,6 +18,9 @@ You can use either:
 
 ## Quick Start
 ```cpp
+#define BRAIN_USE_OUTPUTS 1
+#define BRAIN_USE_MIDI_PARSER 1
+#define BRAIN_USE_MIDI_TO_CV 1
 #include "brain/brain.h"
 
 Brain brain;

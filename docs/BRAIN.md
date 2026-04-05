@@ -15,11 +15,15 @@ It also provides compile-time feature selection and centralized init/update help
 
 ## Include
 ```cpp
+#define BRAIN_USE_ALL 1
 #include "brain/brain.h"
 ```
 
 ## Quick Start
 ```cpp
+#define BRAIN_USE_ALL 1
+#include "brain/brain.h"
+
 Brain brain;
 
 int main() {
@@ -43,28 +47,70 @@ brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 2500);
 
 ## Selective Init
 ```cpp
+#define BRAIN_USE_ALL 1
+#include "brain/brain.h"
+
 Brain brain;
 brain.init_leds();
 brain.init_outputs();
 brain.init_midi_to_cv(AudioCvOutChannel::kChannelA, 1); // auto-inits outputs + midi_parser
 ```
 
-## Compile-Time Feature Selection
-Use `BrainT<...>` flags:
-- `kBrainFeatureLeds`
-- `kBrainFeatureButtons`
-- `kBrainFeatureOutputs`
-- `kBrainFeatureInputs`
-- `kBrainFeaturePots`
-- `kBrainFeatureMidiParser`
-- `kBrainFeatureMidiToCv` (requires `kBrainFeatureOutputs` + `kBrainFeatureMidiParser`)
+Important:
+- `Selective Init` is runtime behavior only.
+- If you use `Brain`, all components/utilities are still compiled in.
+- `init_*()` controls what gets initialized, not what gets compiled.
 
-Examples:
-- `using BrainIO = BrainT<kBrainFeatureInputs | kBrainFeatureOutputs>;`
-- `using BrainUI = BrainT<kBrainFeatureLeds | kBrainFeatureButtons | kBrainFeaturePots>;`
-- `using BrainWithMidiParser = BrainT<kBrainFeatureMidiParser>;`
-- `using BrainWithMidiToCv = BrainT<kBrainFeatureOutputs | kBrainFeatureMidiParser | kBrainFeatureMidiToCv>;`
-- `using BrainMinimal = BrainT<0>;`
+When to use this:
+- Use selective init if you need runtime control (for example different app modes initialize different modules).
+- Use `init_all()` if you want predictable startup with minimal integration code.
+
+## Compile-Time Feature Selection
+Use `BRAIN_USE_*` macros before including `brain/brain.h`:
+- `BRAIN_USE_ALL`
+- `BRAIN_USE_LEDS`
+- `BRAIN_USE_BUTTONS`
+- `BRAIN_USE_OUTPUTS`
+- `BRAIN_USE_INPUTS`
+- `BRAIN_USE_POTS`
+- `BRAIN_USE_MIDI_PARSER`
+- `BRAIN_USE_MIDI_TO_CV`
+
+Rules:
+- At least one macro must be defined (explicit config required).
+- `BRAIN_USE_ALL=1` enables all modules explicitly.
+- `BRAIN_USE_MIDI_TO_CV=1` requires `BRAIN_USE_OUTPUTS=1` and `BRAIN_USE_MIDI_PARSER=1`.
+
+Recommended shared-config pattern (multi-file firmware):
+```cpp
+// brain_user_config.h
+#pragma once
+#define BRAIN_USE_LEDS 1
+#define BRAIN_USE_OUTPUTS 1
+#define BRAIN_USE_MIDI_PARSER 1
+#define BRAIN_USE_MIDI_TO_CV 1
+```
+
+```cpp
+// any source file using Brain
+#include "brain_user_config.h"
+#include "brain/brain.h"
+
+Brain brain;
+```
+
+Equivalent CMake-based config:
+```cmake
+target_compile_definitions(my_firmware PRIVATE
+    BRAIN_USE_LEDS=1
+    BRAIN_USE_OUTPUTS=1
+)
+```
+
+When to use this:
+- Use `BRAIN_USE_ALL=1` for simplest startup with explicit intent.
+- Use selective `BRAIN_USE_*` macros when flash/RAM budget matters or you want strict module ownership.
+- Use inline defines only for small/single-file experiments.
 
 ## Init Status and Idempotency
 All `init_*` calls are idempotent and return:

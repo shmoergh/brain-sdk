@@ -12,6 +12,10 @@ target_link_libraries(sandbox
     brain
 )
 
+target_compile_definitions(sandbox PRIVATE
+    BRAIN_USE_ALL=1
+)
+
 # Enable USB/UART output for printf
 pico_enable_stdio_usb(sandbox 1)
 pico_enable_stdio_uart(sandbox 1)

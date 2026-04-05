@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <type_traits>
 
 #include "include/adc-arbiter.h"
 #include "include/buttons.h"
@@ -15,66 +14,68 @@
 #include "include/pots.h"
 #include "include/storage.h"
 
-struct BrainDisabledComponent {};
-
-#if defined(__has_cpp_attribute)
-#if __has_cpp_attribute(no_unique_address)
-#define BRAIN_NO_UNIQUE_ADDRESS [[no_unique_address]]
-#else
-#define BRAIN_NO_UNIQUE_ADDRESS
-#endif
-#else
-#define BRAIN_NO_UNIQUE_ADDRESS
+#if !defined(BRAIN_USE_ALL) && !defined(BRAIN_USE_LEDS) && !defined(BRAIN_USE_BUTTONS) && \
+	!defined(BRAIN_USE_OUTPUTS) && !defined(BRAIN_USE_INPUTS) && !defined(BRAIN_USE_POTS) && \
+	!defined(BRAIN_USE_MIDI_PARSER) && !defined(BRAIN_USE_MIDI_TO_CV)
+#error "Brain config missing: define BRAIN_USE_ALL=1 or one/more BRAIN_USE_* macros before including brain/brain.h"
 #endif
 
-enum BrainFeature : uint32_t {
-	kBrainFeatureLeds = 1u << 0,
-	kBrainFeatureButtons = 1u << 1,
-	kBrainFeatureOutputs = 1u << 2,
-	kBrainFeatureInputs = 1u << 3,
-	kBrainFeaturePots = 1u << 4,
-	kBrainFeatureMidiToCv = 1u << 5,
-	kBrainFeatureMidiParser = 1u << 6,
-};
+#if !defined(BRAIN_USE_ALL)
+#define BRAIN_USE_ALL 0
+#endif
 
-constexpr uint32_t kBrainFeaturesAll =
-	kBrainFeatureLeds |
-	kBrainFeatureButtons |
-	kBrainFeatureOutputs |
-	kBrainFeatureInputs |
-	kBrainFeaturePots |
-	kBrainFeatureMidiParser |
-	kBrainFeatureMidiToCv;
+#if BRAIN_USE_ALL
+#define BRAIN_CFG_LEDS 1
+#define BRAIN_CFG_BUTTONS 1
+#define BRAIN_CFG_OUTPUTS 1
+#define BRAIN_CFG_INPUTS 1
+#define BRAIN_CFG_POTS 1
+#define BRAIN_CFG_MIDI_PARSER 1
+#define BRAIN_CFG_MIDI_TO_CV 1
+#else
+#if !defined(BRAIN_USE_LEDS)
+#define BRAIN_USE_LEDS 0
+#endif
+#if !defined(BRAIN_USE_BUTTONS)
+#define BRAIN_USE_BUTTONS 0
+#endif
+#if !defined(BRAIN_USE_OUTPUTS)
+#define BRAIN_USE_OUTPUTS 0
+#endif
+#if !defined(BRAIN_USE_INPUTS)
+#define BRAIN_USE_INPUTS 0
+#endif
+#if !defined(BRAIN_USE_POTS)
+#define BRAIN_USE_POTS 0
+#endif
+#if !defined(BRAIN_USE_MIDI_PARSER)
+#define BRAIN_USE_MIDI_PARSER 0
+#endif
+#if !defined(BRAIN_USE_MIDI_TO_CV)
+#define BRAIN_USE_MIDI_TO_CV 0
+#endif
 
-template <uint32_t Features = kBrainFeaturesAll>
-class BrainT {
+#define BRAIN_CFG_LEDS BRAIN_USE_LEDS
+#define BRAIN_CFG_BUTTONS BRAIN_USE_BUTTONS
+#define BRAIN_CFG_OUTPUTS BRAIN_USE_OUTPUTS
+#define BRAIN_CFG_INPUTS BRAIN_USE_INPUTS
+#define BRAIN_CFG_POTS BRAIN_USE_POTS
+#define BRAIN_CFG_MIDI_PARSER BRAIN_USE_MIDI_PARSER
+#define BRAIN_CFG_MIDI_TO_CV BRAIN_USE_MIDI_TO_CV
+#endif
+
+static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_OUTPUTS),
+	"BRAIN_USE_MIDI_TO_CV requires BRAIN_USE_OUTPUTS=1 or BRAIN_USE_ALL=1");
+static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_MIDI_PARSER),
+	"BRAIN_USE_MIDI_TO_CV requires BRAIN_USE_MIDI_PARSER=1 or BRAIN_USE_ALL=1");
+
+class Brain {
 public:
-	static constexpr bool kHasLeds = (Features & kBrainFeatureLeds) != 0;
-	static constexpr bool kHasButtons = (Features & kBrainFeatureButtons) != 0;
-	static constexpr bool kHasOutputs = (Features & kBrainFeatureOutputs) != 0;
-	static constexpr bool kHasInputs = (Features & kBrainFeatureInputs) != 0;
-	static constexpr bool kHasPots = (Features & kBrainFeaturePots) != 0;
-	static constexpr bool kHasMidiParser = (Features & kBrainFeatureMidiParser) != 0;
-	static constexpr bool kHasMidiToCv = (Features & kBrainFeatureMidiToCv) != 0;
-
-	static_assert(!kHasMidiToCv || kHasOutputs,
-		"kBrainFeatureMidiToCv requires kBrainFeatureOutputs");
-	static_assert(!kHasMidiToCv || kHasMidiParser,
-		"kBrainFeatureMidiToCv requires kBrainFeatureMidiParser");
-
-	using LedsType = std::conditional_t<kHasLeds, Leds, BrainDisabledComponent>;
-	using ButtonsType = std::conditional_t<kHasButtons, Buttons, BrainDisabledComponent>;
-	using OutputsType = std::conditional_t<kHasOutputs, Outputs, BrainDisabledComponent>;
-	using InputsType = std::conditional_t<kHasInputs, Inputs, BrainDisabledComponent>;
-	using PotsType = std::conditional_t<kHasPots, Pots, BrainDisabledComponent>;
-	using MidiParserType = std::conditional_t<kHasMidiParser, MidiParser, BrainDisabledComponent>;
-	using MidiToCvType = std::conditional_t<kHasMidiToCv, MidiToCV, BrainDisabledComponent>;
-
-	BrainT() = default;
-	BrainT(const BrainT&) = delete;
-	BrainT& operator=(const BrainT&) = delete;
-	BrainT(BrainT&&) = delete;
-	BrainT& operator=(BrainT&&) = delete;
+	Brain() = default;
+	Brain(const Brain&) = delete;
+	Brain& operator=(const Brain&) = delete;
+	Brain(Brain&&) = delete;
+	Brain& operator=(Brain&&) = delete;
 
 	void enable_adc_optimization(bool enabled = true) {
 		adc_optimization_enabled_ = enabled;
@@ -103,49 +104,76 @@ public:
 		return shared_pot_sampling_enabled_;
 	}
 
-	bool is_leds_initialized() const { return leds_initialized_; }
-	bool is_buttons_initialized() const { return buttons_initialized_; }
-	bool is_outputs_initialized() const { return outputs_initialized_; }
-	bool is_inputs_initialized() const { return inputs_initialized_; }
-	bool is_pots_initialized() const { return pots_initialized_; }
-	bool is_midi_parser_initialized() const { return midi_parser_initialized_; }
-	bool is_midi_to_cv_initialized() const { return midi_to_cv_initialized_; }
-
 	BrainInitStatus init() {
 		return init_all();
 	}
 
 	BrainInitStatus init_all() {
 		bool any_ok = false;
+		BrainInitStatus status = BrainInitStatus::kAlreadyInitialized;
 
-		BrainInitStatus status = init_leds();
+#if BRAIN_CFG_LEDS
+		status = init_leds();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
+#if BRAIN_CFG_BUTTONS
 		status = init_buttons();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
+#if BRAIN_CFG_OUTPUTS
 		status = init_outputs();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
+#if BRAIN_CFG_POTS
 		status = init_pots();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
+#if BRAIN_CFG_INPUTS
 		status = init_inputs();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
+#if BRAIN_CFG_MIDI_PARSER
 		status = init_midi_parser();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
 
 		return any_ok ? BrainInitStatus::kOk : BrainInitStatus::kAlreadyInitialized;
 	}
 
-	template <bool Enabled = kHasLeds, typename std::enable_if<Enabled, int>::type = 0>
+	void update() {
+		update_all();
+	}
+
+	void update_all() {
+#if BRAIN_CFG_LEDS
+		update_leds();
+#endif
+#if BRAIN_CFG_BUTTONS
+		update_buttons();
+#endif
+#if BRAIN_CFG_INPUTS
+		update_inputs();
+#endif
+#if BRAIN_CFG_POTS
+		update_pots();
+#endif
+#if BRAIN_CFG_MIDI_TO_CV
+		update_midi_to_cv();
+#endif
+	}
+
+#if BRAIN_CFG_LEDS
 	BrainInitStatus init_leds(LedMode mode = LedMode::kPwm) {
 		if (leds_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		leds.init(mode);
@@ -153,13 +181,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasLeds, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_leds(LedMode mode = LedMode::kPwm) {
-		(void)mode;
-		return BrainInitStatus::kAlreadyInitialized;
+	void update_leds() {
+		leds.update();
 	}
 
-	template <bool Enabled = kHasButtons, typename std::enable_if<Enabled, int>::type = 0>
+	bool is_leds_initialized() const {
+		return leds_initialized_;
+	}
+
+	Leds leds{};
+#endif
+
+#if BRAIN_CFG_BUTTONS
 	BrainInitStatus init_buttons(bool pull_up = true) {
 		if (buttons_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		buttons.init(pull_up);
@@ -167,13 +200,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasButtons, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_buttons(bool pull_up = true) {
-		(void)pull_up;
-		return BrainInitStatus::kAlreadyInitialized;
+	void update_buttons() {
+		buttons.update();
 	}
 
-	template <bool Enabled = kHasOutputs, typename std::enable_if<Enabled, int>::type = 0>
+	bool is_buttons_initialized() const {
+		return buttons_initialized_;
+	}
+
+	Buttons buttons{};
+#endif
+
+#if BRAIN_CFG_OUTPUTS
 	BrainInitStatus init_outputs() {
 		if (outputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		if (!outputs.init()) return BrainInitStatus::kFailed;
@@ -181,12 +219,14 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasOutputs, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_outputs() {
-		return BrainInitStatus::kAlreadyInitialized;
+	bool is_outputs_initialized() const {
+		return outputs_initialized_;
 	}
 
-	template <bool Enabled = kHasInputs, typename std::enable_if<Enabled, int>::type = 0>
+	Outputs outputs{};
+#endif
+
+#if BRAIN_CFG_INPUTS
 	BrainInitStatus init_inputs() {
 		if (inputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
@@ -195,12 +235,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasInputs, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_inputs() {
-		return BrainInitStatus::kAlreadyInitialized;
+	void update_inputs() {
+		inputs.update();
 	}
 
-	template <bool Enabled = kHasPots, typename std::enable_if<Enabled, int>::type = 0>
+	bool is_inputs_initialized() const {
+		return inputs_initialized_;
+	}
+
+	Inputs inputs{};
+#endif
+
+#if BRAIN_CFG_POTS
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		pots.init(config);
@@ -209,13 +255,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasPots, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
-		(void)config;
-		return BrainInitStatus::kAlreadyInitialized;
+	void update_pots() {
+		pots.scan();
 	}
 
-	template <bool Enabled = kHasMidiParser, typename std::enable_if<Enabled, int>::type = 0>
+	bool is_pots_initialized() const {
+		return pots_initialized_;
+	}
+
+	Pots pots{};
+#endif
+
+#if BRAIN_CFG_MIDI_PARSER
 	BrainInitStatus init_midi_parser(uint32_t baud_rate = 31250) {
 		if (midi_parser_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		if (!midi_parser.init_uart(baud_rate)) return BrainInitStatus::kFailed;
@@ -223,13 +274,14 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
-	template <bool Enabled = kHasMidiParser, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_midi_parser(uint32_t baud_rate = 31250) {
-		(void)baud_rate;
-		return BrainInitStatus::kAlreadyInitialized;
+	bool is_midi_parser_initialized() const {
+		return midi_parser_initialized_;
 	}
 
-	template <bool Enabled = kHasMidiToCv, typename std::enable_if<Enabled, int>::type = 0>
+	MidiParser midi_parser{};
+#endif
+
+#if BRAIN_CFG_MIDI_TO_CV
 	BrainInitStatus init_midi_to_cv(
 		AudioCvOutChannel cv_channel = AudioCvOutChannel::kChannelA,
 		uint8_t midi_channel = 1,
@@ -249,118 +301,59 @@ public:
 		return status;
 	}
 
-	template <bool Enabled = kHasMidiToCv, typename std::enable_if<!Enabled, int>::type = 0>
-	BrainInitStatus init_midi_to_cv(
-		AudioCvOutChannel cv_channel = AudioCvOutChannel::kChannelA,
-		uint8_t midi_channel = 1,
-		uint32_t baud_rate = 31250) {
-		(void)cv_channel;
-		(void)midi_channel;
-		(void)baud_rate;
-		return BrainInitStatus::kAlreadyInitialized;
-	}
-
-	void update() {
-		update_all();
-	}
-
-	void update_all() {
-		update_leds();
-		update_buttons();
-		update_inputs();
-		update_pots();
-		update_midi_to_cv();
-	}
-
-	template <bool Enabled = kHasLeds, typename std::enable_if<Enabled, int>::type = 0>
-	void update_leds() {
-		leds.update();
-	}
-
-	template <bool Enabled = kHasLeds, typename std::enable_if<!Enabled, int>::type = 0>
-	void update_leds() {}
-
-	template <bool Enabled = kHasButtons, typename std::enable_if<Enabled, int>::type = 0>
-	void update_buttons() {
-		buttons.update();
-	}
-
-	template <bool Enabled = kHasButtons, typename std::enable_if<!Enabled, int>::type = 0>
-	void update_buttons() {}
-
-	template <bool Enabled = kHasInputs, typename std::enable_if<Enabled, int>::type = 0>
-	void update_inputs() {
-		inputs.update();
-	}
-
-	template <bool Enabled = kHasInputs, typename std::enable_if<!Enabled, int>::type = 0>
-	void update_inputs() {}
-
-	template <bool Enabled = kHasPots, typename std::enable_if<Enabled, int>::type = 0>
-	void update_pots() {
-		pots.scan();
-	}
-
-	template <bool Enabled = kHasPots, typename std::enable_if<!Enabled, int>::type = 0>
-	void update_pots() {}
-
-	template <bool Enabled = kHasMidiToCv, typename std::enable_if<Enabled, int>::type = 0>
 	void update_midi_to_cv() {
 		if (!midi_to_cv_initialized_) return;
 		midi_to_cv.update();
 	}
 
-	template <bool Enabled = kHasMidiToCv, typename std::enable_if<!Enabled, int>::type = 0>
-	void update_midi_to_cv() {}
+	bool is_midi_to_cv_initialized() const {
+		return midi_to_cv_initialized_;
+	}
 
-	BRAIN_NO_UNIQUE_ADDRESS LedsType leds{};
-	BRAIN_NO_UNIQUE_ADDRESS ButtonsType buttons{};
-	BRAIN_NO_UNIQUE_ADDRESS OutputsType outputs{};
-	BRAIN_NO_UNIQUE_ADDRESS InputsType inputs{};
-	BRAIN_NO_UNIQUE_ADDRESS PotsType pots{};
-	BRAIN_NO_UNIQUE_ADDRESS MidiParserType midi_parser{};
-	BRAIN_NO_UNIQUE_ADDRESS MidiToCvType midi_to_cv{};
+	MidiToCV midi_to_cv{};
+#endif
 
 private:
 	void apply_adc_policy_to_components() {
-		apply_inputs_adc_policy();
-		apply_pots_adc_policy();
-	}
-
-	template <bool Enabled = kHasInputs, typename std::enable_if<Enabled, int>::type = 0>
-	void apply_inputs_adc_policy() {
+#if BRAIN_CFG_INPUTS
 		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
-	}
-
-	template <bool Enabled = kHasInputs, typename std::enable_if<!Enabled, int>::type = 0>
-	void apply_inputs_adc_policy() {}
-
-	template <bool Enabled = kHasPots, typename std::enable_if<Enabled, int>::type = 0>
-	void apply_pots_adc_policy() {
+#endif
+#if BRAIN_CFG_POTS
 		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
+#endif
 	}
-
-	template <bool Enabled = kHasPots, typename std::enable_if<!Enabled, int>::type = 0>
-	void apply_pots_adc_policy() {}
 
 	bool adc_optimization_enabled_ = true;
 	bool audio_cv_dma_enabled_ = true;
 	bool shared_pot_sampling_enabled_ = true;
+
+#if BRAIN_CFG_LEDS
 	bool leds_initialized_ = false;
+#endif
+#if BRAIN_CFG_BUTTONS
 	bool buttons_initialized_ = false;
+#endif
+#if BRAIN_CFG_OUTPUTS
 	bool outputs_initialized_ = false;
+#endif
+#if BRAIN_CFG_INPUTS
 	bool inputs_initialized_ = false;
+#endif
+#if BRAIN_CFG_POTS
 	bool pots_initialized_ = false;
+#endif
+#if BRAIN_CFG_MIDI_PARSER
 	bool midi_parser_initialized_ = false;
+#endif
+#if BRAIN_CFG_MIDI_TO_CV
 	bool midi_to_cv_initialized_ = false;
+#endif
 };
 
-using Brain = BrainT<kBrainFeaturesAll>;
-using BrainAll = BrainT<kBrainFeaturesAll>;
-using BrainIO = BrainT<kBrainFeatureInputs | kBrainFeatureOutputs>;
-using BrainUI = BrainT<kBrainFeatureLeds | kBrainFeatureButtons | kBrainFeaturePots>;
-using BrainWithMidiParser = BrainT<kBrainFeatureMidiParser>;
-using BrainWithMidiToCv = BrainT<kBrainFeatureOutputs | kBrainFeatureMidiParser | kBrainFeatureMidiToCv>;
-using BrainMinimal = BrainT<0>;
-
-#undef BRAIN_NO_UNIQUE_ADDRESS
+#undef BRAIN_CFG_LEDS
+#undef BRAIN_CFG_BUTTONS
+#undef BRAIN_CFG_OUTPUTS
+#undef BRAIN_CFG_INPUTS
+#undef BRAIN_CFG_POTS
+#undef BRAIN_CFG_MIDI_PARSER
+#undef BRAIN_CFG_MIDI_TO_CV

@@ -45,46 +45,84 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 #### Flat API Entry Point
 - Include `brain/brain.h`
-- Use `Brain` (all features enabled) or `BrainT<...>` for compile-time feature selection
-- Available feature flags: `kBrainFeatureLeds`, `kBrainFeatureButtons`, `kBrainFeatureInputs`, `kBrainFeatureOutputs`, `kBrainFeaturePots`, `kBrainFeatureMidiParser`, `kBrainFeatureMidiToCv`
-- Presets: `BrainAll`, `BrainIO`, `BrainUI`, `BrainMinimal`
+- Use one public wrapper type: `Brain`
+- Set compile-time feature macros explicitly before including `brain/brain.h`
+- Supported macros: `BRAIN_USE_ALL`, `BRAIN_USE_LEDS`, `BRAIN_USE_BUTTONS`, `BRAIN_USE_OUTPUTS`, `BRAIN_USE_INPUTS`, `BRAIN_USE_POTS`, `BRAIN_USE_MIDI_PARSER`, `BRAIN_USE_MIDI_TO_CV`
+- At least one feature macro must be defined (no implicit default)
 - No namespace qualification is required for new code
 - Full wrapper reference: [Brain class docs](docs/BRAIN.md)
 - `init_all()` initializes enabled core components; utility init (for example `init_midi_to_cv()`) stays explicit.
+- `init_*()` is runtime-only. Compile-time inclusion/exclusion is controlled by `BRAIN_USE_*` macros.
 
-Example:
+When to use which option:
+- Use `BRAIN_USE_ALL=1` when you want the simplest integration but still want explicit configuration.
+- Use selective `BRAIN_USE_*` macros when you want smaller firmware size and strict compile-time ownership.
+- Use selective `init_*()` when a component is optional at runtime (for example mode-dependent features or staged startup).
+
+Recommended multi-file setup:
 ```cpp
+// brain_user_config.h
+#pragma once
+#define BRAIN_USE_ALL 1
+```
+
+```cpp
+// main.cpp
+#include "brain_user_config.h"
 #include "brain/brain.h"
 
-// Full wrapper (all components compiled in)
-Brain brain_full;
-
-// Compile-time reduced wrapper: only LEDs + outputs
-using BrainLedsOut = BrainT<kBrainFeatureLeds | kBrainFeatureOutputs>;
-BrainLedsOut brain;
+Brain brain;
 
 int main() {
 	BrainInitStatus status = brain.init_leds(LedMode::kSimple);
 	if (!brain_init_succeeded(status)) return 1;
 
-	status = brain.init_outputs();
-	if (!brain_init_succeeded(status)) return 1;
-
 	brain.leds.on(0);
-	brain.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
-	brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 2500);
-	brain.outputs.pulse_set(true);
-
 	while (true) {
 		brain.update_leds();
 	}
 }
 ```
 
+Selective compile-time feature example:
+```cpp
+// brain_user_config.h
+#pragma once
+#define BRAIN_USE_LEDS 1
+#define BRAIN_USE_OUTPUTS 1
+```
+
+Inline define mode (small/single-file projects):
+```cpp
+#define BRAIN_USE_ALL 1
+#include "brain/brain.h"
+
+int main() {
+	Brain brain;
+	BrainInitStatus status = brain.init_leds(LedMode::kSimple);
+	if (!brain_init_succeeded(status)) return 1;
+	return 0;
+}
+```
+
+CMake define mode:
+```cmake
+target_compile_definitions(my_firmware PRIVATE
+    BRAIN_USE_LEDS=1
+    BRAIN_USE_OUTPUTS=1
+)
+```
+
 Init calls are idempotent and return explicit status:
 - `BrainInitStatus::kOk`
 - `BrainInitStatus::kAlreadyInitialized`
 - `BrainInitStatus::kFailed`
+
+Compile-time dependency rule:
+- `BRAIN_USE_MIDI_TO_CV=1` requires `BRAIN_USE_OUTPUTS=1` and `BRAIN_USE_MIDI_PARSER=1` (or `BRAIN_USE_ALL=1`).
+
+This still compiles the same `Brain` type; only enabled modules are compiled into it.
+`brain.init_leds()` initializes LEDs at runtime, it does not decide compile-time inclusion.
 
 ADC optimization defaults:
 - `Inputs` uses DMA burst sampling for AudioCV by default.
@@ -93,15 +131,21 @@ ADC optimization defaults:
 - You can disable either path before `init()`:
 
 ```cpp
-Brain brain;
-brain.set_audio_cv_dma_enabled(false);           // fall back to Inputs internal ADC reads
-brain.set_shared_pot_sampling_enabled(false);    // fall back to Pots internal scan reads
-brain.init();
+#define BRAIN_USE_ALL 1
+#include "brain/brain.h"
+
+int main() {
+	Brain brain;
+	brain.set_audio_cv_dma_enabled(false);           // fall back to Inputs internal ADC reads
+	brain.set_shared_pot_sampling_enabled(false);    // fall back to Pots internal scan reads
+	brain.init();
+}
 ```
 
 If your app does custom ADC work (for example on core1 or inside IRQ handlers), use `BrainAdcLockGuard` around ADC register/FIFO access so it is serialized with SDK components:
 
 ```cpp
+#define BRAIN_USE_ALL 1
 #include "brain/brain.h"
 #include <hardware/adc.h>
 
@@ -112,7 +156,6 @@ void my_custom_adc_read() {
 	(void)raw;
 }
 ```
-
 
 ### Folder Structure
 ```
