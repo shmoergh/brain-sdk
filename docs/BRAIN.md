@@ -9,6 +9,7 @@
 - `pots`
 - `midi_parser`
 - `midi_to_cv`
+- `pot_multi`
 
 It also provides compile-time feature selection and centralized init/update helpers.
 `init_all()` initializes all enabled core components (`leds`, `buttons`, `outputs`, `inputs`, `pots`, `midi_parser`) but not utilities such as `midi_to_cv`.
@@ -75,11 +76,13 @@ Use `BRAIN_USE_*` macros before including `brain/brain.h`:
 - `BRAIN_USE_POTS`
 - `BRAIN_USE_MIDI_PARSER`
 - `BRAIN_USE_MIDI_TO_CV`
+- `BRAIN_USE_POT_MULTI_FUNCTION`
 
 Rules:
 - At least one macro must be defined (explicit config required).
 - `BRAIN_USE_ALL=1` enables all modules explicitly.
 - `BRAIN_USE_MIDI_TO_CV=1` requires `BRAIN_USE_OUTPUTS=1` and `BRAIN_USE_MIDI_PARSER=1`.
+- `BRAIN_USE_POT_MULTI_FUNCTION=1` requires `BRAIN_USE_POTS=1`.
 
 Recommended shared-config pattern (multi-file firmware):
 ```cpp
@@ -89,6 +92,7 @@ Recommended shared-config pattern (multi-file firmware):
 #define BRAIN_USE_OUTPUTS 1
 #define BRAIN_USE_MIDI_PARSER 1
 #define BRAIN_USE_MIDI_TO_CV 1
+#define BRAIN_USE_POT_MULTI_FUNCTION 1
 ```
 
 ```cpp
@@ -126,6 +130,11 @@ State query helpers:
 - `is_pots_initialized()`
 - `is_midi_parser_initialized()`
 - `is_midi_to_cv_initialized()`
+- `is_pot_multi_initialized()`
+
+Pot utility init/update:
+- `init_pot_multi(...)` (auto-inits `pots` if needed)
+- `update_pot_multi(...)`
 
 ## ADC Policy Controls
 `Brain` can configure ADC optimization policy:

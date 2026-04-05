@@ -16,7 +16,8 @@
 
 #if !defined(BRAIN_USE_ALL) && !defined(BRAIN_USE_LEDS) && !defined(BRAIN_USE_BUTTONS) && \
 	!defined(BRAIN_USE_OUTPUTS) && !defined(BRAIN_USE_INPUTS) && !defined(BRAIN_USE_POTS) && \
-	!defined(BRAIN_USE_MIDI_PARSER) && !defined(BRAIN_USE_MIDI_TO_CV)
+	!defined(BRAIN_USE_MIDI_PARSER) && !defined(BRAIN_USE_MIDI_TO_CV) && \
+	!defined(BRAIN_USE_POT_MULTI_FUNCTION)
 #error "Brain config missing: define BRAIN_USE_ALL=1 or one/more BRAIN_USE_* macros before including brain/brain.h"
 #endif
 
@@ -32,6 +33,7 @@
 #define BRAIN_CFG_POTS 1
 #define BRAIN_CFG_MIDI_PARSER 1
 #define BRAIN_CFG_MIDI_TO_CV 1
+#define BRAIN_CFG_POT_MULTI_FUNCTION 1
 #else
 #if !defined(BRAIN_USE_LEDS)
 #define BRAIN_USE_LEDS 0
@@ -54,6 +56,9 @@
 #if !defined(BRAIN_USE_MIDI_TO_CV)
 #define BRAIN_USE_MIDI_TO_CV 0
 #endif
+#if !defined(BRAIN_USE_POT_MULTI_FUNCTION)
+#define BRAIN_USE_POT_MULTI_FUNCTION 0
+#endif
 
 #define BRAIN_CFG_LEDS BRAIN_USE_LEDS
 #define BRAIN_CFG_BUTTONS BRAIN_USE_BUTTONS
@@ -62,12 +67,15 @@
 #define BRAIN_CFG_POTS BRAIN_USE_POTS
 #define BRAIN_CFG_MIDI_PARSER BRAIN_USE_MIDI_PARSER
 #define BRAIN_CFG_MIDI_TO_CV BRAIN_USE_MIDI_TO_CV
+#define BRAIN_CFG_POT_MULTI_FUNCTION BRAIN_USE_POT_MULTI_FUNCTION
 #endif
 
 static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_OUTPUTS),
 	"BRAIN_USE_MIDI_TO_CV requires BRAIN_USE_OUTPUTS=1 or BRAIN_USE_ALL=1");
 static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_MIDI_PARSER),
 	"BRAIN_USE_MIDI_TO_CV requires BRAIN_USE_MIDI_PARSER=1 or BRAIN_USE_ALL=1");
+static_assert(!(BRAIN_CFG_POT_MULTI_FUNCTION && !BRAIN_CFG_POTS),
+	"BRAIN_USE_POT_MULTI_FUNCTION requires BRAIN_USE_POTS=1 or BRAIN_USE_ALL=1");
 
 class Brain {
 public:
@@ -170,6 +178,9 @@ public:
 #endif
 #if BRAIN_CFG_MIDI_TO_CV
 		update_midi_to_cv();
+#endif
+#if BRAIN_CFG_POT_MULTI_FUNCTION
+		update_pot_multi();
 #endif
 	}
 
@@ -313,6 +324,31 @@ public:
 	MidiToCV midi_to_cv{};
 #endif
 
+#if BRAIN_CFG_POT_MULTI_FUNCTION
+	BrainInitStatus init_pot_multi(uint8_t max_functions = PotMultiFunction::kMaxFunctions) {
+		if (pot_multi_initialized_) return BrainInitStatus::kAlreadyInitialized;
+		if (init_pots() == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
+		pot_multi.init(max_functions);
+		pot_multi_initialized_ = true;
+		return BrainInitStatus::kOk;
+	}
+
+	void update_pot_multi(bool use_buffered_values = true, bool perform_scan = false) {
+		if (!pot_multi_initialized_) return;
+		if (use_buffered_values) {
+			pot_multi.update_buffered(pots, perform_scan);
+		} else {
+			pot_multi.update(pots);
+		}
+	}
+
+	bool is_pot_multi_initialized() const {
+		return pot_multi_initialized_;
+	}
+
+	PotMultiFunction pot_multi{};
+#endif
+
 private:
 	void apply_adc_policy_to_components() {
 #if BRAIN_CFG_INPUTS
@@ -348,6 +384,9 @@ private:
 #if BRAIN_CFG_MIDI_TO_CV
 	bool midi_to_cv_initialized_ = false;
 #endif
+#if BRAIN_CFG_POT_MULTI_FUNCTION
+	bool pot_multi_initialized_ = false;
+#endif
 };
 
 #undef BRAIN_CFG_LEDS
@@ -357,3 +396,4 @@ private:
 #undef BRAIN_CFG_POTS
 #undef BRAIN_CFG_MIDI_PARSER
 #undef BRAIN_CFG_MIDI_TO_CV
+#undef BRAIN_CFG_POT_MULTI_FUNCTION
