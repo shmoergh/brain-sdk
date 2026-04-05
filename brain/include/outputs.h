@@ -5,8 +5,7 @@
 #include <cstdint>
 
 #include "gpio-setup.h"
-
-struct CvCalibrationV1;
+#include "storage.h"
 
 enum class AudioCvOutChannel { kChannelA = 0, kChannelB = 1 };
 
@@ -86,6 +85,7 @@ private:
 	bool calibration_loaded_ = false;
 	int16_t calibration_a_offset_lsb_[10] = {0};
 	int16_t calibration_b_offset_lsb_[10] = {0};
+	Storage storage_{};
 
 	AudioCvOutRange range_a_ = AudioCvOutRange::kRange0To10V;
 	AudioCvOutRange range_b_ = AudioCvOutRange::kRange0To10V;

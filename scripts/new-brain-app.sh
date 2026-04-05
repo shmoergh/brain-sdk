@@ -135,7 +135,7 @@ cat > "$APP_DIR/brain_user_config.h" <<EOF
 
 // Explicit Brain SDK feature configuration.
 // Set BRAIN_USE_ALL=1 for the easiest full-feature setup, or replace this with
-// selective BRAIN_USE_* defines (LEDS, BUTTONS, OUTPUTS, INPUTS, POTS, MIDI_PARSER, MIDI_TO_CV, POT_MULTI_FUNCTION).
+// selective BRAIN_USE_* defines (LEDS, BUTTONS, STORAGE, OUTPUTS, INPUTS, POTS, MIDI_PARSER, MIDI_TO_CV, POT_MULTI_FUNCTION).
 #define BRAIN_USE_ALL 1
 EOF
 

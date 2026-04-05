@@ -41,13 +41,12 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 #### Storage
 - [Storage](docs/STORAGE.md) - Reserved flash layout, calibration persistence, and app blob APIs
-- [Storage Release Notes](docs/RELEASE_NOTES_STORAGE.md) - API additions, migration requirements, and validation summary
 
 #### Flat API Entry Point
 - Include `brain/brain.h`
 - Use one public wrapper type: `Brain`
 - Set compile-time feature macros explicitly before including `brain/brain.h`
-- Supported macros: `BRAIN_USE_ALL`, `BRAIN_USE_LEDS`, `BRAIN_USE_BUTTONS`, `BRAIN_USE_OUTPUTS`, `BRAIN_USE_INPUTS`, `BRAIN_USE_POTS`, `BRAIN_USE_MIDI_PARSER`, `BRAIN_USE_MIDI_TO_CV`, `BRAIN_USE_POT_MULTI_FUNCTION`
+- Supported macros: `BRAIN_USE_ALL`, `BRAIN_USE_LEDS`, `BRAIN_USE_BUTTONS`, `BRAIN_USE_STORAGE`, `BRAIN_USE_OUTPUTS`, `BRAIN_USE_INPUTS`, `BRAIN_USE_POTS`, `BRAIN_USE_MIDI_PARSER`, `BRAIN_USE_MIDI_TO_CV`, `BRAIN_USE_POT_MULTI_FUNCTION`
 - At least one feature macro must be defined (no implicit default)
 - No namespace qualification is required for new code
 - Full wrapper reference: [Brain class docs](docs/BRAIN.md)

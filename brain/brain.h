@@ -17,7 +17,7 @@
 #if !defined(BRAIN_USE_ALL) && !defined(BRAIN_USE_LEDS) && !defined(BRAIN_USE_BUTTONS) && \
 	!defined(BRAIN_USE_OUTPUTS) && !defined(BRAIN_USE_INPUTS) && !defined(BRAIN_USE_POTS) && \
 	!defined(BRAIN_USE_MIDI_PARSER) && !defined(BRAIN_USE_MIDI_TO_CV) && \
-	!defined(BRAIN_USE_POT_MULTI_FUNCTION)
+	!defined(BRAIN_USE_POT_MULTI_FUNCTION) && !defined(BRAIN_USE_STORAGE)
 #error "Brain config missing: define BRAIN_USE_ALL=1 or one/more BRAIN_USE_* macros before including brain/brain.h"
 #endif
 
@@ -34,6 +34,7 @@
 #define BRAIN_CFG_MIDI_PARSER 1
 #define BRAIN_CFG_MIDI_TO_CV 1
 #define BRAIN_CFG_POT_MULTI_FUNCTION 1
+#define BRAIN_CFG_STORAGE 1
 #else
 #if !defined(BRAIN_USE_LEDS)
 #define BRAIN_USE_LEDS 0
@@ -59,6 +60,9 @@
 #if !defined(BRAIN_USE_POT_MULTI_FUNCTION)
 #define BRAIN_USE_POT_MULTI_FUNCTION 0
 #endif
+#if !defined(BRAIN_USE_STORAGE)
+#define BRAIN_USE_STORAGE 0
+#endif
 
 #define BRAIN_CFG_LEDS BRAIN_USE_LEDS
 #define BRAIN_CFG_BUTTONS BRAIN_USE_BUTTONS
@@ -68,6 +72,7 @@
 #define BRAIN_CFG_MIDI_PARSER BRAIN_USE_MIDI_PARSER
 #define BRAIN_CFG_MIDI_TO_CV BRAIN_USE_MIDI_TO_CV
 #define BRAIN_CFG_POT_MULTI_FUNCTION BRAIN_USE_POT_MULTI_FUNCTION
+#define BRAIN_CFG_STORAGE BRAIN_USE_STORAGE
 #endif
 
 static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_OUTPUTS),
@@ -128,6 +133,12 @@ public:
 
 #if BRAIN_CFG_BUTTONS
 		status = init_buttons();
+		if (status == BrainInitStatus::kFailed) return status;
+		if (status == BrainInitStatus::kOk) any_ok = true;
+#endif
+
+#if BRAIN_CFG_STORAGE
+		status = init_storage();
 		if (status == BrainInitStatus::kFailed) return status;
 		if (status == BrainInitStatus::kOk) any_ok = true;
 #endif
@@ -220,6 +231,21 @@ public:
 	}
 
 	Buttons buttons{};
+#endif
+
+#if BRAIN_CFG_STORAGE
+	BrainInitStatus init_storage() {
+		if (storage_initialized_) return BrainInitStatus::kAlreadyInitialized;
+		if (!storage.init(true)) return BrainInitStatus::kFailed;
+		storage_initialized_ = true;
+		return BrainInitStatus::kOk;
+	}
+
+	bool is_storage_initialized() const {
+		return storage_initialized_;
+	}
+
+	Storage storage{};
 #endif
 
 #if BRAIN_CFG_OUTPUTS
@@ -395,6 +421,9 @@ private:
 #if BRAIN_CFG_BUTTONS
 	bool buttons_initialized_ = false;
 #endif
+#if BRAIN_CFG_STORAGE
+	bool storage_initialized_ = false;
+#endif
 #if BRAIN_CFG_OUTPUTS
 	bool outputs_initialized_ = false;
 #endif
@@ -423,3 +452,4 @@ private:
 #undef BRAIN_CFG_MIDI_PARSER
 #undef BRAIN_CFG_MIDI_TO_CV
 #undef BRAIN_CFG_POT_MULTI_FUNCTION
+#undef BRAIN_CFG_STORAGE

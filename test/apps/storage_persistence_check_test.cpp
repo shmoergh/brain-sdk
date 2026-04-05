@@ -61,23 +61,24 @@ void print_offsets(const char* name, const int16_t* values) {
 void StoragePersistenceCheckTest::init() {
 	stdio_init_all();
 	sleep_ms(1200);
+	(void)storage_.init(false);
 
 	printf("\n\r--------\n\r");
 	printf("Brain Storage Persistence Check\n");
 	printf("Layout protected: %s\n",
-		is_layout_protected() ? "yes" : "no");
+		storage_.is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
 		kAllowUnprotectedLayout ? "yes" : "no");
 	printf("App region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			region_offset(StorageRegion::kAppData)),
+			storage_.region_offset(StorageRegion::kAppData)),
 		static_cast<unsigned>(
-			region_size(StorageRegion::kAppData)));
+			storage_.region_size(StorageRegion::kAppData)));
 	printf("Cal region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			region_offset(StorageRegion::kCalibration)),
+			storage_.region_offset(StorageRegion::kCalibration)),
 		static_cast<unsigned>(
-			region_size(StorageRegion::kCalibration)));
+			storage_.region_size(StorageRegion::kCalibration)));
 	printf("Guard region offset/size: %u / %u\n",
 		static_cast<unsigned>(StorageLayout::kGuardRegionOffsetBytes),
 		static_cast<unsigned>(StorageLayout::kGuardRegionSizeBytes));
@@ -93,11 +94,11 @@ void StoragePersistenceCheckTest::update() {
 
 	CvCalibrationV1 calibration{};
 	StorageStatus status =
-		read_cv_calibration(&calibration);
+		storage_.read_cv_calibration(&calibration);
 	uint8_t app_blob[64] = {0};
 	size_t app_blob_size = 0;
 	StorageStatus app_blob_status =
-		read_app_blob(app_blob, sizeof(app_blob), &app_blob_size);
+		storage_.read_app_blob(app_blob, sizeof(app_blob), &app_blob_size);
 
 	printf("read_cv_calibration status: %s\n", to_string(status));
 	if (status == StorageStatus::kOk) {

@@ -5,8 +5,6 @@
 
 #include <cstdio>
 
-#include "storage.h"
-
 namespace {
 
 int32_t div_round_nearest(int32_t numerator, int32_t denominator) {
@@ -59,6 +57,7 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 
 	set_output_range(AudioCvOutChannel::kChannelA, range_a);
 	set_output_range(AudioCvOutChannel::kChannelB, range_b);
+	storage_.init(false);
 	audio_cv_initialized_ = true;
 
 	return true;
@@ -144,8 +143,12 @@ void Outputs::clear_calibration() {
 }
 
 bool Outputs::load_calibration_from_flash() {
+	if (!storage_.is_initialized()) {
+		(void)storage_.init(false);
+	}
+
 	CvCalibrationV1 calibration{};
-	StorageStatus status = read_cv_calibration(&calibration);
+	StorageStatus status = storage_.read_cv_calibration(&calibration);
 	if (status != StorageStatus::kOk) {
 		clear_calibration();
 		return false;

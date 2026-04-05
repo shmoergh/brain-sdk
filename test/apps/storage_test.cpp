@@ -125,23 +125,24 @@ int16_t expected_channel_a_offset(int32_t millivolts) {
 void StorageTest::init() {
 	stdio_init_all();
 	sleep_ms(1200);
+	(void)storage_.init(false);
 
 	printf("\n\r--------\n\r");
 	printf("Brain Storage Test (Phase 2+3+4+5)\n");
 	printf("Layout protected: %s\n",
-		is_layout_protected() ? "yes" : "no");
+		storage_.is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
 		kAllowUnprotectedLayout ? "yes" : "no");
 	printf("App region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			region_offset(StorageRegion::kAppData)),
+			storage_.region_offset(StorageRegion::kAppData)),
 		static_cast<unsigned>(
-			region_size(StorageRegion::kAppData)));
+			storage_.region_size(StorageRegion::kAppData)));
 	printf("Cal region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			region_offset(StorageRegion::kCalibration)),
+			storage_.region_offset(StorageRegion::kCalibration)),
 		static_cast<unsigned>(
-			region_size(StorageRegion::kCalibration)));
+			storage_.region_size(StorageRegion::kCalibration)));
 	printf("Guard region offset/size: %u / %u\n",
 		static_cast<unsigned>(StorageLayout::kGuardRegionOffsetBytes),
 		static_cast<unsigned>(StorageLayout::kGuardRegionSizeBytes));
@@ -178,7 +179,7 @@ void StorageTest::update() {
 		app_blob_pattern[i] = static_cast<uint8_t>(0x31 + (i % 57));
 	}
 
-	StorageStatus status = read_region(
+	StorageStatus status = storage_.read_region(
 		StorageRegion::kCalibration,
 		0,
 		calibration_before,
@@ -190,7 +191,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_region(
+	status = storage_.write_region(
 		StorageRegion::kAppData,
 		0,
 		pattern,
@@ -202,7 +203,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_region(
+	status = storage_.read_region(
 		StorageRegion::kAppData,
 		0,
 		app_readback,
@@ -220,7 +221,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_region(
+	status = storage_.read_region(
 		StorageRegion::kCalibration,
 		0,
 		calibration_after,
@@ -239,9 +240,9 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_region(
+	status = storage_.write_region(
 		StorageRegion::kAppData,
-		static_cast<uint32_t>(region_size(
+		static_cast<uint32_t>(storage_.region_size(
 			StorageRegion::kAppData) - 8),
 		pattern,
 		16);
@@ -257,7 +258,7 @@ void StorageTest::update() {
 		calibration_in.b_offset_lsb[i] = static_cast<int16_t>(30 - i * 2);
 	}
 
-	status = write_cv_calibration(&calibration_in);
+	status = storage_.write_cv_calibration(&calibration_in);
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Write calibration record", step_pass);
 	if (!step_pass) {
@@ -265,7 +266,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_cv_calibration(&calibration_out);
+	status = storage_.read_cv_calibration(&calibration_out);
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Read calibration record", step_pass);
 	if (!step_pass) {
@@ -280,7 +281,7 @@ void StorageTest::update() {
 	}
 
 	uint8_t calibration_corrupt_byte = 0;
-	status = read_region(
+	status = storage_.read_region(
 		StorageRegion::kCalibration,
 		8,
 		&calibration_corrupt_byte,
@@ -293,7 +294,7 @@ void StorageTest::update() {
 	}
 
 	calibration_corrupt_byte ^= 0x5A;
-	status = write_region(
+	status = storage_.write_region(
 		StorageRegion::kCalibration,
 		8,
 		&calibration_corrupt_byte,
@@ -305,7 +306,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_cv_calibration(&calibration_out);
+	status = storage_.read_cv_calibration(&calibration_out);
 	step_pass = (status == StorageStatus::kCorrupt);
 	print_result("Detect corrupted calibration record", step_pass);
 	if (!step_pass) {
@@ -313,7 +314,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = clear_cv_calibration();
+	status = storage_.clear_cv_calibration();
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Clear calibration sector", step_pass);
 	if (!step_pass) {
@@ -321,7 +322,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_cv_calibration(&calibration_out);
+	status = storage_.read_cv_calibration(&calibration_out);
 	step_pass = (status == StorageStatus::kNotFound);
 	print_result("Read calibration after clear returns not found", step_pass);
 	if (!step_pass) {
@@ -329,7 +330,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_cv_calibration(&calibration_in);
+	status = storage_.write_cv_calibration(&calibration_in);
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Re-write calibration baseline for app-blob isolation test", step_pass);
 	if (!step_pass) {
@@ -337,7 +338,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_region(
+	status = storage_.read_region(
 		StorageRegion::kCalibration,
 		0,
 		calibration_before_app_blob,
@@ -349,7 +350,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_app_blob(app_blob_pattern, sizeof(app_blob_pattern));
+	status = storage_.write_app_blob(app_blob_pattern, sizeof(app_blob_pattern));
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Write app blob record", step_pass);
 	if (!step_pass) {
@@ -357,7 +358,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_app_blob(
+	status = storage_.read_app_blob(
 		app_blob_readback,
 		sizeof(app_blob_readback),
 		&app_blob_actual_size);
@@ -381,9 +382,9 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_app_blob(
+	status = storage_.write_app_blob(
 		&app_blob_oversize_guard,
-		region_size(StorageRegion::kAppData));
+		storage_.region_size(StorageRegion::kAppData));
 	step_pass = (status == StorageStatus::kTooLarge);
 	print_result("Reject oversize app blob write", step_pass);
 	if (!step_pass) {
@@ -391,7 +392,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = clear_app_blob();
+	status = storage_.clear_app_blob();
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Clear app blob sector", step_pass);
 	if (!step_pass) {
@@ -399,7 +400,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_app_blob(
+	status = storage_.read_app_blob(
 		app_blob_readback,
 		sizeof(app_blob_readback),
 		&app_blob_actual_size);
@@ -410,7 +411,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = read_region(
+	status = storage_.read_region(
 		StorageRegion::kCalibration,
 		0,
 		calibration_after_app_blob,
@@ -511,7 +512,7 @@ void StorageTest::update() {
 		overall_pass = false;
 	}
 
-	status = write_cv_calibration(&calibration_in);
+	status = storage_.write_cv_calibration(&calibration_in);
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Write calibration for load-from-flash API test", step_pass);
 	if (!step_pass) {
@@ -552,7 +553,7 @@ void StorageTest::update() {
 		legacy_compat_cal.b_offset_lsb[i] = static_cast<int16_t>((i % 2 == 0) ? (-7 + i) : (6 - i * 2));
 	}
 
-	status = write_cv_calibration(&legacy_compat_cal);
+	status = storage_.write_cv_calibration(&legacy_compat_cal);
 	step_pass = (status == StorageStatus::kOk);
 	print_result("Write legacy-style calibration payload", step_pass);
 	if (!step_pass) {

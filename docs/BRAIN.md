@@ -4,6 +4,7 @@
 `Brain` is the top-level wrapper that groups SDK components:
 - `leds`
 - `buttons`
+- `storage`
 - `outputs`
 - `inputs`
 - `pots`
@@ -12,7 +13,7 @@
 - `pot_multi`
 
 It also provides compile-time feature selection and centralized init/update helpers.
-`init_all()` initializes all enabled core components (`leds`, `buttons`, `outputs`, `inputs`, `pots`, `midi_parser`) but not utilities such as `midi_to_cv`.
+`init_all()` initializes all enabled core components (`leds`, `buttons`, `storage`, `outputs`, `inputs`, `pots`, `midi_parser`) but not utilities such as `midi_to_cv`.
 
 ## Include
 ```cpp
@@ -44,6 +45,8 @@ int main() {
 brain.leds.on(0);
 brain.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
 brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 2500);
+bool protected_layout = brain.storage.is_layout_protected();
+(void)protected_layout;
 ```
 
 ## Selective Init
@@ -74,6 +77,7 @@ Use `BRAIN_USE_*` macros before including `brain/brain.h`:
 - `BRAIN_USE_OUTPUTS`
 - `BRAIN_USE_INPUTS`
 - `BRAIN_USE_POTS`
+- `BRAIN_USE_STORAGE`
 - `BRAIN_USE_MIDI_PARSER`
 - `BRAIN_USE_MIDI_TO_CV`
 - `BRAIN_USE_POT_MULTI_FUNCTION`
@@ -125,6 +129,7 @@ All `init_*` calls are idempotent and return:
 State query helpers:
 - `is_leds_initialized()`
 - `is_buttons_initialized()`
+- `is_storage_initialized()`
 - `is_outputs_initialized()`
 - `is_inputs_initialized()`
 - `is_pots_initialized()`
