@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "include/adc-arbiter.h"
+#include "include/audio-processor.h"
 #include "include/buttons.h"
 #include "include/constants.h"
 #include "include/init-status.h"
@@ -17,7 +18,8 @@
 #if !defined(BRAIN_USE_ALL) && !defined(BRAIN_USE_LEDS) && !defined(BRAIN_USE_BUTTONS) && \
 	!defined(BRAIN_USE_OUTPUTS) && !defined(BRAIN_USE_INPUTS) && !defined(BRAIN_USE_POTS) && \
 	!defined(BRAIN_USE_MIDI_PARSER) && !defined(BRAIN_USE_MIDI_TO_CV) && \
-	!defined(BRAIN_USE_POT_MULTI_FUNCTION) && !defined(BRAIN_USE_STORAGE)
+	!defined(BRAIN_USE_POT_MULTI_FUNCTION) && !defined(BRAIN_USE_STORAGE) && \
+	!defined(BRAIN_USE_AUDIO_PROCESSOR)
 #error "Brain config missing: define BRAIN_USE_ALL=1 or one/more BRAIN_USE_* macros before including brain/brain.h"
 #endif
 
@@ -35,6 +37,7 @@
 #define BRAIN_CFG_MIDI_TO_CV 1
 #define BRAIN_CFG_POT_MULTI_FUNCTION 1
 #define BRAIN_CFG_STORAGE 1
+#define BRAIN_CFG_AUDIO_PROCESSOR 1
 #else
 #if !defined(BRAIN_USE_LEDS)
 #define BRAIN_USE_LEDS 0
@@ -63,6 +66,9 @@
 #if !defined(BRAIN_USE_STORAGE)
 #define BRAIN_USE_STORAGE 0
 #endif
+#if !defined(BRAIN_USE_AUDIO_PROCESSOR)
+#define BRAIN_USE_AUDIO_PROCESSOR 0
+#endif
 
 #define BRAIN_CFG_LEDS BRAIN_USE_LEDS
 #define BRAIN_CFG_BUTTONS BRAIN_USE_BUTTONS
@@ -73,6 +79,7 @@
 #define BRAIN_CFG_MIDI_TO_CV BRAIN_USE_MIDI_TO_CV
 #define BRAIN_CFG_POT_MULTI_FUNCTION BRAIN_USE_POT_MULTI_FUNCTION
 #define BRAIN_CFG_STORAGE BRAIN_USE_STORAGE
+#define BRAIN_CFG_AUDIO_PROCESSOR BRAIN_USE_AUDIO_PROCESSOR
 #endif
 
 static_assert(!(BRAIN_CFG_MIDI_TO_CV && !BRAIN_CFG_OUTPUTS),
@@ -273,6 +280,9 @@ public:
 #if BRAIN_CFG_INPUTS
 	BrainInitStatus init_inputs() {
 		if (inputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
+#if BRAIN_CFG_AUDIO_PROCESSOR
+		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
+#endif
 		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
 		if (!inputs.init()) return BrainInitStatus::kFailed;
 		inputs_initialized_ = true;
@@ -280,6 +290,7 @@ public:
 	}
 
 	void update_inputs() {
+		if (!inputs_initialized_) return;
 		inputs.update();
 	}
 
@@ -293,6 +304,9 @@ public:
 #if BRAIN_CFG_POTS
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
+#if BRAIN_CFG_AUDIO_PROCESSOR
+		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
+#endif
 		pots.init(config);
 		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 		pots_initialized_ = true;
@@ -303,6 +317,9 @@ public:
 		const PotsConfig& config,
 		bool reset_pot_multi_state = true,
 		bool clear_pot_multi_active_mappings = false) {
+#if BRAIN_CFG_AUDIO_PROCESSOR
+		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
+#endif
 		if (!pots_initialized_) {
 			return init_pots(config);
 		}
@@ -320,6 +337,7 @@ public:
 	}
 
 	void update_pots() {
+		if (!pots_initialized_) return;
 		pots.scan();
 	}
 
@@ -380,6 +398,9 @@ public:
 #if BRAIN_CFG_POT_MULTI_FUNCTION
 	BrainInitStatus init_pot_multi(uint8_t max_functions = PotMultiFunction::kMaxFunctions) {
 		if (pot_multi_initialized_) return BrainInitStatus::kAlreadyInitialized;
+#if BRAIN_CFG_AUDIO_PROCESSOR
+		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
+#endif
 		if (init_pots() == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
 		pot_multi.init(max_functions);
 		pot_multi_initialized_ = true;
@@ -406,6 +427,36 @@ public:
 	}
 
 	PotMultiFunction pot_multi{};
+#endif
+
+#if BRAIN_CFG_AUDIO_PROCESSOR
+	BrainInitStatus init_audio_processor(
+		const AudioProcessorConfig& config,
+		ProcessSampleFn process_sample_fn,
+		void* user_ctx = nullptr) {
+		if (audio_processor.is_initialized()) return BrainInitStatus::kAlreadyInitialized;
+
+#if BRAIN_CFG_INPUTS
+		if (inputs_initialized_) return BrainInitStatus::kFailed;
+#endif
+#if BRAIN_CFG_POTS
+		if (pots_initialized_) return BrainInitStatus::kFailed;
+#endif
+#if BRAIN_CFG_POT_MULTI_FUNCTION
+		if (pot_multi_initialized_) return BrainInitStatus::kFailed;
+#endif
+
+		BrainInitStatus status = audio_processor.init(config, process_sample_fn, user_ctx);
+		if (status == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
+
+		return status;
+	}
+
+	bool is_audio_processor_initialized() const {
+		return audio_processor.is_initialized();
+	}
+
+	AudioProcessor audio_processor{};
 #endif
 
 private:
@@ -460,3 +511,4 @@ private:
 #undef BRAIN_CFG_MIDI_TO_CV
 #undef BRAIN_CFG_POT_MULTI_FUNCTION
 #undef BRAIN_CFG_STORAGE
+#undef BRAIN_CFG_AUDIO_PROCESSOR

@@ -5,6 +5,7 @@
 #include "apps/leds_test.h"
 #include "apps/midi_to_cv_test.h"
 #include "apps/multipot_test.h"
+#include "apps/audio_processor_test.h"
 #include "apps/pot_read_stability_test.h"
 #include "apps/storage_persistence_check_test.h"
 #include "apps/storage_test.h"
@@ -33,6 +34,7 @@ void print_menu() {
 	printf("  4) Storage write/read smoke test\n");
 	printf("  5) Storage persistence check\n");
 	printf("  6) LED full manual suite\n");
+	printf("  7) AudioProcessor effect + guardrails\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -97,6 +99,8 @@ int main() {
 				run_selected_app<sandbox::apps::StoragePersistenceCheckTest>();
 			case 6:
 				run_selected_app<sandbox::apps::LedsTest>();
+			case 7:
+				run_selected_app<sandbox::apps::AudioProcessorTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

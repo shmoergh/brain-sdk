@@ -2,6 +2,7 @@
 # This executable contains manual hardware test apps.
 
 add_executable(test
+    apps/audio_processor_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp

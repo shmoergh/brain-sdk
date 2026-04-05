@@ -11,9 +11,10 @@
 - `midi_parser`
 - `midi_to_cv`
 - `pot_multi`
+- `audio_processor`
 
 It also provides compile-time feature selection and centralized init/update helpers.
-`init_all()` initializes all enabled core components (`leds`, `buttons`, `storage`, `outputs`, `inputs`, `pots`, `midi_parser`) but not utilities such as `midi_to_cv`.
+`init_all()` initializes all enabled core components (`leds`, `buttons`, `storage`, `outputs`, `inputs`, `pots`, `midi_parser`) but not utilities such as `midi_to_cv`, `pot_multi`, or `audio_processor`.
 
 ## Include
 ```cpp
@@ -58,6 +59,7 @@ Brain brain;
 brain.init_leds();
 brain.init_outputs();
 brain.init_midi_to_cv(AudioCvOutChannel::kChannelA, 1); // auto-inits outputs + midi_parser
+// brain.init_audio_processor(...) stays explicit and is never part of init_all()
 ```
 
 Important:
@@ -81,6 +83,7 @@ Use `BRAIN_USE_*` macros before including `brain/brain.h`:
 - `BRAIN_USE_MIDI_PARSER`
 - `BRAIN_USE_MIDI_TO_CV`
 - `BRAIN_USE_POT_MULTI_FUNCTION`
+- `BRAIN_USE_AUDIO_PROCESSOR`
 
 Rules:
 - At least one macro must be defined (explicit config required).
@@ -139,12 +142,19 @@ State query helpers:
 - `is_midi_parser_initialized()`
 - `is_midi_to_cv_initialized()`
 - `is_pot_multi_initialized()`
+- `is_audio_processor_initialized()`
 
 Pot utility init/update:
 - `init_pot_multi(...)` (auto-inits `pots` if needed)
 - `update_pot_multi(...)` (buffered default)
 - `update_pot_multi_single()` (explicit direct read path)
 - `reset_pot_multi_for_mode_change(...)`
+
+Audio utility init/status:
+- `init_audio_processor(const AudioProcessorConfig&, ProcessSampleFn, void* user_ctx = nullptr)`
+- `is_audio_processor_initialized()`
+- `brain.audio_processor.get_stats()`
+- `brain.audio_processor.get_pot_raw_u8(index)`
 
 Pots lifecycle:
 - `init_pots(...)` initializes once (idempotent).
@@ -156,6 +166,23 @@ Sampling semantics:
 - `Pots::get_single()` is the direct/single-read path.
 - `PotMultiFunction::update()` is buffered by default.
 - `PotMultiFunction::update_single()` is the direct path.
+
+## Runtime Conflict Policy (`audio_processor`)
+`AudioProcessor` owns ADC/DMA + pot-mux sampling when active, so `Brain` enforces runtime guardrails:
+
+If `audio_processor` is already initialized:
+- `init_inputs()` -> `BrainInitStatus::kFailed`
+- `init_pots(...)` -> `BrainInitStatus::kFailed`
+- `reconfigure_pots(...)` -> `BrainInitStatus::kFailed`
+- `init_pot_multi(...)` -> `BrainInitStatus::kFailed`
+
+If `inputs`, `pots`, or `pot_multi` are already initialized:
+- `init_audio_processor(...)` -> `BrainInitStatus::kFailed`
+
+No-op-safe updates:
+- `update_inputs()` is a no-op when inputs are not initialized
+- `update_pots()` is a no-op when pots are not initialized
+- `update_pot_multi()` / `update_pot_multi_single()` remain no-op-safe when pot-multi is not initialized
 
 ## ADC Policy Controls
 `Brain` can configure ADC optimization policy:
