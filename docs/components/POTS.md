@@ -57,3 +57,10 @@ Typical flow:
 2. set active function per pot each frame
 3. call `update(...)` (buffered default) or `update_single(...)` for direct reads
 4. read function value with `get_value(function_id)`
+
+
+Sampling semantics:
+- `Pots::get()` is the safe default and returns buffered values.
+- `Pots::get_single()` is the direct/single-read path.
+- `PotMultiFunction::update()` is buffered by default.
+- `PotMultiFunction::update_single()` is the direct path.

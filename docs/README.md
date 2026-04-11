@@ -9,10 +9,20 @@ The Brain SDK is a firmware and library collection for the Brain module of the [
 - [Installation](./INSTALLATION.md)
 - [Getting Started](./GETTING_STARTED.md)
 - [2.0 Migration](./2.0_MIGRATION.md)
-- Components
-    - Button
-    -
-- Utilities
-    - MIDI parser — Parse incoming MIDI data
-    - MIDI to CV converter — Convert MIDI to control voltage
-    - Storage — Persisting CV calibration and firmware data
+
+#### Components
+
+- [Brain Wrapper](./BRAIN.md) 👈 Start here
+- [Pots](./components/POTS.md)
+- [Buttons](./components/BUTTON.md)
+- [Button LED](./components/BUTTON_LED.md)
+- [LED strip](./components/LEDS.md)
+- [Inputs](./INPUTS.md)
+- [Outputs](./OUTPUTS.md)
+
+#### Utilities
+
+- [MIDI parser](./utilities/MIDI_PARSER.md) — Parse incoming MIDI data
+- [MIDI to CV converter](./utilities/MIDI_TO_CV.md) — Convert MIDI to control voltage
+- [Storage](./utilities/STORAGE.md) — Persisting CV calibration and firmware data
+- [Audio Processor](./utilities/AUDIO_PROCESSOR.md) — Using DMA for audio inputs and pot reading and rendering audio output at a fixed rate
