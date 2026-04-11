@@ -1,7 +1,7 @@
 # BUTTON Component
 
 ## Overview
-The Button component provides a robust interface for pushbutton inputs in the Brain module. It handles debouncing, state tracking, and multiple event types including press, release, single tap, and long press detection.
+The Button component provides an interface for the buttons on the Brain. It handles debouncing, state tracking, and multiple event types including press, release, single tap, and long press detection.
 
 ## Features
 - Software debouncing with configurable timing
@@ -15,178 +15,146 @@ The Button component provides a robust interface for pushbutton inputs in the Br
 - Event-driven callbacks
 - Polling-based operation for main loop integration
 
-## Usage
-1. **Initialization**: Create a `Button` instance with GPIO pin and optional timing parameters
-2. **Setup**: Call `init()` with pull-up or pull-down configuration
-3. **Polling**: Call `update()` regularly in your main loop
-4. **Callbacks**: Register callback functions for different event types
-
-## Example - Basic Press/Release
-```cpp
-#include "brain/include/button.h"
-
-// Create button on GPIO 5 with default debounce (50ms) and long press (500ms)
-Button my_button(5);
-my_button.init(true);  // true = pull-up (button connects to GND)
-
-my_button.set_on_press([]() {
-    printf("Button pressed!\n");
-});
-
-my_button.set_on_release([]() {
-    printf("Button released!\n");
-});
-
-while (true) {
-    my_button.update();
-    sleep_ms(1);
-}
-```
-
-## Example - Long Press Detection
-```cpp
-#include "brain/include/button.h"
-
-// Create button with custom debounce (30ms) and long press (1000ms)
-Button button(5, 30, 1000);
-button.init(true);
-
-button.set_on_press([]() {
-    printf("Button pressed\n");
-});
-
-button.set_on_long_press([]() {
-    printf("Long press detected!\n");
-});
-
-while (true) {
-    button.update();
-    sleep_ms(1);
-}
-```
-
 ## Example - Single Tap Detection
 ```cpp
-#include "brain/include/button.h"
+#define BRAIN_USE_BUTTONS 1
+#include "brain/brain.h"
 
-Button button(5);
-button.init(true);
+#include <pico/stdlib.h>
+#include <stdio.h>
 
-// Single tap is triggered on quick press-release
-button.set_on_single_tap([]() {
-    printf("Quick tap!\n");
-});
+Brain brain;
 
-// Long press is triggered when held
-button.set_on_long_press([]() {
-    printf("Held down!\n");
-});
+int main() {
+    stdio_init_all();
 
-while (true) {
-    button.update();
-    sleep_ms(1);
+    // Wrapper uses Brain button pins/timing defaults
+    BrainInitStatus status = brain.init_buttons(true);
+    if (!brain_init_succeeded(status)) return 1;
+
+    // Use button_a as the equivalent button
+    brain.buttons.button_a.set_on_single_tap([]() {
+        printf("Quick tap!\n");
+    });
+
+    brain.buttons.button_a.set_on_long_press([]() {
+        printf("Held down!\n");
+    });
+
+    while (true) {
+        brain.update_buttons();
+        sleep_ms(1);
+    }
 }
+
 ```
 
-## Example - Pull-Down Configuration
+## Example — Press & release example
 ```cpp
-#include "brain/include/button.h"
+#define BRAIN_USE_BUTTONS 1
+#include "brain/brain.h"
 
-Button button(5);
-button.init(false);  // false = pull-down (button connects to VCC)
+#include <pico/stdlib.h>
+#include <stdio.h>
 
-button.set_on_press([]() {
-    printf("Button pressed\n");
-});
+Brain brain;
 
-while (true) {
-    button.update();
-    sleep_ms(1);
+int main() {
+    stdio_init_all();
+
+    // Initialize Brain button pair (default pins, pull-up enabled)
+    BrainInitStatus status = brain.init_buttons(true);
+    if (!brain_init_succeeded(status)) return 1;
+
+    // Use button_a as the equivalent of "my_button"
+    brain.buttons.button_a.set_on_press([]() {
+        printf("Button pressed!\n");
+    });
+
+    brain.buttons.button_a.set_on_release([]() {
+        printf("Button released!\n");
+    });
+
+    while (true) {
+        brain.update_buttons();
+        sleep_ms(1);
+    }
 }
+
 ```
 
-## API Reference
-
-### Constructor
+## Example — Long Press Detection
 ```cpp
-Button(uint gpio_pin, uint32_t debounce_ms = 50, uint32_t long_press_ms = 500)
+#define BRAIN_USE_BUTTONS 1
+#include "brain/brain.h"
+
+#include <pico/stdlib.h>
+#include <stdio.h>
+
+Brain brain;
+
+int main() {
+    stdio_init_all();
+
+    if (!brain_init_succeeded(brain.init_buttons(true))) return 1;
+
+    brain.buttons.button_a.set_on_press([]() {
+        printf("Button pressed\n");
+    });
+
+    brain.buttons.button_a.set_on_long_press([]() {
+        printf("Long press detected!\n");
+    });
+
+    while (true) {
+        brain.update_buttons();
+        sleep_ms(1);
+    }
+}
+
 ```
-- `gpio_pin`: GPIO pin number for button input
-- `debounce_ms`: Debounce time in milliseconds (default: 50ms)
-- `long_press_ms`: Long press threshold in milliseconds (default: 500ms)
 
-### Initialization
-```cpp
-void init(bool pull_up = true)
-```
-- `pull_up`: true for pull-up resistor (button to GND), false for pull-down (button to VCC)
-- Configures GPIO and internal resistor
 
-### Update
-```cpp
-void update()
-```
-- Poll button state and trigger callbacks
-- Must be called regularly in main loop for proper operation
-- Handles debouncing and timing
+## Class API and lifecycle
 
-### Callbacks
-```cpp
-void set_on_press(std::function<void()> callback)
-```
-- Called when button is pressed (after debounce)
+- `Button(uint gpio_pin, uint32_t debounce_ms = 50, uint32_t long_press_ms = 500)`
+  Creates a button instance bound to one GPIO pin with configurable debounce and long-press thresholds.
 
-```cpp
-void set_on_release(std::function<void()> callback)
-```
-- Called when button is released (after debounce)
+- `void init(bool pull_up = true)`
+  Initializes the GPIO input and internal timing/state tracking.
 
-```cpp
-void set_on_single_tap(std::function<void()> callback)
-```
-- Called for quick press-release cycles (not long press)
+- `void update()`
+  Runs debounce and event detection logic. Must be called repeatedly in the main loop.
 
-```cpp
-void set_on_long_press(std::function<void()> callback)
-```
-- Called when button is held beyond long press threshold
+## Callback registration API
 
-## Event Timing
+- `void set_on_press(std::function<void()> callback)`
+  Registers callback for press event.
 
-### Debounce
-- Prevents noise and contact bounce from triggering multiple events
-- Default: 50ms
-- Adjustable via constructor
+- `void set_on_release(std::function<void()> callback)`
+  Registers callback for release event.
 
-### Long Press
-- Triggered when button is held continuously beyond threshold
-- Default: 500ms (half second)
-- Adjustable via constructor
-- Prevents single tap event when long press occurs
+- `void set_on_single_tap(std::function<void()> callback)`
+  Registers callback for single-tap event.
 
-### Single Tap
-- Quick press and release
-- Only triggered if button is released before long press threshold
-- Mutually exclusive with long press
+- `void set_on_long_press(std::function<void()> callback)`
+  Registers callback for long-press event.
 
-## Hardware Considerations
+## Timing/control parameters (constructor-defined)
 
-### Pull-Up Configuration (Default)
-- Button connects GPIO to GND
-- Internal pull-up resistor enabled
-- GPIO reads HIGH when not pressed, LOW when pressed
-- Most common configuration for mechanical buttons
+- `gpio_pin`
+  Input pin number used by this button instance.
 
-### Pull-Down Configuration
-- Button connects GPIO to VCC (3.3V)
-- Internal pull-down resistor enabled
-- GPIO reads LOW when not pressed, HIGH when pressed
+- `debounce_ms`
+  Debounce duration in milliseconds used to accept state transitions.
 
-## Important Notes
-- Designed for mechanical pushbuttons
-- Call `update()` frequently (at least every few milliseconds)
-- Debounce timing handles typical mechanical switch bounce
-- Long press only triggers once per button hold
-- Avoid long operations in callbacks to maintain responsiveness
-- All timing is handled in software (no interrupts required)
-- Multiple buttons can be managed independently
+- `long_press_ms`
+  Hold duration in milliseconds required before long-press callback fires.
+
+## Runtime wiring mode
+
+- `init(true)`
+  Enables pull-up input mode (commonly active-low button wiring).
+
+- `init(false)`
+  Enables pull-down input mode.

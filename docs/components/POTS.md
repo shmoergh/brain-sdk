@@ -5,19 +5,26 @@
 
 ## Quick Start
 ```cpp
-#include "brain/include/pots.h"
+#define BRAIN_USE_POTS 1
+#include "brain/brain.h"
 
-Pots pots;
-auto cfg = create_default_pots_config(3, 8); // 3 pots, default 8-bit output (0..255)
-pots.init(cfg);
+Brain brain;
 
-while (true) {
-	pots.scan();
-	uint16_t p0 = pots.get(0); // default: buffered/safe read
+int main() {
+	BrainInitStatus status = brain.init_pots(create_default_pots_config(3, 8));
+	if (!brain_init_succeeded(status)) {
+		return 1;
+	}
 
-	// Do stuff with p0
-	(void)p0;
+	while (true) {
+		brain.update_pots();
+		uint16_t p0 = brain.pots.get(0); // default: buffered/safe read
+
+		// Do stuff with p0
+		(void)p0;
+	}
 }
+
 ```
 
 
@@ -137,13 +144,13 @@ It also handles the “feel” of switching between mappings via modes:
 ## Example
 
 ```cpp
+#define BRAIN_USE_POTS 1
+#define BRAIN_USE_POT_MULTI_FUNCTION 1
+#include "brain/brain.h"
+
 #include <pico/stdlib.h>
 
-#include "brain/include/pots.h"
-#include "brain/include/pot-multi-function-core.h"
-
-Pots pots;
-PotMultiFunction multi;
+Brain brain;
 
 enum FunctionId : uint8_t {
 	kCutoff = 1,
@@ -153,12 +160,13 @@ enum FunctionId : uint8_t {
 int main() {
 	stdio_init_all();
 
-	// 1) Init physical pots
-	PotsConfig cfg = create_default_config(3, 8);
-	pots.init(cfg);
+	// 1) Init pots through Brain
+	BrainInitStatus status = brain.init_pots(create_default_pots_config(3, 8));
+	if (!brain_init_succeeded(status)) return 1;
 
-	// 2) Init multi-function mapper
-	multi.init();
+	// 2) Init pot multi-function through Brain
+	status = brain.init_pot_multi();
+	if (!brain_init_succeeded(status)) return 1;
 
 	// 3) Register two logical functions on the SAME physical pot (pot 0)
 	PotFunctionConfig cutoff{};
@@ -167,9 +175,9 @@ int main() {
 	cutoff.min_value = 20;
 	cutoff.max_value = 20000;
 	cutoff.initial_value = 800;
-	cutoff.mode = PotMode::kValueScale;      // smooth mode switching
+	cutoff.mode = PotMode::kValueScale; // smooth mode switching
 	cutoff.pickup_hysteresis = 1;
-	multi.register_function(cutoff);
+	brain.pot_multi.register_function(cutoff);
 
 	PotFunctionConfig resonance{};
 	resonance.function_id = kResonance;
@@ -179,20 +187,20 @@ int main() {
 	resonance.initial_value = 30;
 	resonance.mode = PotMode::kValueScale;
 	resonance.pickup_hysteresis = 1;
-	multi.register_function(resonance);
+	brain.pot_multi.register_function(resonance);
 
 	bool edit_cutoff = true;
 
 	while (true) {
 		// 4) Decide which logical function pot 0 is controlling right now
-		multi.set_active_function(0, edit_cutoff ? kCutoff : kResonance);
+		brain.pot_multi.set_active_function(0, edit_cutoff ? kCutoff : kResonance);
 
 		// 5) Update from buffered pot scan
-		multi.update_buffered(pots, true);
+		brain.update_pot_multi(true);
 
 		// 6) Read both logical values (active one may change this tick)
-		int32_t cutoff_value = multi.get_value(kCutoff);
-		int32_t resonance_value = multi.get_value(kResonance);
+		int32_t cutoff_value = brain.pot_multi.get_value(kCutoff);
+		int32_t resonance_value = brain.pot_multi.get_value(kResonance);
 
 		// Use values in your DSP/control code
 		(void)cutoff_value;
