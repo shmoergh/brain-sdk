@@ -16,8 +16,8 @@ The Brain SDK is a firmware and library collection for the Brain module of the [
 - [Pots](./components/POTS.md)
 - [Buttons](./components/BUTTON.md)
 - [LEDs](./components/LEDS.md)
-- [Inputs](./INPUTS.md)
-- [Outputs](./OUTPUTS.md)
+- [Inputs](./components/INPUTS.md)
+- [Outputs](./components/OUTPUTS.md)
 
 #### Utilities
 
