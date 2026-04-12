@@ -43,20 +43,79 @@ using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFr
 
 class AudioProcessor {
 public:
+	/**
+	 * @brief Constructs a `AudioProcessor` instance and prepares default runtime state.
+	 */
 	AudioProcessor() = default;
+
+	/**
+	 * @brief Releases resources owned by `AudioProcessor`.
+	 */
 	~AudioProcessor();
+
+	/**
+	 * @brief Copy construction is disabled for this type.
+	 */
 	AudioProcessor(const AudioProcessor&) = delete;
+
+	/**
+	 * @brief Copy assignment is disabled for this type.
+	 */
 	AudioProcessor& operator=(const AudioProcessor&) = delete;
+
+	/**
+	 * @brief Move construction is disabled for this type.
+	 */
 	AudioProcessor(AudioProcessor&&) = delete;
+
+	/**
+	 * @brief Move assignment is disabled for this type.
+	 */
 	AudioProcessor& operator=(AudioProcessor&&) = delete;
 
+	/**
+	 * @brief Starts timer-driven audio processing with ADC DMA input and DAC output on channel A.
+	 * @param config Runtime configuration:
+	 * - `sample_period_us`: tick period for processing callback.
+	 * - `enable_pot_mux`: include pot-mux ADC channel in the DMA stream.
+	 * - `pot_count`: number of pot channels to cycle (clamped to `AudioProcessorFrame::kMaxPots`).
+	 * - `pot_settle_discard_samples`: samples discarded after each mux switch.
+	 * - `pot_average_samples`: samples averaged per pot update.
+	 * - `max_dma_drain_samples_per_tick`: backlog limit per processing tick.
+	 * - `spi_baud_hz`: DAC SPI clock rate.
+	 * @param process_sample_fn Audio callback called each tick with input sample and frame metadata.
+	 * Returning value becomes output sample written to DAC.
+	 * @param user_ctx Opaque pointer passed through to each `process_sample_fn` call.
+	 * @return `BrainInitStatus::kOk` on success, `BrainInitStatus::kAlreadyInitialized` if already running,
+	 * or `BrainInitStatus::kFailed` for invalid config/callback or hardware/timer init failure.
+	 */
 	BrainInitStatus init(
 		const AudioProcessorConfig& config,
 		ProcessSampleFn process_sample_fn,
 		void* user_ctx = nullptr);
+
+	/**
+	 * @brief Stops timer, DMA, and DAC activity and releases acquired runtime resources.
+	 */
 	void stop();
+
+	/**
+	 * @brief Reports whether the audio processor is currently initialized and running.
+	 * @return `true` after successful `init(...)` until `stop()` is called.
+	 */
 	bool is_initialized() const;
+
+	/**
+	 * @brief Returns a thread-safe snapshot of runtime counters.
+	 * @return `AudioProcessorStats` containing tick count, overruns, pot mux switches, and settle discards.
+	 */
 	AudioProcessorStats get_stats() const;
+
+	/**
+	 * @brief Reads the latest 8-bit pot value sampled by the audio processor path.
+	 * @param index Pot index in range `0..AudioProcessorFrame::kMaxPots-1`.
+	 * @return Latest pot value in 0..255 for valid index, or `0` when index is out of range.
+	 */
 	uint16_t get_pot_raw_u8(uint8_t index) const;
 
 private:

@@ -93,43 +93,100 @@ static_assert(!(BRAIN_CFG_OUTPUTS && !BRAIN_CFG_STORAGE),
 
 class Brain {
 public:
+	/**
+	 * @brief Constructs a `Brain` instance and prepares default runtime state.
+	 */
 	Brain() = default;
+
+	/**
+	 * @brief Copy construction is disabled for this type.
+	 */
 	Brain(const Brain&) = delete;
+
+	/**
+	 * @brief Copy assignment is disabled for this type.
+	 */
 	Brain& operator=(const Brain&) = delete;
+
+	/**
+	 * @brief Move construction is disabled for this type.
+	 */
 	Brain(Brain&&) = delete;
+
+	/**
+	 * @brief Move assignment is disabled for this type.
+	 */
 	Brain& operator=(Brain&&) = delete;
 
+	/**
+	 * @brief Enables/disables Brain-level ADC optimization policy.
+	 * @param enabled `true` lets `Brain` apply optimized defaults to `Inputs` and `Pots`
+	 * (`set_audio_cv_dma_enabled` and `set_optimized_sampling_enabled`).
+	 * `false` disables those optimizations and applies non-optimized behavior immediately.
+	 */
 	void enable_adc_optimization(bool enabled = true) {
 		adc_optimization_enabled_ = enabled;
 		apply_adc_policy_to_components();
 	}
 
+	/**
+	 * @brief Controls whether `Inputs` should use DMA for CV/audio reads under Brain policy.
+	 * @param enabled `true` allows DMA-backed sampling in `Inputs`.
+	 * `false` forces direct ADC reads in `Inputs`.
+	 */
 	void set_audio_cv_dma_enabled(bool enabled) {
 		audio_cv_dma_enabled_ = enabled;
 		apply_adc_policy_to_components();
 	}
 
+	/**
+	 * @brief Controls whether `Pots` should use optimized shared sampling under Brain policy.
+	 * @param enabled `true` enables optimized pot sampling behavior in `Pots`.
+	 * `false` disables optimized path and uses simpler reads.
+	 */
 	void set_shared_pot_sampling_enabled(bool enabled) {
 		shared_pot_sampling_enabled_ = enabled;
 		apply_adc_policy_to_components();
 	}
 
+	/**
+	 * @brief Reports Brain ADC optimization master switch state.
+	 * @return `true` when optimization policy is enabled.
+	 */
 	bool is_adc_optimization_enabled() const {
 		return adc_optimization_enabled_;
 	}
 
+	/**
+	 * @brief Reports Brain policy flag for `Inputs` DMA usage.
+	 * @return `true` when Brain is configured to allow DMA path for `Inputs`.
+	 */
 	bool is_audio_cv_dma_enabled() const {
 		return audio_cv_dma_enabled_;
 	}
 
+	/**
+	 * @brief Reports Brain policy flag for `Pots` optimized sampling.
+	 * @return `true` when Brain is configured to enable optimized pot sampling.
+	 */
 	bool is_shared_pot_sampling_enabled() const {
 		return shared_pot_sampling_enabled_;
 	}
 
+	/**
+	 * @brief Alias for `init_all()`.
+	 * @return Same status as `init_all()`.
+	 */
 	BrainInitStatus init() {
 		return init_all();
 	}
 
+	/**
+	 * @brief Initializes all enabled Brain components in dependency-safe order.
+	 * @return `BrainInitStatus::kOk` if at least one component initialized during this call,
+	 * `BrainInitStatus::kAlreadyInitialized` if every enabled component was already initialized,
+	 * or `BrainInitStatus::kFailed` if any enabled component init fails.
+	 */
 	BrainInitStatus init_all() {
 		bool any_ok = false;
 		BrainInitStatus status = BrainInitStatus::kAlreadyInitialized;
@@ -179,10 +236,18 @@ public:
 		return any_ok ? BrainInitStatus::kOk : BrainInitStatus::kAlreadyInitialized;
 	}
 
+	/**
+	 * @brief Alias for `update_all()`.
+	 */
 	void update() {
 		update_all();
 	}
 
+	/**
+	 * @brief Updates each enabled Brain runtime component once.
+	 *
+	 * Only components compiled in by `BRAIN_USE_*` are called.
+	 */
 	void update_all() {
 #if BRAIN_CFG_LEDS
 		update_leds();
@@ -205,17 +270,30 @@ public:
 	}
 
 #if BRAIN_CFG_LEDS
-	BrainInitStatus init_leds(LedMode mode = LedMode::kPwm) {
+	/**
+	 * @brief Initializes `Leds` in the Brain wrapper.
+	 * @param mode Panel LED mode (`kLedsModeSimple` or `kLedsModePwm`).
+	 * @return `BrainInitStatus::kOk` on first successful initialization,
+	 * or `BrainInitStatus::kAlreadyInitialized` if `Leds` is already initialized.
+	 */
+	BrainInitStatus init_leds(LedMode mode = kLedsModePwm) {
 		if (leds_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		leds.init(mode);
 		leds_initialized_ = true;
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Calls `leds.update()`.
+	 */
 	void update_leds() {
 		leds.update();
 	}
 
+	/**
+	 * @brief Reports `Leds` wrapper initialization state.
+	 * @return `true` when `init_leds()` succeeded.
+	 */
 	bool is_leds_initialized() const {
 		return leds_initialized_;
 	}
@@ -224,6 +302,12 @@ public:
 #endif
 
 #if BRAIN_CFG_BUTTONS
+	/**
+	 * @brief Initializes wrapper `Buttons` (`button_a` and `button_b`).
+	 * @param pull_up `true` enables pull-up and active-low button logic.
+	 * `false` disables pull-up and assumes external wiring provides stable level.
+	 * @return `BrainInitStatus::kOk` on first success or `BrainInitStatus::kAlreadyInitialized` if already initialized.
+	 */
 	BrainInitStatus init_buttons(bool pull_up = true) {
 		if (buttons_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		buttons.init(pull_up);
@@ -231,10 +315,17 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Calls `buttons.update()` to process debounce and callbacks.
+	 */
 	void update_buttons() {
 		buttons.update();
 	}
 
+	/**
+	 * @brief Reports `Buttons` wrapper initialization state.
+	 * @return `true` when `init_buttons()` succeeded.
+	 */
 	bool is_buttons_initialized() const {
 		return buttons_initialized_;
 	}
@@ -243,6 +334,12 @@ public:
 #endif
 
 #if BRAIN_CFG_STORAGE
+	/**
+	 * @brief Initializes `Storage` with protected-layout requirement enabled.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already ready,
+	 * or `BrainInitStatus::kFailed` when layout protection check fails.
+	 */
 	BrainInitStatus init_storage() {
 		if (storage_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		if (!storage.init(true)) return BrainInitStatus::kFailed;
@@ -250,6 +347,10 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Reports `Storage` initialization state.
+	 * @return `true` when `init_storage()` succeeded.
+	 */
 	bool is_storage_initialized() const {
 		return storage_initialized_;
 	}
@@ -258,6 +359,12 @@ public:
 #endif
 
 #if BRAIN_CFG_OUTPUTS
+	/**
+	 * @brief Initializes `Outputs` and wires `Storage` dependency automatically.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` when required dependency init or `outputs.init()` fails.
+	 */
 	BrainInitStatus init_outputs() {
 		if (outputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
 #if BRAIN_CFG_STORAGE
@@ -270,6 +377,10 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Reports `Outputs` initialization state.
+	 * @return `true` when `init_outputs()` succeeded.
+	 */
 	bool is_outputs_initialized() const {
 		return outputs_initialized_;
 	}
@@ -278,6 +389,15 @@ public:
 #endif
 
 #if BRAIN_CFG_INPUTS
+	/**
+	 * @brief Initializes `Inputs` and applies current Brain ADC policy flags.
+	 *
+	 * This call fails if `AudioProcessor` is already initialized because both features contend for ADC resources.
+	 *
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` on resource conflict or `inputs.init()` failure.
+	 */
 	BrainInitStatus init_inputs() {
 		if (inputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
 #if BRAIN_CFG_AUDIO_PROCESSOR
@@ -289,11 +409,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Calls `inputs.update()` if `Inputs` is initialized.
+	 */
 	void update_inputs() {
 		if (!inputs_initialized_) return;
 		inputs.update();
 	}
 
+	/**
+	 * @brief Reports `Inputs` initialization state.
+	 * @return `true` when `init_inputs()` succeeded.
+	 */
 	bool is_inputs_initialized() const {
 		return inputs_initialized_;
 	}
@@ -302,6 +429,16 @@ public:
 #endif
 
 #if BRAIN_CFG_POTS
+	/**
+	 * @brief Initializes `Pots` with provided config and applies Brain sampling policy.
+	 *
+	 * This call fails if `AudioProcessor` is already initialized because both features use shared ADC/mux resources.
+	 *
+	 * @param config Pot configuration passed to `pots.init(...)`.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` on resource conflict.
+	 */
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
 #if BRAIN_CFG_AUDIO_PROCESSOR
@@ -313,6 +450,14 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Applies a new pots configuration without recreating the Brain wrapper instance.
+	 * @param config New pot configuration passed to `pots.reconfigure(...)`.
+	 * @param reset_pot_multi_state `true` calls `pot_multi.reset_for_mode_change(...)` after reconfigure (if initialized).
+	 * @param clear_pot_multi_active_mappings Forwarded to `reset_for_mode_change(...)` to optionally clear active IDs.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * or `BrainInitStatus::kFailed` when `AudioProcessor` is active and pot reconfigure is blocked.
+	 */
 	BrainInitStatus reconfigure_pots(
 		const PotsConfig& config,
 		bool reset_pot_multi_state = true,
@@ -323,7 +468,6 @@ public:
 		if (!pots_initialized_) {
 			return init_pots(config);
 		}
-
 		pots.reconfigure(config);
 		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 
@@ -336,11 +480,18 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Calls `pots.scan()` if `Pots` is initialized.
+	 */
 	void update_pots() {
 		if (!pots_initialized_) return;
 		pots.scan();
 	}
 
+	/**
+	 * @brief Reports `Pots` initialization state.
+	 * @return `true` when `init_pots()` succeeded.
+	 */
 	bool is_pots_initialized() const {
 		return pots_initialized_;
 	}
@@ -349,6 +500,13 @@ public:
 #endif
 
 #if BRAIN_CFG_MIDI_PARSER
+	/**
+	 * @brief Initializes `MidiParser` UART input.
+	 * @param baud_rate Serial baud rate in bits per second.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` if UART init fails.
+	 */
 	BrainInitStatus init_midi_parser(uint32_t baud_rate = 31250) {
 		if (midi_parser_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		if (!midi_parser.init_uart(baud_rate)) return BrainInitStatus::kFailed;
@@ -356,6 +514,10 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Reports `MidiParser` initialization state.
+	 * @return `true` when `init_midi_parser()` succeeded.
+	 */
 	bool is_midi_parser_initialized() const {
 		return midi_parser_initialized_;
 	}
@@ -364,15 +526,23 @@ public:
 #endif
 
 #if BRAIN_CFG_MIDI_TO_CV
+	/**
+	 * @brief Initializes `MidiToCV` plus its required dependencies (`Outputs` and `MidiParser`).
+	 * @param cv_channel Pitch CV output channel (`kOutputsChannelA` or `kOutputsChannelB`).
+	 * @param midi_channel MIDI channel filter in 1..16 format.
+	 * @param baud_rate Serial baud rate in bits per second.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` when dependency init or `midi_to_cv.init(...)` fails.
+	 */
 	BrainInitStatus init_midi_to_cv(
-		AudioCvOutChannel cv_channel = AudioCvOutChannel::kChannelA,
+		AudioCvOutChannel cv_channel = kOutputsChannelA,
 		uint8_t midi_channel = 1,
 		uint32_t baud_rate = 31250) {
 		if (midi_to_cv_initialized_) return BrainInitStatus::kAlreadyInitialized;
 
 		if (init_outputs() == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
 		if (init_midi_parser(baud_rate) == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
-
 		midi_to_cv.set_dependencies(&outputs, &midi_parser);
 		BrainInitStatus status = midi_to_cv.init(cv_channel, midi_channel);
 		if (status == BrainInitStatus::kFailed) {
@@ -383,11 +553,18 @@ public:
 		return status;
 	}
 
+	/**
+	 * @brief Calls `midi_to_cv.update()` if initialized.
+	 */
 	void update_midi_to_cv() {
 		if (!midi_to_cv_initialized_) return;
 		midi_to_cv.update();
 	}
 
+	/**
+	 * @brief Reports `MidiToCV` initialization state.
+	 * @return `true` when `init_midi_to_cv()` succeeded.
+	 */
 	bool is_midi_to_cv_initialized() const {
 		return midi_to_cv_initialized_;
 	}
@@ -396,6 +573,16 @@ public:
 #endif
 
 #if BRAIN_CFG_POT_MULTI_FUNCTION
+	/**
+	 * @brief Initializes `PotMultiFunction`, ensuring `Pots` is available.
+	 *
+	 * Fails if `AudioProcessor` is active because pot resources are shared.
+	 *
+	 * @param max_functions Maximum logical function slots (`PotMultiFunction` clamps to its hard limit).
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` on dependency/resource conflict.
+	 */
 	BrainInitStatus init_pot_multi(uint8_t max_functions = PotMultiFunction::kMaxFunctions) {
 		if (pot_multi_initialized_) return BrainInitStatus::kAlreadyInitialized;
 #if BRAIN_CFG_AUDIO_PROCESSOR
@@ -407,21 +594,36 @@ public:
 		return BrainInitStatus::kOk;
 	}
 
+	/**
+	 * @brief Updates `PotMultiFunction` using buffered pot data.
+	 * @param perform_scan `true` scans pots before updating mappings; `false` consumes already buffered values.
+	 */
 	void update_pot_multi(bool perform_scan = false) {
 		if (!pot_multi_initialized_) return;
 		pot_multi.update_buffered(pots, perform_scan);
 	}
 
+	/**
+	 * @brief Updates `PotMultiFunction` using direct one-shot pot reads.
+	 */
 	void update_pot_multi_single() {
 		if (!pot_multi_initialized_) return;
 		pot_multi.update_single(pots);
 	}
 
+	/**
+	 * @brief Resets pot-multi pickup/value-scale state after page/mode changes.
+	 * @param clear_active_mappings `true` clears active function assignments, `false` preserves current assignments.
+	 */
 	void reset_pot_multi_for_mode_change(bool clear_active_mappings = false) {
 		if (!pot_multi_initialized_) return;
 		pot_multi.reset_for_mode_change(clear_active_mappings);
 	}
 
+	/**
+	 * @brief Reports `PotMultiFunction` initialization state.
+	 * @return `true` when `init_pot_multi()` succeeded.
+	 */
 	bool is_pot_multi_initialized() const {
 		return pot_multi_initialized_;
 	}
@@ -430,6 +632,19 @@ public:
 #endif
 
 #if BRAIN_CFG_AUDIO_PROCESSOR
+	/**
+	 * @brief Initializes `AudioProcessor` for timer-driven audio callback processing.
+	 *
+	 * Fails when `Inputs`, `Pots`, or `PotMultiFunction` are already initialized, because these paths
+	 * share ADC/mux resources with `AudioProcessor`.
+	 *
+	 * @param config `AudioProcessorConfig` forwarded to `audio_processor.init(...)`.
+	 * @param process_sample_fn Per-sample DSP callback that receives input sample and control frame.
+	 * @param user_ctx User context pointer forwarded unchanged to each callback invocation.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if audio processor is already initialized,
+	 * or `BrainInitStatus::kFailed` on resource conflict or processor init failure.
+	 */
 	BrainInitStatus init_audio_processor(
 		const AudioProcessorConfig& config,
 		ProcessSampleFn process_sample_fn,
@@ -452,6 +667,10 @@ public:
 		return status;
 	}
 
+	/**
+	 * @brief Reports `AudioProcessor` initialization state.
+	 * @return `true` when `audio_processor.is_initialized()` is true.
+	 */
 	bool is_audio_processor_initialized() const {
 		return audio_processor.is_initialized();
 	}
