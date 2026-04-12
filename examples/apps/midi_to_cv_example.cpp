@@ -16,8 +16,6 @@ void on_note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
 
 }  // namespace
 
-namespace examples::apps {
-
 void MidiToCvExample::init() {
 	printf("\n--------\n");
 	printf("Example: MIDI to CV (channel 1, pitch on output A, duo mode)\n");
@@ -42,5 +40,3 @@ void MidiToCvExample::update() {
 
 	brain_.update_midi_to_cv();
 }
-
-}  // namespace examples::apps

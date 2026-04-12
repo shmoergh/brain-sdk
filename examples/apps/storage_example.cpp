@@ -4,11 +4,9 @@
 
 #include "pico/stdlib.h"
 
-namespace examples::apps {
-
 void StorageExample::init() {
 	printf("\n--------\n");
-	printf("Example: storage app blob write/read\n");
+	printf("Example: storage app setting write/read\n");
 
 	if (!brain_init_succeeded(brain_.init_storage())) {
 		printf("[ERROR] init_storage failed\n");
@@ -59,5 +57,3 @@ void StorageExample::update() {
 		}
 	}
 }
-
-}  // namespace examples::apps

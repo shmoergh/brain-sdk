@@ -4,8 +4,6 @@
 
 #include "pico/stdlib.h"
 
-namespace examples::apps {
-
 void IoPassthroughExample::init() {
 	printf("\n--------\n");
 	printf("Example: Input A -> Output A passthrough (mV)\n");
@@ -56,5 +54,3 @@ void IoPassthroughExample::update() {
 		fflush(stdout);
 	}
 }
-
-}  // namespace examples::apps

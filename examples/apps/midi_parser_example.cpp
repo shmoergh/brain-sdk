@@ -24,8 +24,6 @@ void on_pitch_bend(int16_t value, uint8_t channel) {
 
 }  // namespace
 
-namespace examples::apps {
-
 void MidiParserExample::init() {
 	printf("\n--------\n");
 	printf("Example: MIDI parser monitor (channel 1)\n");
@@ -52,5 +50,3 @@ void MidiParserExample::update() {
 
 	brain_.midi_parser.process_uart_budgeted(64);
 }
-
-}  // namespace examples::apps

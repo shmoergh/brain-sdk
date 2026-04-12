@@ -4,8 +4,6 @@
 
 #include "pico/stdlib.h"
 
-namespace examples::apps {
-
 void LedsExample::init() {
 	printf("\n--------\n");
 	printf("Example: LED running light\n");
@@ -36,5 +34,3 @@ void LedsExample::update() {
 		index_ = static_cast<uint8_t>((index_ + 1) % kLedCount);
 	}
 }
-
-}  // namespace examples::apps

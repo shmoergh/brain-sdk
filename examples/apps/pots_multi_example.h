@@ -4,8 +4,6 @@
 
 #include "brain.h"
 
-namespace examples::apps {
-
 class PotsMultiExample {
 public:
 	void init();
@@ -23,5 +21,3 @@ private:
 	uint32_t last_print_ms_ = 0;
 	uint32_t last_switch_ms_ = 0;
 };
-
-}  // namespace examples::apps

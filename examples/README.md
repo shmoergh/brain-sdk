@@ -1,23 +1,29 @@
 # Examples Firmware (`examples`)
 
-Purpose: menu-driven runnable examples based on SDK docs and common integration patterns.
+Purpose: runnable examples based on SDK docs and common integration patterns.
 
-The `examples` firmware works like `test`:
-- flash once
-- open serial terminal
-- select an example from startup menu in `examples/main.cpp`
+The `examples` firmware runs one selected app directly from `examples/main.cpp`.
 
-After an example starts, it owns the loop. Reset the board to return to the menu.
+To switch examples, edit [main.cpp](./main.cpp):
+- replace the `#include "apps/..._example.h"` line
+- replace the `...Example app;` declaration
 
 ## Included example apps
-- `LedsExample` (`apps/leds_example.cpp`)
-- `InputsExample` (`apps/inputs_example.cpp`)
-- `IoPassthroughExample` (`apps/io_passthrough_example.cpp`)
-- `PotsMultiExample` (`apps/pots_multi_example.cpp`)
-- `MidiParserExample` (`apps/midi_parser_example.cpp`)
-- `MidiToCvExample` (`apps/midi_to_cv_example.cpp`)
-- `StorageExample` (`apps/storage_example.cpp`)
-- `AudioProcessorExample` (`apps/audio_processor_example.cpp`)
+- `apps/leds_example.h` -> `LedsExample`
+- `apps/inputs_example.h` -> `InputsExample`
+- `apps/io_passthrough_example.h` -> `IoPassthroughExample`
+- `apps/pots_multi_example.h` -> `PotsMultiExample`
+- `apps/midi_parser_example.h` -> `MidiParserExample`
+- `apps/midi_to_cv_example.h` -> `MidiToCvExample`
+- `apps/storage_example.h` -> `StorageExample`
+- `apps/audio_processor_example.h` -> `AudioProcessorExample`
+
+Example:
+
+```cpp
+#include "apps/audio_processor_example.h"
+AudioProcessorExample app;
+```
 
 ## Build
 

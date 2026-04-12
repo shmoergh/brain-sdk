@@ -4,8 +4,6 @@
 
 #include "brain.h"
 
-namespace examples::apps {
-
 class MidiToCvExample {
 public:
 	void init();
@@ -15,5 +13,3 @@ private:
 	Brain brain_;
 	bool initialized_ = false;
 };
-
-}  // namespace examples::apps

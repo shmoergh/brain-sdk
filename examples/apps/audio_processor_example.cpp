@@ -14,8 +14,6 @@ int16_t clamp_i16(int32_t value) {
 
 }  // namespace
 
-namespace examples::apps {
-
 int16_t AudioProcessorExample::process_sample(int16_t in, const AudioProcessorFrame* frame, void* user_ctx) {
 	EffectState* s = static_cast<EffectState*>(user_ctx);
 	if (s == nullptr) return in;
@@ -70,5 +68,3 @@ void AudioProcessorExample::update() {
 		fflush(stdout);
 	}
 }
-
-}  // namespace examples::apps

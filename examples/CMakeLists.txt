@@ -1,5 +1,5 @@
 # Example firmware package
-# Menu-driven showcase apps for Brain SDK modules/components.
+# Simple runnable apps for Brain SDK modules/components.
 
 add_executable(examples
     main.cpp
@@ -11,6 +11,7 @@ add_executable(examples
     apps/midi_to_cv_example.cpp
     apps/storage_example.cpp
     apps/audio_processor_example.cpp
+    apps/sample_and_hold.cpp
 )
 
 target_link_libraries(examples

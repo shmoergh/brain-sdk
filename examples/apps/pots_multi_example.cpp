@@ -4,8 +4,6 @@
 
 #include "pico/stdlib.h"
 
-namespace examples::apps {
-
 void PotsMultiExample::init() {
 	printf("\n--------\n");
 	printf("Example: PotMultiFunction (pot0 switches cutoff/resonance target every 2s)\n");
@@ -71,5 +69,3 @@ void PotsMultiExample::update() {
 		fflush(stdout);
 	}
 }
-
-}  // namespace examples::apps

@@ -4,8 +4,6 @@
 
 #include "brain.h"
 
-namespace examples::apps {
-
 class StorageExample {
 public:
 	void init();
@@ -24,5 +22,3 @@ private:
 	bool led_state_ = false;
 	uint32_t last_toggle_ms_ = 0;
 };
-
-}  // namespace examples::apps

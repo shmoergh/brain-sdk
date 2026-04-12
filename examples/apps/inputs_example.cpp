@@ -4,8 +4,6 @@
 
 #include "pico/stdlib.h"
 
-namespace examples::apps {
-
 void InputsExample::init() {
 	printf("\n--------\n");
 	printf("Example: Inputs monitor (A/B raw + mV, pulse state)\n");
@@ -41,5 +39,3 @@ void InputsExample::update() {
 		fflush(stdout);
 	}
 }
-
-}  // namespace examples::apps
