@@ -19,10 +19,10 @@ No `brain::ui` namespace is required for new code.
 - `get_changed(function_id)`
 - `clear_changed_flags()`
 
-## Modes
-- `PotMode::kDirect`
-- `PotMode::kPickup`
-- `PotMode::kValueScale`
+## Constants
+- `kPotMultiFunctionModeDirect`
+- `kPotMultiFunctionModePickup`
+- `kPotMultiFunctionModeValueScale`
 
 ## Recommended Runtime Pattern
 1. call `update(...)` each frame (safe buffered default), or use `update_buffered(...)` for explicit scan control

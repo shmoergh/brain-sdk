@@ -14,6 +14,13 @@ enum class AudioCvOutRange {
 	kRangeMinus5To5V = 1
 };
 
+// Convenience aliases for less verbose call sites.
+constexpr AudioCvOutChannel kOutputsChannelA = AudioCvOutChannel::kChannelA;
+constexpr AudioCvOutChannel kOutputsChannelB = AudioCvOutChannel::kChannelB;
+
+constexpr AudioCvOutRange kOutputsRange0To10V = AudioCvOutRange::kRange0To10V;
+constexpr AudioCvOutRange kOutputsRangeMinus5To5V = AudioCvOutRange::kRangeMinus5To5V;
+
 class Outputs {
 public:
 	static constexpr uint8_t kMCP4822_CHANNEL_A = 0;

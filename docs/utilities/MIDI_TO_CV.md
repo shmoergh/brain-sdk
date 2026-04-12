@@ -16,14 +16,21 @@ The class listens to MIDI events and drives output channels based on selected mo
 
 Supported modes:
 
-- `kDefault`
+- `kMidiToCVModeDefault`
   Pitch on selected CV channel, velocity on the other channel.
-- `kModWheel`
+- `kMidiToCVModeModWheel`
   Pitch on selected channel, mod wheel on the other channel.
-- `kUnison`
+- `kMidiToCVModeUnison`
   Pitch mirrored to both channels.
-- `kDuo`
+- `kMidiToCVModeDuo`
   Duophonic behavior with note-priority/latched fallback handling.
+
+## Constants
+
+- `kMidiToCVModeDefault`, `kMidiToCVModeModWheel`, `kMidiToCVModeUnison`, `kMidiToCVModeDuo`
+  Mode selectors for `set_mode(...)`.
+- `kOutputsChannelA`, `kOutputsChannelB`
+  Output channel selectors for `init(...)` and `set_pitch_channel(...)`.
 
 ## Example for MIDI-to-CV (Brain wrapper)
 ```cpp
@@ -50,13 +57,13 @@ int main() {
 	stdio_init_all();
 
 	BrainInitStatus status = brain.init_midi_to_cv(
-		AudioCvOutChannel::kChannelA, // pitch channel
+		kOutputsChannelA, // pitch channel
 		1,                            // MIDI channel
 		31250                         // baud
 	);
 	if (!brain_init_succeeded(status)) return 1;
 
-	brain.midi_to_cv.set_mode(MidiToCV::Mode::kDuo);
+	brain.midi_to_cv.set_mode(kMidiToCVModeDuo);
 	brain.midi_to_cv.set_note_on_callback(on_note_on);
 	brain.midi_to_cv.set_note_off_callback(on_note_off);
 
@@ -149,7 +156,7 @@ int main() {
 	if (!parser.init_uart(31250)) return 1;
 
 	m2cv.set_dependencies(&outputs, &parser);
-	if (!brain_init_succeeded(m2cv.init(AudioCvOutChannel::kChannelA, 1))) return 1;
+	if (!brain_init_succeeded(m2cv.init(kOutputsChannelA, 1))) return 1;
 
 	while (true) {
 		m2cv.update();

@@ -8,7 +8,7 @@ void LedsExample::init() {
 	printf("\n--------\n");
 	printf("Example: LED running light\n");
 
-	if (!brain_init_succeeded(brain_.init_leds(LedMode::kSimple))) {
+	if (!brain_init_succeeded(brain_.init_leds(kLedsModeSimple))) {
 		printf("[ERROR] init_leds failed\n");
 		return;
 	}

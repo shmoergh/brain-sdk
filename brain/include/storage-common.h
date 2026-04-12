@@ -58,3 +58,14 @@ enum class StorageStatus : uint8_t {
 	kNotPermitted,
 };
 
+// Convenience aliases for less verbose status checks.
+constexpr StorageStatus kStorageStatusOk = StorageStatus::kOk;
+constexpr StorageStatus kStorageStatusInvalidArgument = StorageStatus::kInvalidArgument;
+constexpr StorageStatus kStorageStatusNotFound = StorageStatus::kNotFound;
+constexpr StorageStatus kStorageStatusCorrupt = StorageStatus::kCorrupt;
+constexpr StorageStatus kStorageStatusOutOfBounds = StorageStatus::kOutOfBounds;
+constexpr StorageStatus kStorageStatusTooLarge = StorageStatus::kTooLarge;
+constexpr StorageStatus kStorageStatusUnprotectedLayout = StorageStatus::kUnprotectedLayout;
+constexpr StorageStatus kStorageStatusFlashError = StorageStatus::kFlashError;
+constexpr StorageStatus kStorageStatusTimeout = StorageStatus::kTimeout;
+constexpr StorageStatus kStorageStatusNotPermitted = StorageStatus::kNotPermitted;

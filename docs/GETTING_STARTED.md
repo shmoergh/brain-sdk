@@ -38,8 +38,8 @@ int main() {
 
     // 5. Further setup modules
     brain.outputs.set_output_range(
-        AudioCvOutChannel::kChannelA,
-        AudioCvOutRange::kRange0To10V
+        kOutputsChannelA,
+        kOutputsRange0To10V
     );
 
     while (true) {
@@ -48,7 +48,7 @@ int main() {
 
         // 7. Read input A in mV and pass it to output A
         int32_t in_mv = brain.inputs.get_voltage_millivolts_channel_a();
-        if (!brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, in_mv)) {
+        if (!brain.outputs.set_voltage_millivolts(kOutputsChannelA, in_mv)) {
             brain.leds.on(0);   // indicate out-of-range write
         } else {
             brain.leds.off(0);
@@ -81,7 +81,7 @@ int main() {
     stdio_init_all();
 
     // 2. Create direct module instances (no Brain wrapper)
-    Leds leds(LedMode::kSimple);
+    Leds leds(kLedsModeSimple);
     Inputs inputs;
     Outputs outputs;
 
@@ -91,7 +91,7 @@ int main() {
     if (!outputs.init()) return 1;
 
     // 4. Further module setup
-    outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
+    outputs.set_output_range(kOutputsChannelA, kOutputsRange0To10V);
 
     while (true) {
 
@@ -101,7 +101,7 @@ int main() {
 
         // 6. Read input A in mV and pass it to output A (just a simple example)
         int32_t in_mv = inputs.get_voltage_millivolts_channel_a();
-        if (!outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, in_mv)) {
+        if (!outputs.set_voltage_millivolts(kOutputsChannelA, in_mv)) {
             leds.on(0);   // indicate out-of-range write
         } else {
             leds.off(0);

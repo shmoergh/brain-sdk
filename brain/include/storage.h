@@ -17,6 +17,10 @@ enum class StorageRegion : uint8_t {
 	kCalibration,
 };
 
+// Convenience aliases for less verbose region selection.
+constexpr StorageRegion kStorageAppData = StorageRegion::kAppData;
+constexpr StorageRegion kStorageCalibration = StorageRegion::kCalibration;
+
 struct CvCalibrationV1 {
 	int16_t a_offset_lsb[10];
 	int16_t b_offset_lsb[10];

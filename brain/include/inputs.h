@@ -9,6 +9,10 @@
 
 enum AudioCvInChannel { kChannelA = 0, kChannelB = 1 };
 
+// Convenience aliases for clearer call sites when both input/output channels are used.
+constexpr AudioCvInChannel kInputsChannelA = kChannelA;
+constexpr AudioCvInChannel kInputsChannelB = kChannelB;
+
 class Inputs {
 public:
 	explicit Inputs(uint pulse_in_gpio = GPIO_BRAIN_PULSE_INPUT);

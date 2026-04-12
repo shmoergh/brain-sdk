@@ -20,7 +20,7 @@ int main() {
 	stdio_init_all();
 
 	// Init LEDs in simple on/off mode
-	BrainInitStatus status = brain.init_leds(LedMode::kSimple);
+	BrainInitStatus status = brain.init_leds(kLedsModeSimple);
 	if (!brain_init_succeeded(status)) return 1;
 
 	uint8_t index = 0;
@@ -39,12 +39,12 @@ int main() {
 }
 ```
 
-### Modes and constants
+### Constants
 
-- `LedMode::kSimple`
+- `kLedsModeSimple`
   Uses basic on/off behavior per LED channel.
 
-- `LedMode::kPwm`
+- `kLedsModePwm`
   Enables brightness-level control via PWM behavior.
 
 - `NO_OF_LEDS`
@@ -156,7 +156,7 @@ int main() {
 	stdio_init_all();
 
 	// Init LED controller via Brain wrapper
-	BrainInitStatus status = brain.init_leds(LedMode::kSimple);
+	BrainInitStatus status = brain.init_leds(kLedsModeSimple);
 	if (!brain_init_succeeded(status)) return 1;
 
 	// Optional explicit init for button LED channel

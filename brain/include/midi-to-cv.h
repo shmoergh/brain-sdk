@@ -139,4 +139,10 @@ class MidiToCV {
 
 using MidiToCV = brain::utils::MidiToCV;
 
+// Convenience aliases for less verbose mode selection.
+constexpr MidiToCV::Mode kMidiToCVModeDefault = MidiToCV::Mode::kDefault;
+constexpr MidiToCV::Mode kMidiToCVModeModWheel = MidiToCV::Mode::kModWheel;
+constexpr MidiToCV::Mode kMidiToCVModeUnison = MidiToCV::Mode::kUnison;
+constexpr MidiToCV::Mode kMidiToCVModeDuo = MidiToCV::Mode::kDuo;
+
 #endif

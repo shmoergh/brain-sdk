@@ -9,10 +9,23 @@
 ## Storage model
 Storage is split into reserved regions, exposed through `StorageRegion`:
 
-- `StorageRegion::kAppData` (app blob)
-- `StorageRegion::kCalibration`
+- `kStorageAppData` (app blob)
+- `kStorageCalibration`
 
 Most apps should use the high-level helpers (`read_app_blob`, `write_app_blob`, calibration helpers) instead of accessing the raw regions.
+
+## Constants
+
+- `kStorageAppData`, `kStorageCalibration`
+  Region selectors for raw region APIs.
+- `kStorageStatusOk`
+  Success status constant for storage operations.
+- `kStorageStatusInvalidArgument`, `kStorageStatusNotFound`, `kStorageStatusCorrupt`
+  Common non-success result constants.
+- `kStorageStatusOutOfBounds`, `kStorageStatusTooLarge`, `kStorageStatusUnprotectedLayout`
+  Bounds/layout-related result constants.
+- `kStorageStatusFlashError`, `kStorageStatusTimeout`, `kStorageStatusNotPermitted`
+  Flash/runtime failure result constants.
 
 ## Example
 
@@ -75,7 +88,7 @@ Why it helps:
 Typical pattern also checks size:
 
 ```cpp
-if (status != StorageStatus::kOk ||
+if (status != kStorageStatusOk ||
 	actual_size != sizeof(Settings) ||
 	loaded.magic != kSettingsMagic) {
 	loaded = default_settings();
@@ -136,11 +149,11 @@ int main() {
 	if (!storage.init(true)) return 1;
 
 	uint8_t bytes[16] = {1,2,3,4};
-	StorageStatus wr = storage.write_region(StorageRegion::kAppData, 0, bytes, sizeof(bytes));
+	StorageStatus wr = storage.write_region(kStorageAppData, 0, bytes, sizeof(bytes));
 	(void)wr;
 
 	uint8_t out[16] = {};
-	StorageStatus rd = storage.read_region(StorageRegion::kAppData, 0, out, sizeof(out));
+	StorageStatus rd = storage.read_region(kStorageAppData, 0, out, sizeof(out));
 	(void)rd;
 }
 ```
@@ -170,7 +183,7 @@ int main() {
 ## Status/result types used by the API
 
 - `StorageRegion`
-  Region selector (`kAppData`, `kCalibration`).
+  Region selector (`kStorageAppData`, `kStorageCalibration`).
 
 - `CvCalibrationV1`
   Calibration payload structure (`a_offset_lsb[10]`, `b_offset_lsb[10]`).

@@ -10,6 +10,11 @@ enum class PotMode : uint8_t {
 	kValueScale = 2
 };
 
+// Convenience aliases for less verbose mode selection.
+constexpr PotMode kPotMultiFunctionModeDirect = PotMode::kDirect;
+constexpr PotMode kPotMultiFunctionModePickup = PotMode::kPickup;
+constexpr PotMode kPotMultiFunctionModeValueScale = PotMode::kValueScale;
+
 struct PotFunctionConfig {
 	uint8_t function_id;
 	uint8_t pot_index;

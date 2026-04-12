@@ -13,7 +13,7 @@ Use `Leds` and control one channel by index (`0..5`).
 ## Single-LED Usage
 ```cpp
 Leds leds;
-leds.init(LedMode::kPwm);
+leds.init(kLedsModePwm);
 
 const uint8_t kLed = 0;
 leds.set_brightness(kLed, 128);

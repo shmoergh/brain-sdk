@@ -22,6 +22,11 @@ So it is not a simple full-range `0..3.3V -> -5..+5V` conversion.
 
 Another important detail: this conversion does not clamp. If the ADC value falls outside the expected window, the computed signal voltage can go below `-5000 mV` or above `+5000 mV`. That is expected behavior in the current implementation, and downstream code should clamp if strict bounds are needed.
 
+### Constants
+
+- `kInputsChannelA`, `kInputsChannelB`
+  Input channel selectors for APIs like `get_raw(int channel)` and `get_voltage_millivolts(int channel)`.
+
 ### Example
 
 ```cpp
@@ -95,7 +100,7 @@ int main() {
 ### Analog read
 
 - `uint16_t get_raw(int channel) const`
-  Returns latest raw ADC sample for channel index (`kChannelA` / `kChannelB`).
+  Returns latest raw ADC sample for channel index (`kInputsChannelA` / `kInputsChannelB`).
 
 - `uint16_t get_raw_channel_a() const`
   Returns latest raw ADC value for channel A.

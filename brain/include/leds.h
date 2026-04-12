@@ -13,6 +13,10 @@ enum class LedMode : uint8_t {
 	kPwm = 1
 };
 
+// Convenience aliases for less verbose mode selection.
+constexpr LedMode kLedsModeSimple = LedMode::kSimple;
+constexpr LedMode kLedsModePwm = LedMode::kPwm;
+
 constexpr uint8_t NO_OF_LEDS = 6;
 constexpr uint8_t led_pins[NO_OF_LEDS] = {
 	GPIO_BRAIN_LED_1,
@@ -112,4 +116,3 @@ private:
 	ChannelState button_led_{};
 	LedMode mode_;
 };
-

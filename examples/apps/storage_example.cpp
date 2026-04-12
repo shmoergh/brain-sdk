@@ -12,7 +12,7 @@ void StorageExample::init() {
 		printf("[ERROR] init_storage failed\n");
 		return;
 	}
-	if (!brain_init_succeeded(brain_.init_leds(LedMode::kSimple))) {
+	if (!brain_init_succeeded(brain_.init_leds(kLedsModeSimple))) {
 		printf("[ERROR] init_leds failed\n");
 		return;
 	}

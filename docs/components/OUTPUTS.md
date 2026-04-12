@@ -9,12 +9,17 @@ In practice, you use it whenever your firmware needs to send voltages or trigger
 
 
 ## Audio/CV outputs
-Audio/CV output is channel-based (`kChannelA`, `kChannelB`) and range-aware.
+Audio/CV output is channel-based (`kOutputsChannelA`, `kOutputsChannelB`) and range-aware.
+
+### Constants
+
+- `kOutputsChannelA`, `kOutputsChannelB`
+  Output channel selectors.
 
 Supported output ranges:
 
-- `AudioCvOutRange::kRange0To10V` (unipolar/pseudo-DC coupled)
-- `AudioCvOutRange::kRangeMinus5To5V` (bipolar/pseudo-AC coupled)
+- `kOutputsRange0To10V` (unipolar/pseudo-DC coupled)
+- `kOutputsRangeMinus5To5V` (bipolar/pseudo-AC coupled)
 
 You should set output range before writing voltages so value validation behaves as expected.
 
@@ -37,13 +42,13 @@ int main() {
 
     // Configure channel A for bipolar CV
     brain.outputs.set_output_range(
-        AudioCvOutChannel::kChannelA,
-        AudioCvOutRange::kRangeMinus5To5V
+        kOutputsChannelA,
+        kOutputsRangeMinus5To5V
     );
 
     // Write +1.25V
     bool ok = brain.outputs.set_voltage_millivolts(
-        AudioCvOutChannel::kChannelA,
+        kOutputsChannelA,
         1250
     );
     (void)ok;

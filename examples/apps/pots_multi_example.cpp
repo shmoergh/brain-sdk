@@ -19,7 +19,7 @@ void PotsMultiExample::init() {
 	cutoff.min_value = 20;
 	cutoff.max_value = 20000;
 	cutoff.initial_value = 800;
-	cutoff.mode = PotMode::kValueScale;
+	cutoff.mode = kPotMultiFunctionModeValueScale;
 	cutoff.pickup_hysteresis = 1;
 
 	PotFunctionConfig resonance{};
@@ -28,7 +28,7 @@ void PotsMultiExample::init() {
 	resonance.min_value = 0;
 	resonance.max_value = 100;
 	resonance.initial_value = 30;
-	resonance.mode = PotMode::kValueScale;
+	resonance.mode = kPotMultiFunctionModeValueScale;
 	resonance.pickup_hysteresis = 1;
 
 	const bool ok_a = brain_.pot_multi.register_function(cutoff);

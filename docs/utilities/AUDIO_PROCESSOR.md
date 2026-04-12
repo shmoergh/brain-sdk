@@ -85,6 +85,10 @@ int main() {
 - `bool is_initialized() const`
   Returns initialization/running state.
 
+### Constants
+- `kBrainInitStatusOk`, `kBrainInitStatusAlreadyInitialized`, `kBrainInitStatusFailed`
+  Initialization status constants returned by `init(...)`.
+
 ### Runtime telemetry
 - `AudioProcessorStats get_stats() const`
   Returns counters such as tick count, overruns, pot mux switches, settle discards.
@@ -163,7 +167,7 @@ int main() {
 
 	AudioProcessorConfig cfg{};
 	BrainInitStatus st = brain.init_audio_processor(cfg, pass, nullptr);
-	(void)st; // expected kFailed due to ownership conflict
+	(void)st; // expected kBrainInitStatusFailed due to ownership conflict
 }
 ```
 

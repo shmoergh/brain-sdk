@@ -14,15 +14,15 @@ void SampleAndHold::init() {
 
 	// Set output range (simulate AC coupling)
 	brain_.outputs.set_output_range(
-		AudioCvOutChannel::kChannelA,
-		AudioCvOutRange::kRangeMinus5To5V
+		kOutputsChannelA,
+		kOutputsRangeMinus5To5V
 	);
 
 	// Read Input A and set Output A to the same value on pulse rise edge
 	// You need to register callback functions only once
 	brain_.inputs.pulse_on_rise([this]() {
 		int32_t channelAMilliVolts = brain_.inputs.get_voltage_millivolts_channel_a();
-		brain_.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, channelAMilliVolts);
+		brain_.outputs.set_voltage_millivolts(kOutputsChannelA, channelAMilliVolts);
 	});
 
 	initialized_ = true;

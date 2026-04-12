@@ -70,7 +70,7 @@ If you use modules individually:
 ```cpp
 BrainInitStatus status;
 
-status = brain.init_leds(LedMode::kSimple);
+status = brain.init_leds(kLedsModeSimple);
 if (!brain_init_succeeded(status)) return 1;
 
 status = brain.init_inputs();
@@ -122,8 +122,8 @@ You can do things with the components of the `brain` wrapper through the wrapper
 
 ```cpp
 brain.leds.on(0);
-brain.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRange0To10V);
-brain.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, 2500);
+brain.outputs.set_output_range(kOutputsChannelA, kOutputsRange0To10V);
+brain.outputs.set_voltage_millivolts(kOutputsChannelA, 2500);
 bool protected_layout = brain.storage.is_layout_protected();
 (void)protected_layout;
 ```
@@ -186,9 +186,11 @@ target_compile_definitions(my_firmware PRIVATE
 
 You can call `init_*` functions multiple times, it won't re-initialize or break state (idempotent). The init function will return:
 
-- `BrainInitStatus::kOk` — initialization successful
-- `BrainInitStatus::kAlreadyInitialized` — already initialized
-- `BrainInitStatus::kFailed` — failed to initialize
+### Constants
+
+- `kBrainInitStatusOk` — initialization successful
+- `kBrainInitStatusAlreadyInitialized` — already initialized
+- `kBrainInitStatusFailed` — failed to initialize
 
 #### State query helpers
 

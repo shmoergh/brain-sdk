@@ -16,12 +16,12 @@ void IoPassthroughExample::init() {
 		printf("[ERROR] init_outputs failed\n");
 		return;
 	}
-	if (!brain_init_succeeded(brain_.init_leds(LedMode::kSimple))) {
+	if (!brain_init_succeeded(brain_.init_leds(kLedsModeSimple))) {
 		printf("[ERROR] init_leds failed\n");
 		return;
 	}
 
-	brain_.outputs.set_output_range(AudioCvOutChannel::kChannelA, AudioCvOutRange::kRangeMinus5To5V);
+	brain_.outputs.set_output_range(kOutputsChannelA, kOutputsRangeMinus5To5V);
 	brain_.leds.off_all();
 	initialized_ = true;
 	last_print_ms_ = to_ms_since_boot(get_absolute_time());
@@ -37,7 +37,7 @@ void IoPassthroughExample::update() {
 	brain_.update_leds();
 
 	const int32_t in_mv = brain_.inputs.get_voltage_millivolts_channel_a();
-	const bool ok = brain_.outputs.set_voltage_millivolts(AudioCvOutChannel::kChannelA, in_mv);
+	const bool ok = brain_.outputs.set_voltage_millivolts(kOutputsChannelA, in_mv);
 	if (!ok) {
 		brain_.leds.on(0);
 	} else {

@@ -137,9 +137,9 @@ Use `PotMultiFunction` when one physical pot controls multiple logical parameter
 
 It also handles the “feel” of switching between mappings via modes:
 
-- kDirect: value follows knob immediately
-- kPickup: value changes only after knob “catches” the stored value
-- kValueScale: value changes relatively around an anchor. This feels pretty smooth!
+- `kPotMultiFunctionModeDirect`: value follows knob immediately
+- `kPotMultiFunctionModePickup`: value changes only after knob “catches” the stored value
+- `kPotMultiFunctionModeValueScale`: value changes relatively around an anchor. This feels pretty smooth!
 
 ## Example
 
@@ -175,7 +175,7 @@ int main() {
 	cutoff.min_value = 20;
 	cutoff.max_value = 20000;
 	cutoff.initial_value = 800;
-	cutoff.mode = PotMode::kValueScale; // smooth mode switching
+	cutoff.mode = kPotMultiFunctionModeValueScale; // smooth mode switching
 	cutoff.pickup_hysteresis = 1;
 	brain.pot_multi.register_function(cutoff);
 
@@ -185,7 +185,7 @@ int main() {
 	resonance.min_value = 0;
 	resonance.max_value = 100;
 	resonance.initial_value = 30;
-	resonance.mode = PotMode::kValueScale;
+	resonance.mode = kPotMultiFunctionModeValueScale;
 	resonance.pickup_hysteresis = 1;
 	brain.pot_multi.register_function(resonance);
 
@@ -219,15 +219,15 @@ int main() {
 }
 ```
 
-## **Modes and config**
+## **Constants and config**
 
-### **PotMode**
+### **Constants**
 
-- `kDirectDirect`
+- `kPotMultiFunctionModeDirect`
 	mapping from pot position to value range.
-- `kPickupValue`
+- `kPotMultiFunctionModePickup`
 	does not move until knob position “meets” current stored value (with hysteresis tolerance).
-- `kValueScale`
+- `kPotMultiFunctionModeValueScale`
 	Relative/scaled movement mode to avoid jumps after context/mode switches.
 
 ### **PotFunctionConfig fields**
@@ -241,7 +241,7 @@ int main() {
 - `initial_value`
 	Start value for that function (clamped into range).
 - `mode`
-	Behavior mode (`kDirect`, `kPickup`, `kValueScale`).
+	Behavior mode (`kPotMultiFunctionModeDirect`, `kPotMultiFunctionModePickup`, `kPotMultiFunctionModeValueScale`).
 - `pickup_hysteresis`
 	Tolerance window for pickup crossing/catch.
 
@@ -318,4 +318,3 @@ int main() {
 - Function IDs must be unique.
 - Values are always clamped to configured min/max.
 - Pickup/value-scale modes rely on activation history, so call reset_for_mode_change(...) when changing higher-level app modes.
-

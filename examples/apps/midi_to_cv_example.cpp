@@ -20,12 +20,12 @@ void MidiToCvExample::init() {
 	printf("\n--------\n");
 	printf("Example: MIDI to CV (channel 1, pitch on output A, duo mode)\n");
 
-	if (!brain_init_succeeded(brain_.init_midi_to_cv(AudioCvOutChannel::kChannelA, 1, 31250))) {
+	if (!brain_init_succeeded(brain_.init_midi_to_cv(kOutputsChannelA, 1, 31250))) {
 		printf("[ERROR] init_midi_to_cv failed\n");
 		return;
 	}
 
-	brain_.midi_to_cv.set_mode(MidiToCV::Mode::kDuo);
+	brain_.midi_to_cv.set_mode(kMidiToCVModeDuo);
 	brain_.midi_to_cv.set_note_on_callback(on_note_on);
 	brain_.midi_to_cv.set_note_off_callback(on_note_off);
 	initialized_ = true;
