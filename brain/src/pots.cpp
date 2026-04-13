@@ -132,6 +132,10 @@ uint16_t Pots::read_channel_once(uint8_t ch) {
 	BrainAdcLockGuard guard;
 	set_mux_channel(ch);
 
+	// Force manual single-channel sampling mode for pots.
+	// This prevents cross-effects when another component previously configured ADC round-robin.
+	adc_set_round_robin(0);
+
 	// Reselect ADC input to ensure proper synchronization
 	adc_select_input(config_.adc_gpio - 26);
 

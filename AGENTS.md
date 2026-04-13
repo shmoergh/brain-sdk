@@ -163,3 +163,14 @@ Before finalizing a change:
 3. Confirm docs/examples use current API names and signatures.
 4. Build at least affected targets (`brain` consumers, `test`/`sandbox` when relevant).
 5. If behavior changed, describe migration impact clearly.
+
+## 11) Firmware default rule: preserve CV calibration
+
+For any new firmware/app/template in this repo, CV calibration preservation is the default behavior, not optional polish.
+
+Required by default:
+- Keep flash reservation for storage/calibration (`brain-storage-reserve-flash.cmake` path in CMake flow).
+- Initialize `Storage` in protected-layout mode when using wrapper flows.
+- Ensure CV output paths use/retain persisted calibration data (do not silently reset/ignore calibration on boot).
+
+Only skip this if the task explicitly asks for a calibration-free firmware.

@@ -250,11 +250,11 @@ You can call these updates but they won't do anything (no-op):
 
 `Brain` gives you switches for how ADC-based modules behave. These exist because `Inputs` and `Pots` both rely on ADC and there are optimized vs. fallback read modes. The controls are:
 
-- `enable_adc_optimization(bool)` — Master switch. If `false`, the ADC functions below are effectively disabled.
-- `set_audio_cv_dma_enabled(bool)` — Controls whether `Inputs` uses DMA for sampling audio/CV.
+- `enable_adc_optimization(bool)` — Master switch, default: `true`. If `false`, the ADC functions below are effectively disabled.
+- `set_audio_cv_dma_enabled(bool)` Controls whether `Inputs` uses DMA for sampling audio/CV. Default: `true`.
 	- Enabling DMA just enables the mode; actual DMA setup is attempted during init/update, with fallback to non-DMA reads if setup fails.
 
-- `set_shared_pot_sampling_enabled(bool)` — Controls whether `Pots` uses the optimized shared/buffered pot sampling path.
+- `set_shared_pot_sampling_enabled(bool)` — Controls whether `Pots` uses the optimized shared/buffered pot sampling path. Default: `true`.
 	- When set `true` `Pots` uses its optimized/stable read path (more settling/averaging behavior). You usually get smoother, less jumpy knob values.
 	- When `false`, `Pots` uses a simpler/faster path. Reads can be noisier or less stable, but behavior is more direct.
 
