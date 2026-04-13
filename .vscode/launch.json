@@ -84,6 +84,48 @@
                 "break main",
                 "continue"
             ]
+        },
+        {
+            "name": "Examples - RP2040",
+            "device": "RP2040",
+            "gdbPath": "arm-none-eabi-gdb",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2040/examples/examples.elf",
+            "preLaunchTask": "CMake Build Examples RP2040",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg"
+            ],
+            "svdFile": "${env:PICO_SDK_PATH}/src/rp2040/hardware_regs/rp2040.svd",
+            "runToEntryPoint": "main",
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ]
+        },
+        {
+            "name": "Examples - RP2350",
+            "device": "RP2350",
+            "gdbPath": "arm-none-eabi-gdb",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build-rp2350/examples/examples.elf",
+            "preLaunchTask": "CMake Build Examples RP2350",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2350.cfg"
+            ],
+            "svdFile": "${env:PICO_SDK_PATH}/src/rp2350/hardware_regs/RP2350.svd",
+            "runToEntryPoint": "main",
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ]
         }
     ]
 }

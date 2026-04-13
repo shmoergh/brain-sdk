@@ -2,10 +2,9 @@
 
 #include <cstdint>
 
-#include "brain-ui/button.h"
-#include "brain-ui/leds.h"
-#include "brain-ui/pot-multi-function.h"
-#include "brain-ui/pots.h"
+#include "button.h"
+#include "leds.h"
+#include "pots.h"
 
 namespace sandbox::apps {
 
@@ -42,11 +41,11 @@ public:
 	void update();
 
 private:
-	brain::ui::Button button_a_;
-	brain::ui::Button button_b_;
-	brain::ui::Leds leds_;
-	brain::ui::Pots pots_;
-	brain::ui::PotMultiFunction multi_;
+	Button button_a_;
+	Button button_b_;
+	Leds leds_;
+	Pots pots_;
+	PotMultiFunction multi_;
 
 	bool button_a_pressed_;
 	bool button_b_pressed_;

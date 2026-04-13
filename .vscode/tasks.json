@@ -25,6 +25,18 @@
 			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2350 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350-arm-s && cmake --build ${workspaceFolder}/build-rp2350 --target sandbox",
 			"group": "build",
 			"problemMatcher": []
+		},
+		{
+			"label": "CMake Build Examples RP2040",
+			"type": "shell",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2040 -DPICO_BOARD=pico -DPICO_PLATFORM=rp2040 && cmake --build ${workspaceFolder}/build-rp2040 --target examples",
+			"problemMatcher": []
+		},
+		{
+			"label": "CMake Build Examples RP2350",
+			"type": "shell",
+			"command": "cmake -S ${workspaceFolder} -B ${workspaceFolder}/build-rp2350 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350-arm-s && cmake --build ${workspaceFolder}/build-rp2350 --target examples",
+			"problemMatcher": []
 		}
 	]
 }

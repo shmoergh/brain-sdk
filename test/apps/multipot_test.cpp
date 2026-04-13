@@ -4,7 +4,7 @@
 
 #include "pico/stdlib.h"
 
-#include "brain-common/brain-common.h"
+#include "common.h"
 
 namespace {
 
@@ -17,32 +17,32 @@ constexpr uint8_t kFunctionTempo = 1;
 constexpr uint8_t kFunctionScale = 2;
 
 // Sandbox knob: choose the mode used by Pot X.
-constexpr brain::ui::PotMode kValuePotMode = brain::ui::PotMode::kValueScale;
+constexpr PotMode kValuePotMode = PotMode::kValueScale;
 
 // Function id table [function] for the selected static mode.
 constexpr uint8_t kFunctionIdsByFunction[3] = {
 	1, 2, 3
 };
 
-constexpr uint8_t mode_to_index(brain::ui::PotMode mode) {
+constexpr uint8_t mode_to_index(PotMode mode) {
 	switch (mode) {
-		case brain::ui::PotMode::kDirect:
+		case PotMode::kDirect:
 			return 0;
-		case brain::ui::PotMode::kPickup:
+		case PotMode::kPickup:
 			return 1;
-		case brain::ui::PotMode::kValueScale:
+		case PotMode::kValueScale:
 			return 2;
 	}
 	return 0;
 }
 
-const char* mode_to_name(brain::ui::PotMode mode) {
+const char* mode_to_name(PotMode mode) {
 	switch (mode) {
-		case brain::ui::PotMode::kDirect:
+		case PotMode::kDirect:
 			return "Direct";
-		case brain::ui::PotMode::kPickup:
+		case PotMode::kPickup:
 			return "Pickup";
-		case brain::ui::PotMode::kValueScale:
+		case PotMode::kValueScale:
 			return "ValueScale";
 	}
 	return "Unknown";
@@ -80,7 +80,7 @@ void MultipotTest::init() {
 	leds_.init();
 	leds_.startup_animation();
 
-	brain::ui::PotsConfig config = brain::ui::create_default_config(3, 8);
+	PotsConfig config = create_default_config(3, 8);
 	config.simple = false;
 	pots_.init(config);
 
@@ -96,7 +96,6 @@ void MultipotTest::init() {
 void MultipotTest::update() {
 	button_a_.update();
 	button_b_.update();
-	pots_.scan();
 
 	uint8_t function_index = resolve_function();
 	uint8_t function_id = kFunctionIdsByFunction[function_index];
@@ -113,7 +112,7 @@ void MultipotTest::register_functions() {
 	multi_.init();
 
 	for (uint8_t function_index = 0; function_index < 3; function_index++) {
-		brain::ui::PotFunctionConfig cfg;
+		PotFunctionConfig cfg;
 		cfg.function_id = kFunctionIdsByFunction[function_index];
 		cfg.pot_index = kPotX;
 		cfg.pickup_hysteresis = 1;

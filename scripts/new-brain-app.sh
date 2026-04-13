@@ -19,6 +19,17 @@ fi
 INPUT="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SDK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SDK_URL="$(git -C "$SDK_DIR" remote get-url origin 2>/dev/null || echo "git@github.com:shmoergh/brain-sdk.git")"
+SDK_BRANCH="$(git -C "$SDK_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+
+if [ "$SDK_BRANCH" = "HEAD" ] || [ -z "$SDK_BRANCH" ]; then
+  SDK_BRANCH="main"
+fi
+
+if ! git ls-remote --exit-code --heads "$SDK_URL" "$SDK_BRANCH" >/dev/null 2>&1; then
+  echo "Warning: Branch '$SDK_BRANCH' not found on remote '$SDK_URL'. Falling back to 'main'."
+  SDK_BRANCH="main"
+fi
 
 # Determine if input is a path or just a name
 if [[ "$INPUT" == */* ]] || [[ "$INPUT" == ~* ]]; then
@@ -95,16 +106,11 @@ include(brain-sdk/pico_sdk_import.cmake)
 
 project($APP_NAME C CXX ASM)
 
-# Reserve top-of-flash sectors for SDK-managed persistent storage when supported
-# by the checked-out SDK revision.
-set(BRAIN_SDK_STORAGE_RESERVE_CMAKE
-	"\${CMAKE_CURRENT_LIST_DIR}/brain-sdk/cmake/brain-storage-reserve-flash.cmake")
-if(EXISTS "\${BRAIN_SDK_STORAGE_RESERVE_CMAKE}")
-	include("\${BRAIN_SDK_STORAGE_RESERVE_CMAKE}")
-	brain_storage_configure_flash_reservation()
-else()
-	message(WARNING "brain-storage flash reservation helper not found in current SDK revision; building without reserved storage sectors.")
-endif()
+# Reserve top-of-flash sectors for SDK-managed persistent storage.
+set(BRAIN_STORAGE_ENABLE_FLASH_RESERVATION ON CACHE BOOL "" FORCE)
+set(BRAIN_STORAGE_ALLOW_UNPROTECTED_LAYOUT OFF CACHE BOOL "" FORCE)
+include(brain-sdk/cmake/brain-storage-reserve-flash.cmake)
+brain_storage_configure_flash_reservation()
 
 # Initialize the Pico SDK
 pico_sdk_init()
@@ -116,14 +122,21 @@ add_executable($APP_NAME main.cpp)
 
 target_link_libraries($APP_NAME
 	pico_stdlib
-	brain-common
-	brain-ui
-	brain-io
-  brain-utils)
+	brain)
 
 pico_enable_stdio_usb($APP_NAME 1)
 pico_enable_stdio_uart($APP_NAME 1)
 pico_add_extra_outputs($APP_NAME)
+EOF
+
+# Create Brain feature config header (recommended shared config)
+cat > "$APP_DIR/brain_user_config.h" <<EOF
+#pragma once
+
+// Explicit Brain SDK feature configuration.
+// Set BRAIN_USE_ALL=1 for the easiest full-feature setup, or replace this with
+// selective BRAIN_USE_* defines (LEDS, BUTTONS, STORAGE, OUTPUTS, INPUTS, POTS, MIDI_PARSER, MIDI_TO_CV, POT_MULTI_FUNCTION).
+#define BRAIN_USE_ALL 1
 EOF
 
 # Create main.cpp with simple boilerplate
@@ -131,35 +144,26 @@ cat > "$APP_DIR/main.cpp" <<EOF
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-#include "brain-common/brain-common.h"
-#include "brain-ui/led.h"
-
-const uint LED_PIN = PICO_DEFAULT_LED_PIN;
-
-using brain::ui::Led;
-
-const uint LED_PINS[] = {
-	BRAIN_LED_1, BRAIN_LED_2, BRAIN_LED_3, BRAIN_LED_4, BRAIN_LED_5, BRAIN_LED_6};
+#include "brain_user_config.h"
+#include "brain/brain.h"
 
 int main() {
 	stdio_init_all();
 
-	// Initialize LEDs
-	brain::ui::Led leds[6] = {
-		brain::ui::Led(LED_PINS[0]), brain::ui::Led(LED_PINS[1]),
-		brain::ui::Led(LED_PINS[2]), brain::ui::Led(LED_PINS[3]),
-		brain::ui::Led(LED_PINS[4]), brain::ui::Led(LED_PINS[5])};
-
-	for (uint i = 0; i < 6; i++) {
-		leds[i].init();
+	Brain brain;
+	BrainInitStatus init_status = brain.init_leds(LedMode::kSimple);
+	if (!brain_init_succeeded(init_status)) {
+		printf("Failed to initialize LEDs\\n");
+		return 1;
 	}
+	brain.leds.off_all();
 
 	printf("$APP_NAME started\\n");
 
 	// Simple LED blink pattern
 	uint led_index = 0;
 	while (true) {
-		leds[led_index].toggle();
+		brain.leds.toggle(led_index);
 		led_index = (led_index + 1) % 6;
 		sleep_ms(100);
 	}
@@ -185,7 +189,8 @@ EOF
 cat > "$APP_DIR/.gitmodules" <<EOF
 [submodule "brain-sdk"]
 	path = brain-sdk
-	url = git@github.com:shmoergh/brain-sdk.git
+	url = $SDK_URL
+	branch = $SDK_BRANCH
 EOF
 
 # Create README.md
@@ -213,11 +218,16 @@ This project includes brain-sdk as a git submodule. To update the SDK:
 
 \`\`\`bash
 cd brain-sdk
-git pull origin main
+git pull origin $SDK_BRANCH
 cd ..
 git add brain-sdk
 git commit -m "Update brain-sdk"
 \`\`\`
+
+## Brain Feature Config
+
+The app uses an explicit Brain SDK config in \`brain_user_config.h\`.
+Edit that file to switch between \`BRAIN_USE_ALL\` and selective \`BRAIN_USE_*\` feature flags.
 EOF
 
 # Create .vscode/launch.json
@@ -376,13 +386,16 @@ if [[ "$1" == "--push" ]]; then
   PUSH=true
 fi
 
+SDK_BRANCH="$(git config -f .gitmodules submodule.brain-sdk.branch || echo "main")"
+
 echo "Updating brain-sdk submodule..."
+echo "Target branch: $SDK_BRANCH"
 echo ""
 
 cd brain-sdk
 git fetch origin
-git checkout main
-git pull origin main
+git checkout "$SDK_BRANCH"
+git pull origin "$SDK_BRANCH"
 cd ..
 
 echo ""
@@ -424,7 +437,7 @@ echo "Initializing git repository..."
 # Initialize git repo and add brain-sdk as submodule
 cd "$APP_DIR"
 git init
-git submodule add git@github.com:shmoergh/brain-sdk.git brain-sdk
+git submodule add -b "$SDK_BRANCH" "$SDK_URL" brain-sdk
 git submodule update --init --recursive
 
 echo ""

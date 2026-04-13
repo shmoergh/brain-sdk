@@ -1,5 +1,7 @@
 #pragma once
 
+#include "storage.h"
+
 namespace sandbox::apps {
 
 class StorageTest {
@@ -8,6 +10,7 @@ class StorageTest {
 		void update();
 
 	private:
+		Storage storage_{};
 		bool initialized_ = false;
 		bool completed_ = false;
 	};

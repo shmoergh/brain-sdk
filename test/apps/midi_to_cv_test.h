@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "brain-utils/midi-to-cv.h"
+#include "brain.h"
 
 namespace sandbox::apps {
 
@@ -15,7 +15,7 @@ public:
 	void update();
 
 private:
-	brain::utils::MidiToCV midi_to_cv_;
+	Brain brain_;
 	bool initialized_ = false;
 };
 

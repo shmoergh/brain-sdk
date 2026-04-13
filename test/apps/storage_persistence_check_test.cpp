@@ -3,40 +3,40 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 
-#include "brain-storage/storage.h"
+#include "storage.h"
 
 namespace sandbox::apps {
 
 namespace {
 
-const char* to_string(brain::storage::StorageStatus status) {
+const char* to_string(StorageStatus status) {
 	switch (status) {
-		case brain::storage::StorageStatus::kOk:
+		case StorageStatus::kOk:
 			return "kOk";
-		case brain::storage::StorageStatus::kInvalidArgument:
+		case StorageStatus::kInvalidArgument:
 			return "kInvalidArgument";
-		case brain::storage::StorageStatus::kNotFound:
+		case StorageStatus::kNotFound:
 			return "kNotFound";
-		case brain::storage::StorageStatus::kCorrupt:
+		case StorageStatus::kCorrupt:
 			return "kCorrupt";
-		case brain::storage::StorageStatus::kOutOfBounds:
+		case StorageStatus::kOutOfBounds:
 			return "kOutOfBounds";
-		case brain::storage::StorageStatus::kTooLarge:
+		case StorageStatus::kTooLarge:
 			return "kTooLarge";
-		case brain::storage::StorageStatus::kUnprotectedLayout:
+		case StorageStatus::kUnprotectedLayout:
 			return "kUnprotectedLayout";
-		case brain::storage::StorageStatus::kFlashError:
+		case StorageStatus::kFlashError:
 			return "kFlashError";
-		case brain::storage::StorageStatus::kTimeout:
+		case StorageStatus::kTimeout:
 			return "kTimeout";
-		case brain::storage::StorageStatus::kNotPermitted:
+		case StorageStatus::kNotPermitted:
 			return "kNotPermitted";
 		default:
 			return "unknown";
 	}
 }
 
-bool matches_storage_test_seed(const brain::storage::CvCalibrationV1& calibration) {
+bool matches_storage_test_seed(const CvCalibrationV1& calibration) {
 	for (int i = 0; i < 10; i++) {
 		if (calibration.a_offset_lsb[i] != static_cast<int16_t>(-10 * (i + 1))) {
 			return false;
@@ -61,26 +61,27 @@ void print_offsets(const char* name, const int16_t* values) {
 void StoragePersistenceCheckTest::init() {
 	stdio_init_all();
 	sleep_ms(1200);
+	(void)storage_.init(false);
 
 	printf("\n\r--------\n\r");
 	printf("Brain Storage Persistence Check\n");
 	printf("Layout protected: %s\n",
-		brain::storage::is_layout_protected() ? "yes" : "no");
+		storage_.is_layout_protected() ? "yes" : "no");
 	printf("Unsafe override compiled: %s\n",
-		brain::storage::kAllowUnprotectedLayout ? "yes" : "no");
+		kAllowUnprotectedLayout ? "yes" : "no");
 	printf("App region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			brain::storage::region_offset(brain::storage::StorageRegion::kAppData)),
+			storage_.region_offset(StorageRegion::kAppData)),
 		static_cast<unsigned>(
-			brain::storage::region_size(brain::storage::StorageRegion::kAppData)));
+			storage_.region_size(StorageRegion::kAppData)));
 	printf("Cal region offset/size: %u / %u\n",
 		static_cast<unsigned>(
-			brain::storage::region_offset(brain::storage::StorageRegion::kCalibration)),
+			storage_.region_offset(StorageRegion::kCalibration)),
 		static_cast<unsigned>(
-			brain::storage::region_size(brain::storage::StorageRegion::kCalibration)));
+			storage_.region_size(StorageRegion::kCalibration)));
 	printf("Guard region offset/size: %u / %u\n",
-		static_cast<unsigned>(brain::storage::layout::kGuardRegionOffsetBytes),
-		static_cast<unsigned>(brain::storage::layout::kGuardRegionSizeBytes));
+		static_cast<unsigned>(StorageLayout::kGuardRegionOffsetBytes),
+		static_cast<unsigned>(StorageLayout::kGuardRegionSizeBytes));
 
 	initialized_ = true;
 }
@@ -91,16 +92,16 @@ void StoragePersistenceCheckTest::update() {
 		return;
 	}
 
-	brain::storage::CvCalibrationV1 calibration{};
-	brain::storage::StorageStatus status =
-		brain::storage::read_cv_calibration(&calibration);
+	CvCalibrationV1 calibration{};
+	StorageStatus status =
+		storage_.read_cv_calibration(&calibration);
 	uint8_t app_blob[64] = {0};
 	size_t app_blob_size = 0;
-	brain::storage::StorageStatus app_blob_status =
-		brain::storage::read_app_blob(app_blob, sizeof(app_blob), &app_blob_size);
+	StorageStatus app_blob_status =
+		storage_.read_app_blob(app_blob, sizeof(app_blob), &app_blob_size);
 
 	printf("read_cv_calibration status: %s\n", to_string(status));
-	if (status == brain::storage::StorageStatus::kOk) {
+	if (status == StorageStatus::kOk) {
 		print_offsets("a_offset_lsb[1V..10V]", calibration.a_offset_lsb);
 		print_offsets("b_offset_lsb[1V..10V]", calibration.b_offset_lsb);
 
@@ -109,9 +110,9 @@ void StoragePersistenceCheckTest::update() {
 		} else {
 			printf("[INFO] Calibration is valid but does not match StorageTest seed pattern.\n");
 		}
-	} else if (status == brain::storage::StorageStatus::kNotFound) {
+	} else if (status == StorageStatus::kNotFound) {
 		printf("[FAIL] No calibration record found.\n");
-	} else if (status == brain::storage::StorageStatus::kCorrupt) {
+	} else if (status == StorageStatus::kCorrupt) {
 		printf("[FAIL] Calibration record is corrupt.\n");
 	} else {
 		printf("[FAIL] Unexpected calibration read status.\n");
@@ -120,9 +121,9 @@ void StoragePersistenceCheckTest::update() {
 	printf("read_app_blob status: %s (size=%u)\n",
 		to_string(app_blob_status),
 		static_cast<unsigned>(app_blob_size));
-	if (app_blob_status == brain::storage::StorageStatus::kOk) {
+	if (app_blob_status == StorageStatus::kOk) {
 		printf("[INFO] App blob exists after firmware update.\n");
-	} else if (app_blob_status == brain::storage::StorageStatus::kNotFound) {
+	} else if (app_blob_status == StorageStatus::kNotFound) {
 		printf("[INFO] App blob not found after firmware update (acceptable).\n");
 	} else {
 		printf("[WARN] App blob read returned unexpected status.\n");

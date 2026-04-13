@@ -7,7 +7,7 @@
 namespace {
 
 constexpr uint32_t kPollStepMs = 5;
-constexpr uint8_t kMaskAll = static_cast<uint8_t>((1u << brain::ui::NO_OF_LEDS) - 1u);
+constexpr uint8_t kMaskAll = static_cast<uint8_t>((1u << NO_OF_LEDS) - 1u);
 constexpr uint32_t kPerLedDelayMs = 1000;
 constexpr uint32_t kBetweenSequenceDelayMs = 300;
 constexpr uint8_t kCaseCount = 26;
@@ -50,9 +50,7 @@ const char* mode_label(bool simple_mode) {
 namespace sandbox::apps {
 
 LedsTest::LedsTest()
-	: leds_(brain::ui::LedMode::kSimple),
-	  direct_led_(brain::ui::led_pins[0], false),
-	  button_led_(),
+	: leds_(LedMode::kSimple),
 	  initialized_(false),
 	  completed_(false),
 	  aborted_(false),
@@ -65,13 +63,10 @@ void LedsTest::init() {
 	printf("\033[2J\033[H");
 	fflush(stdout);
 
-	leds_.init(brain::ui::LedMode::kSimple);
-	direct_led_.init();
-	button_led_.init();
+	leds_.init(LedMode::kSimple);
 
 	leds_.off_all();
-	direct_led_.off();
-	button_led_.off();
+	leds_.button_off();
 
 	print_led_map();
 	initialized_ = true;
@@ -118,8 +113,7 @@ void LedsTest::run_all_tests() {
 		}
 
 		leds_.off_all();
-		direct_led_.off();
-		button_led_.off();
+		leds_.button_off();
 
 		if (aborted_) {
 			printf("\n[Test run aborted, returning to menu]\n");
@@ -184,7 +178,7 @@ bool LedsTest::prompt_test_selection(bool& run_all, uint8_t& selected_case) {
 void LedsTest::run_case(uint8_t case_index) {
 	switch (case_index) {
 		case 1:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			record_case(
 				"General/simple: startup animation final state",
 				test_startup_animation("simple") ? CaseResult::kPass : CaseResult::kFail);
@@ -195,7 +189,7 @@ void LedsTest::run_case(uint8_t case_index) {
 			}
 			break;
 		case 2:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			record_case(
 				"General/simple: repeated init behavior",
 				test_repeated_init(true) ? CaseResult::kPass : CaseResult::kFail);
@@ -206,43 +200,43 @@ void LedsTest::run_case(uint8_t case_index) {
 			}
 			break;
 		case 3:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_on_off_toggle_per_led("simple");
 			break;
 		case 4:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_brightness("simple", true);
 			break;
 		case 5:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_blink_duration_per_led("simple");
 			break;
 		case 6:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_start_stop_blink_per_led("simple");
 			break;
 		case 7:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_on_all_off_all("simple");
 			break;
 		case 8:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_mask_mode("simple");
 			break;
 		case 9:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_invalid_indices("simple");
 			break;
 		case 10:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_state_transitions_while_blinking("simple");
 			break;
 		case 11:
-			ensure_leds_mode(brain::ui::LedMode::kSimple);
+			ensure_leds_mode(LedMode::kSimple);
 			test_no_update_no_blink_progress("simple");
 			break;
 		case 12:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			record_case(
 				"General/pwm: startup animation final state",
 				test_startup_animation("pwm") ? CaseResult::kPass : CaseResult::kFail);
@@ -253,7 +247,7 @@ void LedsTest::run_case(uint8_t case_index) {
 			}
 			break;
 		case 13:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			record_case(
 				"General/pwm: repeated init behavior",
 				test_repeated_init(false) ? CaseResult::kPass : CaseResult::kFail);
@@ -264,39 +258,39 @@ void LedsTest::run_case(uint8_t case_index) {
 			}
 			break;
 		case 14:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_on_off_toggle_per_led("pwm");
 			break;
 		case 15:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_brightness("pwm", false);
 			break;
 		case 16:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_blink_duration_per_led("pwm");
 			break;
 		case 17:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_start_stop_blink_per_led("pwm");
 			break;
 		case 18:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_on_all_off_all("pwm");
 			break;
 		case 19:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_mask_mode("pwm");
 			break;
 		case 20:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_invalid_indices("pwm");
 			break;
 		case 21:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_state_transitions_while_blinking("pwm");
 			break;
 		case 22:
-			ensure_leds_mode(brain::ui::LedMode::kPwm);
+			ensure_leds_mode(LedMode::kPwm);
 			test_no_update_no_blink_progress("pwm");
 			break;
 		case 23:
@@ -336,11 +330,11 @@ void LedsTest::run_case(uint8_t case_index) {
 	}
 }
 
-void LedsTest::ensure_leds_mode(brain::ui::LedMode mode) {
+void LedsTest::ensure_leds_mode(LedMode mode) {
 	if (leds_.get_mode() != mode) {
 		printf(
 			"\n[MODE] Switching shared LED bank to %s mode.\n",
-			mode == brain::ui::LedMode::kSimple ? "SIMPLE" : "PWM");
+			mode == LedMode::kSimple ? "SIMPLE" : "PWM");
 		leds_.set_mode(mode);
 	}
 	leds_.off_all();
@@ -350,8 +344,8 @@ void LedsTest::print_led_map() const {
 	printf("\n\r--------\n\r");
 	printf("LED Sandbox Test Runner\n");
 	printf("Mapped LEDs:\n");
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
-		printf("  LED %u -> GPIO %u\n", static_cast<unsigned>(i), static_cast<unsigned>(brain::ui::led_pins[i]));
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
+		printf("  LED %u -> GPIO %u\n", static_cast<unsigned>(i), static_cast<unsigned>(led_pins[i]));
 	}
 	printf("  Button LED -> GPIO %u\n", static_cast<unsigned>(GPIO_BRAIN_BUTTON_1_LED));
 }
@@ -492,7 +486,7 @@ bool LedsTest::test_startup_animation(const char* mode_name) {
 	leds_.startup_animation();
 
 	// Keep this internal sanity check; visual correctness is separately user-validated.
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		if (leds_.is_on(i)) {
 			printf("  %s startup_animation ended with LED%u still on\n", mode_name, static_cast<unsigned>(i));
 			return false;
@@ -509,13 +503,13 @@ bool LedsTest::test_repeated_init(bool simple_mode) {
 		return true;
 	}
 
-	brain::ui::Leds leds(simple_mode);
+	Leds leds(simple_mode);
 	leds.init();
 	leds.init();
 	leds.on_all();
 	leds.off_all();
 
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds.on(i);
 		if (!leds.is_on(i)) {
 			printf(
@@ -535,7 +529,7 @@ void LedsTest::test_on_off_toggle_per_led(const char* mode_name) {
 	wait_for_enter("Grouped on/off sequence for all LEDs");
 	if (aborted_) return;
 	leds_.off_all();
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds_.on(i);
 		spin_wait_ms(kPerLedDelayMs);
 		leds_.off(i);
@@ -548,7 +542,7 @@ void LedsTest::test_on_off_toggle_per_led(const char* mode_name) {
 	wait_for_enter("Grouped toggle sequence for all LEDs");
 	if (aborted_) return;
 	leds_.off_all();
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds_.toggle(i);	// off -> on
 		spin_wait_ms(kPerLedDelayMs);
 		leds_.toggle(i);	// on -> off
@@ -565,7 +559,7 @@ void LedsTest::test_brightness(const char* mode_name, bool simple_mode) {
 		wait_for_enter("Grouped simple brightness non-zero->zero sequence");
 		if (aborted_) return;
 		leds_.off_all();
-		for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+		for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 			leds_.set_brightness(i, 1);
 			spin_wait_ms(kPerLedDelayMs);
 			leds_.set_brightness(i, 0);
@@ -580,7 +574,7 @@ void LedsTest::test_brightness(const char* mode_name, bool simple_mode) {
 	if (aborted_) return;
 	leds_.off_all();
 	const uint8_t values[] = {0, 26, 51, 77, 102, 128, 153, 179, 204, 230, 255};
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		for (uint8_t value : values) {
 			leds_.set_brightness(i, value);
 			spin_wait_ms(120);
@@ -598,7 +592,7 @@ void LedsTest::test_blink_duration_per_led(const char* mode_name) {
 	wait_for_enter("Grouped blink_duration sequence for all LEDs");
 	if (aborted_) return;
 	leds_.off_all();
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds_.blink_duration(i, 900, 140);
 		wait_with_leds_update(leds_, 1100);
 		spin_wait_ms(120);
@@ -613,7 +607,7 @@ void LedsTest::test_start_stop_blink_per_led(const char* mode_name) {
 	wait_for_enter("Grouped start_blink sequence for all LEDs");
 	if (aborted_) return;
 	leds_.off_all();
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds_.start_blink(i, 120);
 		wait_with_leds_update(leds_, kPerLedDelayMs);
 		leds_.stop_blink(i);
@@ -656,7 +650,7 @@ void LedsTest::test_mask_mode(const char* mode_name) {
 	}
 
 	// One-hot walk over all LEDs as part of the same grouped sequence.
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		leds_.set_from_mask(static_cast<uint8_t>(1u << i));
 		spin_wait_ms(kPerLedDelayMs);
 	}
@@ -673,7 +667,7 @@ void LedsTest::test_invalid_indices(const char* mode_name) {
 	leds_.set_from_mask(0x15);
 	announce_expected_mask(0x15);
 
-	const uint8_t invalid_0 = brain::ui::NO_OF_LEDS;
+	const uint8_t invalid_0 = NO_OF_LEDS;
 	const uint8_t invalid_1 = 255;
 
 	leds_.on(invalid_0);
@@ -782,15 +776,15 @@ bool LedsTest::test_direct_led_finite_blink() {
 	wait_for_enter("direct Led blink(times, interval)");
 	if (aborted_) return true;
 
-	direct_led_.off();
-	direct_led_.blink(3, 120);
-	wait_with_led_update(direct_led_, 1500);
+	leds_.off(0);
+	leds_.blink(0, 3, 120);
+	wait_with_leds_update(leds_, 1500);
 
-	if (direct_led_.is_blinking()) {
+	if (leds_.is_blinking(0)) {
 		printf("  direct Led finite blink: still blinking after expected end\n");
 		ok = false;
 	}
-	if (direct_led_.is_on()) {
+	if (leds_.is_on(0)) {
 		printf("  direct Led finite blink: expected off at end\n");
 		ok = false;
 	}
@@ -807,17 +801,17 @@ bool LedsTest::test_direct_led_callbacks() {
 	wait_for_enter("direct Led callback check");
 	if (aborted_) return true;
 
-	direct_led_.set_on_state_change([&](bool on) {
+	leds_.set_on_state_change(0, [&](bool on) {
 		state_change_count++;
 		saw_state_on |= on;
 		saw_state_off |= !on;
 	});
-	direct_led_.set_on_blink_end([&]() { blink_end_count++; });
+	leds_.set_on_blink_end(0, [&]() { blink_end_count++; });
 
-	direct_led_.on();
-	direct_led_.off();
-	direct_led_.blink(1, 90);
-	wait_with_led_update(direct_led_, 500);
+	leds_.on(0);
+	leds_.off(0);
+	leds_.blink(0, 1, 90);
+	wait_with_leds_update(leds_, 500);
 
 	if (state_change_count == 0 || !saw_state_on || !saw_state_off) {
 		printf("  direct Led callbacks: state-change callback did not receive expected events\n");
@@ -828,8 +822,8 @@ bool LedsTest::test_direct_led_callbacks() {
 		ok = false;
 	}
 
-	direct_led_.set_on_state_change({});
-	direct_led_.set_on_blink_end({});
+	leds_.set_on_state_change(0, {});
+	leds_.set_on_blink_end(0, {});
 	return ok;
 }
 
@@ -839,36 +833,36 @@ bool LedsTest::test_button_led_basic() {
 	wait_for_enter("ButtonLed basic on/off/toggle check");
 	if (aborted_) return true;
 
-	button_led_.off();
-	if (button_led_.is_on()) {
+	leds_.button_off();
+	if (leds_.button_is_on()) {
 		printf("  ButtonLed basic: expected OFF after off()\n");
 		ok = false;
 	}
 
-	button_led_.on();
+	leds_.button_on();
 	spin_wait_ms(450);
-	if (!button_led_.is_on()) {
+	if (!leds_.button_is_on()) {
 		printf("  ButtonLed basic: expected ON after on()\n");
 		ok = false;
 	}
 
-	button_led_.off();
+	leds_.button_off();
 	spin_wait_ms(450);
-	if (button_led_.is_on()) {
+	if (leds_.button_is_on()) {
 		printf("  ButtonLed basic: expected OFF after off()\n");
 		ok = false;
 	}
 
-	button_led_.toggle();
+	leds_.button_toggle();
 	spin_wait_ms(450);
-	if (!button_led_.is_on()) {
+	if (!leds_.button_is_on()) {
 		printf("  ButtonLed basic: expected ON after first toggle()\n");
 		ok = false;
 	}
 
-	button_led_.toggle();
+	leds_.button_toggle();
 	spin_wait_ms(450);
-	if (button_led_.is_on()) {
+	if (leds_.button_is_on()) {
 		printf("  ButtonLed basic: expected OFF after second toggle()\n");
 		ok = false;
 	}
@@ -886,22 +880,22 @@ bool LedsTest::test_button_led_blink_and_callbacks() {
 	wait_for_enter("ButtonLed blink + callback check");
 	if (aborted_) return true;
 
-	button_led_.set_on_state_change([&](bool on) {
+	leds_.button_set_on_state_change([&](bool on) {
 		state_change_count++;
 		saw_state_on |= on;
 		saw_state_off |= !on;
 	});
-	button_led_.set_on_blink_end([&]() { blink_end_count++; });
+	leds_.button_set_on_blink_end([&]() { blink_end_count++; });
 
-	button_led_.off();
-	button_led_.blink(2, 110);
-	wait_with_button_led_update(button_led_, 1000);
+	leds_.button_off();
+	leds_.button_blink(2, 110);
+	wait_with_leds_update(leds_, 1000);
 
-	if (button_led_.is_blinking()) {
+	if (leds_.button_is_blinking()) {
 		printf("  ButtonLed blink: still blinking after expected end\n");
 		ok = false;
 	}
-	if (button_led_.is_on()) {
+	if (leds_.button_is_on()) {
 		printf("  ButtonLed blink: expected OFF at end\n");
 		ok = false;
 	}
@@ -914,15 +908,15 @@ bool LedsTest::test_button_led_blink_and_callbacks() {
 		ok = false;
 	}
 
-	button_led_.set_on_state_change({});
-	button_led_.set_on_blink_end({});
+	leds_.button_set_on_state_change({});
+	leds_.button_set_on_blink_end({});
 	return ok;
 }
 
 void LedsTest::announce_expected_mask(uint8_t mask) const {
 	printf("  Expected ON LEDs:");
 	bool any = false;
-	for (uint8_t i = 0; i < brain::ui::NO_OF_LEDS; i++) {
+	for (uint8_t i = 0; i < NO_OF_LEDS; i++) {
 		if ((mask >> i) & 0x1u) {
 			printf(" %u", static_cast<unsigned>(i));
 			any = true;
@@ -938,26 +932,10 @@ void LedsTest::spin_wait_ms(uint32_t ms) const {
 	sleep_ms(ms);
 }
 
-void LedsTest::wait_with_leds_update(brain::ui::Leds& leds, uint32_t ms) const {
+void LedsTest::wait_with_leds_update(Leds& leds, uint32_t ms) const {
 	absolute_time_t start = get_absolute_time();
 	while (static_cast<uint32_t>(absolute_time_diff_us(start, get_absolute_time()) / 1000) < ms) {
 		leds.update();
-		sleep_ms(kPollStepMs);
-	}
-}
-
-void LedsTest::wait_with_led_update(brain::ui::Led& led, uint32_t ms) const {
-	absolute_time_t start = get_absolute_time();
-	while (static_cast<uint32_t>(absolute_time_diff_us(start, get_absolute_time()) / 1000) < ms) {
-		led.update();
-		sleep_ms(kPollStepMs);
-	}
-}
-
-void LedsTest::wait_with_button_led_update(brain::ui::ButtonLed& led, uint32_t ms) const {
-	absolute_time_t start = get_absolute_time();
-	while (static_cast<uint32_t>(absolute_time_diff_us(start, get_absolute_time()) / 1000) < ms) {
-		led.update();
 		sleep_ms(kPollStepMs);
 	}
 }

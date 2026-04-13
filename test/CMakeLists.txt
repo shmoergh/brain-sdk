@@ -2,21 +2,24 @@
 # This executable contains manual hardware test apps.
 
 add_executable(test
+    apps/audio_processor_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp
     apps/multipot_test.cpp
+    apps/pot_read_stability_test.cpp
     apps/storage_test.cpp
     apps/storage_persistence_check_test.cpp
 )
 
-# Link against all Brain SDK libraries
+# Link against the simplified Brain SDK target
 target_link_libraries(test
     pico_stdlib
-    brain-common
-    brain-io
-    brain-ui
-    brain-utils
+    brain
+)
+
+target_compile_definitions(test PRIVATE
+    BRAIN_USE_ALL=1
 )
 
 # Enable USB output for printf

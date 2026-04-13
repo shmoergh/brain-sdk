@@ -35,12 +35,13 @@ brain_storage_configure_flash_reservation()
 # Initialize the Pico SDK
 pico_sdk_init()
 
-# Add subdirectories for libraries
-add_subdirectory(lib)
+# Add SDK library
+add_subdirectory(brain)
 
 # Only build sandbox firmware when this is the top-level project
 # (not when included as a submodule in another project)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory(test)
     add_subdirectory(sandbox)
+    add_subdirectory(examples)
 endif()

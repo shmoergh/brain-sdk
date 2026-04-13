@@ -1,5 +1,7 @@
 #pragma once
 
+#include "brain/brain.h"
+
 namespace sandbox::apps {
 class Blink {
 public:
@@ -9,8 +11,8 @@ public:
 	void update();
 
 private:
+	Brain brain_;
 	unsigned int interval_ms_;
 	bool led_on_;
-	bool led_available_;
 };
 } // namespace sandbox::apps

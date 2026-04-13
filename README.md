@@ -5,7 +5,7 @@ The Brain SDK is a firmware and library collection for the Brain module of the [
 ## Features
 Brain uses a Raspberry Pi Pico or Pico 2 (depending on what the builder chose to connect) in it's Core board. It's a universal digital module for Eurorack synths with flexible inputs and outputs.
 - 2 analog inputs for CV and audio signals using 2 of the the Pico's ADCs
-- 2 analog outputs which uses an MCP4822 DAC. The output of the DAC can be programmatically AC or DC coupled, using a CD4053 IC.
+- 2 analog outputs which uses an MCP4822 DAC. Output range can be set per channel to `0..10V` or `-5..+5V` (hardware offset path via CD4053).
 - 1 pulse input, using digital GPIO, preceded by a transistor switch (for safety)
 - 1 pulse output, using digital GPIO with a simple transistor switch
 - 1 dedicated MIDI input. This input is not universal because MIDI requires special input circuitry
@@ -21,29 +21,7 @@ As the Pico and Pico2 are pin compatible, the newer version can be used for heav
 
 Anyone can write their own apps for the Brain module. The SDK provides easy access to all built-in I/O and interface components, along with utility classes for common tasks. A boilerplate shell script makes it easy to get started with new apps/firmware.
 
-### Core Components
-
-#### I/O Components (`brain::io`)
-- [Audio/CV Input](docs/AUDIO_CV_IN.md) - Two-channel analog input with voltage conversion
-- [Audio/CV Output](docs/AUDIO_CV_OUT.md) - Two-channel DAC output with DC/AC coupling
-- [Pulse I/O](docs/PULSE.md) - Digital pulse input/output for gates and triggers
-- [MIDI Parser](docs/MIDI_PARSER.md) - UART-based MIDI input with message parsing
-
-#### UI Components (`brain::ui`)
-- [Button](docs/BUTTON.md) - Debounced pushbutton input with callbacks
-- [ButtonLed](docs/BUTTON_LED.md) - Dedicated on/off controller for the illuminated button LED
-- [LED](docs/LED.md) - Individual LED control with runtime-selectable SIMPLE/PWM mode
-- [Leds](docs/LEDS.md) - Group LED controller for all 6 Brain module LEDs
-- [Pots](docs/POTS.md) - Multiplexed potentiometer reader
-
-#### Utilities (`brain::utils`)
-- [MIDI to CV](docs/MIDI_TO_CV.md) - Complete MIDI-to-CV converter with note priority
-- [Utilities](docs/UTILITIES.md) - RingBuffer and helper functions (map, clamp)
-
-#### Storage (`brain::storage`)
-- [Storage](docs/STORAGE.md) - Reserved flash layout, calibration persistence, and app blob APIs
-- [Storage Release Notes](docs/RELEASE_NOTES_STORAGE.md) - API additions, migration requirements, and validation summary
-
+### [👉 SDK Docs](./docs/)
 
 ### Folder Structure
 ```
@@ -51,17 +29,13 @@ brain-sdk/
 ├── build/         # CMake build output (default)
 ├── build-rp2040/  # Optional board-specific build output
 ├── build-rp2350/  # Optional board-specific build output
+├── brain/         # SDK module
+│   ├── brain.h    # Main entry point (Brain wrapper)
+│   ├── include/   # Component headers (core + utils)
+│   └── src/       # Component implementations
 ├── docs/          # Documentation and conventions
-├── lib/           # Reusable libraries
-│   ├── brain-common/    # Common definitions and GPIO setup
-│   ├── brain-io/        # I/O components (ADC, DAC, MIDI, Pulse)
-│   ├── brain-ui/        # UI components (Button, LED, Leds, Pots)
-│   └── brain-utils/     # Utilities (MIDI to CV, RingBuffer, helpers)
 ├── pico-sdk/      # Pico SDK (as a git submodule)
 ├── scripts/       # Helper scripts (e.g. new-brain-app.sh)
 ├── test/          # Manual hardware test apps and docs
 └── sandbox/       # Thin firmware wrapper for quick experiments
 ```
-
-## Development
-See [SETUP](docs/SETUP.md) for setup instructions, prerequisites, and workflow details.

@@ -6,13 +6,14 @@ add_executable(sandbox
     apps/blink.cpp
 )
 
-# Link against all Brain SDK libraries
+# Link against the simplified Brain SDK target
 target_link_libraries(sandbox
     pico_stdlib
-    brain-common
-    brain-io
-    brain-ui
-    brain-utils
+    brain
+)
+
+target_compile_definitions(sandbox PRIVATE
+    BRAIN_USE_ALL=1
 )
 
 # Enable USB/UART output for printf
