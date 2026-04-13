@@ -207,7 +207,7 @@ private:
 	int32_t signal_min_millivolts_ = 0;
 	int32_t signal_span_millivolts_ = 0;
 	uint16_t channel_raw_[2] = {0, 0};
-	bool audio_cv_dma_enabled_ = true;
+	bool audio_cv_dma_enabled_ = false;
 	bool audio_cv_dma_active_ = false;
 	int audio_cv_dma_channel_ = -1;
 	uint16_t audio_cv_dma_samples_[2] = {0, 0};

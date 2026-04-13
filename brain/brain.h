@@ -689,7 +689,7 @@ private:
 	}
 
 	bool adc_optimization_enabled_ = true;
-	bool audio_cv_dma_enabled_ = true;
+	bool audio_cv_dma_enabled_ = false;
 	bool shared_pot_sampling_enabled_ = true;
 
 #if BRAIN_CFG_LEDS
