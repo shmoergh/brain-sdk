@@ -8,6 +8,7 @@ The Brain SDK is a firmware and library collection for the Brain module of the [
 
 - [Installation](./INSTALLATION.md)
 - [Getting Started](./GETTING_STARTED.md)
+- [Preserving CV calibration](./PRESERVING_CV_CALIBRATION.md)
 - [2.0 Migration](./2.0_MIGRATION.md)
 
 #### Components
