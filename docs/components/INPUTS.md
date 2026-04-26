@@ -1,11 +1,15 @@
 # Inputs Component
 
-`Inputs` is the Brain SDK class for reading the module’s input side hardware. It combines two things in one API:
+`Inputs` is the Brain SDK class for reading the module's input side hardware. It combines two things in one API:
 
 1. audio/CV input channels (via ADC)
 2. pulse input (digital trigger/gate style input)
 
 So instead of handling ADC setup, scaling, GPIO edge handling, and optional filtering yourself, you use `Inputs` to read raw or millivolt values of `In 1` / `In 2` and react to pulse rise/fall events happening on `Pulse In` via callbacks or polling.
+
+Audio/CV channels are sampled continuously by the shared `AdcEngine` — `Inputs` simply subscribes to ADC inputs A and B at init and the engine pushes fresh values into the cache via DMA. Reads (`get_raw_*`, `get_voltage_millivolts_*`) never block. `update_audio_cv()` is kept for source compatibility but is no longer required to keep values fresh.
+
+`Inputs` runs concurrently with `Pots` and `AudioProcessor` — there is no longer any restriction on which combination of these components can be active.
 
 ## Audio/CV inputs
 
@@ -72,10 +76,10 @@ int main() {
   Creates an input handler for analog A/B plus pulse input. You can override pulse GPIO.
 
 - `~Inputs()`
-  Destructor. Cleans up active audio-CV DMA resources if needed.
+  Destructor. Releases the audio/CV `AdcEngine` subscriptions.
 
 - `bool init_audio_cv()`
-  Initializes analog input path (ADC + optional DMA path).
+  Subscribes to audio/CV ADC channels A and B via `AdcEngine` and prepares voltage conversion parameters.
 
 - `bool init_pulse()`
   Initializes pulse input GPIO path and related state.
@@ -89,13 +93,13 @@ int main() {
 ### Update/runtime processing
 
 - `void update_audio_cv()`
-  Refreshes analog channel values (DMA path when enabled/active, fallback direct ADC reads otherwise).
+  Legacy no-op. Audio/CV values are kept fresh continuously by `AdcEngine`. Safe to keep calling for source compatibility.
 
 - `void pulse_poll()`
   Polls pulse input state, applies glitch filter, and triggers callbacks on edges.
 
 - `void update()`
-  Convenience combined update (`update_audio_cv()` + `pulse_poll()`).
+  Convenience wrapper that calls `pulse_poll()` (and the legacy `update_audio_cv()` no-op).
 
 ### Analog read
 
@@ -117,16 +121,18 @@ int main() {
 - `int32_t get_voltage_millivolts_channel_b() const`
   Returns channel B converted signal voltage in mV.
 
-### DMA policy / status API
+### Legacy DMA-policy API (no-op shims)
 
-- `void set_audio_cv_dma_enabled(bool enabled)`
-  Enables/disables DMA-based analog sampling preference. Disabling releases active DMA resources.
+These setters/getters are kept so apps written against earlier SDK versions keep compiling. Under the unified `AdcEngine`, audio/CV sampling is always DMA-driven.
+
+- `void set_audio_cv_dma_enabled(bool)`
+  No-op.
 
 - `bool is_audio_cv_dma_enabled() const`
-  Returns whether DMA sampling is currently enabled.
+  Always returns `true`.
 
 - `bool is_audio_cv_dma_active() const`
-  Returns whether DMA channel/path is currently active.
+  Returns `true` when `init_audio_cv()` has subscribed to `AdcEngine`.
 
 
 ---

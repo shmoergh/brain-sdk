@@ -4,13 +4,12 @@
 
 Use it when you need a fixed sample-period callback that processes input audio/CV and writes output in a tight real-time loop.
 
-It owns the low-level runtime path for:
+It owns:
 
-- ADC sampling
-- DMA ring transport
-- optional pot-mux sampling
-- timer ISR scheduling
-- DAC channel-A output writes
+- timer ISR scheduling at the configured sample period
+- DAC channel-A output writes (SPI)
+
+ADC sampling is handled by the shared `AdcEngine` — `AudioProcessor` subscribes to the audio input ADC channel at `init()` and pulls the latest sample from the engine each tick. Pot mux sampling is owned exclusively by `Pots`; `AudioProcessor` no longer touches multiplexer GPIOs or runs its own pot averaging. This means you can run `Pots`, `Inputs`, and `AudioProcessor` together with no special setup or restrictions.
 
 
 ## Processing model
@@ -20,15 +19,17 @@ You provide a callback:
 int16_t (*)(int16_t input_sample, const AudioProcessorFrame* frame, void* user_ctx)
 ```
 
-That callback is called once per sample tick.
-`frame` carries tick metadata, flags, and pot snapshots (if enabled).
+That callback is called once per sample tick. `frame` carries tick metadata and flags.
+
+Pot snapshots (`frame.pot_raw_u8[]`, `frame.pot_count`) are populated only when `AudioProcessor` has been wired to a `Pots` instance via `set_pots(...)`. `Brain::init_audio_processor(...)` does this automatically when `Pots` is also initialized; if you build directly without `Brain`, call `audio_processor.set_pots(&pots)` before `init(...)`.
 
 
 ## Example
 
-This example shows the typical wrapper-based setup for `AudioProcessor`: define a DSP callback, create a small state object, and initialize the processor through `brain.init_audio_processor(...)` with an explicit config. Once initialized, `AudioProcessor` owns the real-time ADC/DMA/timer/DAC path and calls your callback at the configured sample period. The main loop stays lightweight and can be used for monitoring (for example reading stats), while the actual sample processing happens inside the callback.
+This example shows the typical wrapper-based setup: init `Pots` and `AudioProcessor` together, define a DSP callback that reacts to a knob, and let `Brain::init_audio_processor(...)` wire everything up. Once initialized, the audio timer fires every `sample_period_us` and your callback runs in ISR context; the main loop stays lightweight and can be used for monitoring (for example reading stats).
 
 ```cpp
+#define BRAIN_USE_POTS 1
 #define BRAIN_USE_AUDIO_PROCESSOR 1
 #include "brain/brain.h"
 
@@ -55,14 +56,13 @@ static int16_t lowpass(int16_t in, const AudioProcessorFrame* frame, void* ctx) 
 int main() {
 	stdio_init_all();
 
+	// Init Pots first so AudioProcessor can be wired to it automatically
+	// and pot values appear in `frame->pot_raw_u8[]`.
+	if (!brain_init_succeeded(brain.init_pots(create_default_pots_config(3, 8)))) return 1;
+
 	FxState state{};
 	AudioProcessorConfig cfg{};
 	cfg.sample_period_us = 23;    // ~43.5kHz
-	cfg.enable_pot_mux = true;
-	cfg.pot_count = 3;
-	cfg.pot_settle_discard_samples = 2;
-	cfg.pot_average_samples = 4;
-	cfg.max_dma_drain_samples_per_tick = 64;
 
 	BrainInitStatus status = brain.init_audio_processor(cfg, lowpass, &state);
 	if (!brain_init_succeeded(status)) return 1;
@@ -78,10 +78,12 @@ int main() {
 ## Audio processor API
 
 ### Core lifecycle
+- `void set_pots(Pots* pots)`
+  Wires up an optional `Pots` instance so `frame->pot_raw_u8[]` and `get_pot_raw_u8(i)` return live values. `Brain::init_audio_processor(...)` calls this automatically when `Pots` is initialized; only needed when building without `Brain`.
 - `BrainInitStatus init(const AudioProcessorConfig& config, ProcessSampleFn process_sample_fn, void* user_ctx = nullptr)`
-  Initializes ADC/DMA/SPI/timer pipeline and starts processing loop.
+  Initializes the SPI DAC, subscribes to the audio input channel via `AdcEngine`, and starts the sample-rate timer.
 - `void stop()`
-  Stops processing and releases owned runtime resources.
+  Stops the timer, releases the SPI DAC, and unsubscribes from `AdcEngine`.
 - `bool is_initialized() const`
   Returns initialization/running state.
 
@@ -91,9 +93,9 @@ int main() {
 
 ### Runtime telemetry
 - `AudioProcessorStats get_stats() const`
-  Returns counters such as tick count, overruns, pot mux switches, settle discards.
+  Returns tick and overrun counters. (`pot_mux_switch_count` and `pot_settle_discard_count` remain in the struct for source compatibility but are always `0` — pot mux work happens inside `Pots` now.)
 - `uint16_t get_pot_raw_u8(uint8_t index) const`
-  Returns latest buffered pot snapshot value (0..255 style scale in frame context).
+  Legacy shim. Returns the latest pot value from the wired `Pots` instance, mapped to 8 bits. Returns `0` if no `Pots` was wired. New code should call `pots.get(i)` directly.
 
 
 ## Config and callback types
@@ -101,18 +103,18 @@ int main() {
 ### `AudioProcessorConfig`
 - `sample_period_us`
   Tick period in microseconds (`23` default).
-- `enable_pot_mux`
-  Enables pot sampling in processor path.
-- `pot_count`
-  Number of pots included in frame snapshots.
-- `pot_settle_discard_samples`
-  Number of post-switch samples discarded for settle.
-- `pot_average_samples`
-  Averaging count for pot read stability.
-- `max_dma_drain_samples_per_tick`
-  Safety bound for DMA drain workload per tick.
 - `spi_baud_hz`
   SPI baud for DAC writes.
+
+#### Legacy fields (ignored at runtime)
+
+These fields remain in the struct so existing code keeps compiling. They no longer drive behavior because pot sampling is owned by `Pots`/`AdcEngine`:
+
+- `enable_pot_mux` — ignored. Pot sampling is configured on the `Pots` side.
+- `pot_count` — ignored. Pot count is configured on the `Pots` side.
+- `pot_settle_discard_samples` — ignored. Use `PotsConfig::settle_discard_samples`.
+- `pot_average_samples` — ignored. Use `PotsConfig::samples_per_read`.
+- `max_dma_drain_samples_per_tick` — ignored. DMA draining is owned by `AdcEngine`.
 
 ### `AudioProcessorFrame`
 - `tick`
@@ -125,10 +127,10 @@ int main() {
   Pot snapshots.
 
 ### `AudioProcessorStats`
-- `tick_count`
-- `overrun_count`
-- `pot_mux_switch_count`
-- `pot_settle_discard_count`
+- `tick_count` — number of sample-rate timer ticks since init.
+- `overrun_count` — ticks that exceeded `sample_period_us` of work.
+- `pot_mux_switch_count` — legacy field, always `0`.
+- `pot_settle_discard_count` — legacy field, always `0`.
 
 ### Callback type
 - `using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFrame* frame, void* user_ctx);`
@@ -152,30 +154,9 @@ int main() {
 }
 ```
 
-## Ownership guardrail example (with wrapper)
-```cpp
-#define BRAIN_USE_POTS 1
-#define BRAIN_USE_AUDIO_PROCESSOR 1
-#include "brain/brain.h"
+## Integration notes
 
-Brain brain;
-
-static int16_t pass(int16_t in, const AudioProcessorFrame*, void*) { return in; }
-
-int main() {
-	if (!brain_init_succeeded(brain.init_pots())) return 1;
-
-	AudioProcessorConfig cfg{};
-	BrainInitStatus st = brain.init_audio_processor(cfg, pass, nullptr);
-	(void)st; // expected kBrainInitStatusFailed due to ownership conflict
-}
-```
-
-## Integration/ownership notes
-When using `Brain`, audio processor ownership is exclusive vs `inputs`/`pots`/`pot_multi` runtime paths:
-
-- If audio processor is active, `init_inputs`, `init_pots`, `init_pot_multi` fail.
-- If those modules are already active, `init_audio_processor` fails.
+`AudioProcessor` shares the ADC with `Pots` and `Inputs` through the `AdcEngine` singleton. There are no init-order constraints and no exclusion between modules — any combination can run concurrently. `Brain::init_audio_processor(...)` automatically wires `AudioProcessor` to `Pots` (via `set_pots`) when both are present, so pot snapshots flow into your callback's `frame->pot_raw_u8[]` without extra setup.
 
 ## Real-time safety notes
 Inside `ProcessSampleFn`, avoid:

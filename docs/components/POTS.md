@@ -1,6 +1,10 @@
 # Pots Component
 
-`Pots` class reads the Brain potentiometers. The Brain hardware uses a multiplexer to read its three pots through a single ADC channel (the other two channels are used by the two audio/CV inputs). The multiplexer needs some time between two reads, otherwise pot readings will "bleed/crosstalk", ie. the reading of one pot will have an effect on another. To avoid crosstalk and jitter we use buffered pot reads which means we read a stored pot value that was captured earlier.
+`Pots` class reads the Brain potentiometers. The Brain hardware uses a multiplexer to read its three pots through a single ADC channel (the other two channels are used by the two audio/CV inputs). The multiplexer needs some time between two reads, otherwise pot readings will "bleed/crosstalk", ie. the reading of one pot will have an effect on another.
+
+Under the hood `Pots` subscribes to the pot mux ADC channel via the shared `AdcEngine`. ADC samples flow in continuously via DMA, the multiplexer is advanced between samples, and a small number of post-switch samples are discarded so crosstalk never reaches your code. **Reads never block** — `get(i)` simply returns the latest cached value. There is no need to call `update_pots()` or `scan()` to keep values fresh; both remain only for backwards compatibility.
+
+`Pots` runs concurrently with `Inputs` and `AudioProcessor` — the old "must not mix" restriction is gone.
 
 
 ## Quick Start
@@ -56,56 +60,50 @@ int main() {
 
 ### **Sampling behavior controls**
 
-- `void set_simple(bool simple);`
-
-	Enables/disables simple read mode. Also invalidates buffered cache so next buffered read is refreshed.
-
-- `void set_optimized_sampling_enabled(bool enabled);`
-
-	Turns optimized sampling path on/off. Also invalidates buffered cache.
-
-- `bool is_optimized_sampling_enabled() const;`
-
-	Returns current optimized-sampling flag.
-
 - `void set_output_resolution(uint8_t resolution);`
 
-	Changes output resolution scaling (e.g. 8-bit, etc.). Invalidates buffer.
-
-- `void set_settling_delay_us(uint32_t delay);`
-
-	Sets mux/ADC settling delay. Invalidates buffer.
+	Changes output resolution scaling (e.g. 8-bit).
 
 - `void set_samples_per_read(uint8_t samples);`
 
-	Sets averaging sample count for non-simple path. Invalidates buffer.
+	Sets the number of ADC samples averaged per pot before the buffered value is updated. Higher = smoother but slower to react.
 
 - `void set_change_threshold(uint16_t threshold);`
 
-	Sets threshold for change callback triggering.
+	Sets threshold for `on_change` callback triggering.
 
+#### Legacy setters (no-op shims)
+
+These are kept so existing apps keep compiling. They have no runtime effect under the unified `AdcEngine` path:
+
+- `void set_simple(bool);` — no-op. There is only one read path (DMA-driven).
+- `void set_optimized_sampling_enabled(bool);` — no-op. Optimized sampling is always on.
+- `bool is_optimized_sampling_enabled() const;` — always returns `true`.
+- `void set_settling_delay_us(uint32_t);` — no-op. Settle behavior is governed by `PotsConfig::settle_discard_samples`.
 
 ### **Read/update functions**
 
-- `void scan();`
-
-	Reads all configured pots, updates buffered values, and fires on_change callback when threshold is exceeded.
-
-- `uint16_t get_single(uint8_t index);`
-
-	Immediate direct read of one pot (maps ADC raw to configured output resolution).
+All reads return the latest cached value populated by `AdcEngine` callbacks. None of them block or touch ADC registers.
 
 - `uint16_t get(uint8_t index);`
 
-	Buffered-safe read. If buffer is invalid, it performs scan() first, then returns buffered value.
+	Returns the latest mapped pot value (cached).
 
 - `uint16_t get_buffered(uint8_t index) const;`
 
-	Returns currently buffered value only (no ADC read).
+	Identical to `get(index)`. Kept for source compatibility.
+
+- `uint16_t get_single(uint8_t index);`
+
+	Legacy alias of `get(index)`. Used to perform an immediate hardware read; now returns the cached value.
 
 - `uint16_t get_raw(uint8_t index);`
 
-	Immediate raw ADC read (12-bit style raw value, before output-resolution scaling).
+	Returns the latest averaged raw 12-bit ADC value (before output-resolution mapping).
+
+- `void scan();`
+
+	Legacy no-op. Pot values are kept fresh continuously; calling this is harmless and unnecessary. Retained so `Brain::update_pots()` keeps compiling.
 
 - `uint8_t get_output_resolution() const;`
 
@@ -115,12 +113,11 @@ int main() {
 
 	Returns max value for current output resolution (e.g. 255 for 8-bit).
 
-
 ### **Callback / metadata**
 
 - `void set_on_change(std::function<void(uint8_t, uint16_t)> cb);`
 
-	Registers callback called from scan() when value change exceeds threshold.
+	Registers a callback fired automatically (from the `AdcEngine` drain loop) whenever a pot value changes by more than `change_threshold`.
 
 - `uint8_t get_num_pots() const;`
 

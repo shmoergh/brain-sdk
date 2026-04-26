@@ -225,37 +225,19 @@ You can call `init_*` functions multiple times, it won't re-initialize or break 
 - `brain.audio_processor.get_stats()`
 - `brain.audio_processor.get_pot_raw_u8(index)`
 
-## Audio Processor guardrails
+## Concurrent ADC use
 
-`AudioProcessor` owns ADC/DMA + pot sampling when active, so `Brain` enforces runtime guardrails to make sure they don't conflict with other modules.
+`Pots`, `Inputs`, and `AudioProcessor` all read the ADC. Under the hood they share a single `AdcEngine` that owns the ADC + DMA + round-robin scheduling. Each component subscribes to the channels it cares about and receives samples via callback. This means you can freely combine them — there is no init order to remember and no exclusion between modules:
 
-If `audio_processor` is already initialized:
+- `init_inputs()`, `init_pots(...)`, `init_pot_multi(...)`, and `init_audio_processor(...)` can be called in any order, in any combination, all at the same time.
+- `update_inputs()` and `update_pots()` are no-ops if their module is not initialized; they are also unnecessary for keeping pot/CV values fresh, since `AdcEngine` continuously updates them in the background.
 
-- `init_inputs()` will fail
-- `init_pots(...)` will fail
-- `reconfigure_pots(...)` will fail
-- `init_pot_multi(...)` will fail
+`AdcEngine` is initialized lazily on first subscription and is never visible in app code.
 
-The other way around, if `inputs`, `pots`, or `pot_multi` are already initialized:
+## Legacy ADC switches
 
-- `init_audio_processor(...)` will fail
+These setters remain on the `Brain` API for source compatibility with apps written against earlier SDK versions. Under the unified `AdcEngine` they have no runtime effect — DMA-driven sampling is always on for both `Inputs` and `Pots`, and there is no longer a "fallback" path:
 
-You can call these updates but they won't do anything (no-op):
-
-- `update_inputs()` is a no-op when inputs are not initialized
-- `update_pots()` is a no-op when pots are not initialized
-- `update_pot_multi()` / `update_pot_multi_single()` remain no-op-safe when pot-multi is not initialized
-
-## ADC behavior
-
-`Brain` gives you switches for how ADC-based modules behave. These exist because `Inputs` and `Pots` both rely on ADC and there are optimized vs. fallback read modes. The controls are:
-
-- `enable_adc_optimization(bool)` — Master switch, default: `true`. If `false`, the ADC functions below are effectively disabled.
-- `set_audio_cv_dma_enabled(bool)` Controls whether `Inputs` uses DMA for sampling audio/CV. Default: `false`.
-	- Enabling DMA just enables the mode; actual DMA setup is attempted during init/update, with fallback to non-DMA reads if setup fails.
-
-- `set_shared_pot_sampling_enabled(bool)` — Controls whether `Pots` uses the optimized shared/buffered pot sampling path. Default: `true`.
-	- When set `true` `Pots` uses its optimized/stable read path (more settling/averaging behavior). You usually get smoother, less jumpy knob values.
-	- When `false`, `Pots` uses a simpler/faster path. Reads can be noisier or less stable, but behavior is more direct.
-
-Set these flags before calling `init_*()`.
+- `enable_adc_optimization(bool)` — no-op. Optimized DMA-driven sampling is always on.
+- `set_audio_cv_dma_enabled(bool)` — no-op. `Inputs` audio/CV is always DMA-sampled.
+- `set_shared_pot_sampling_enabled(bool)` — no-op. `Pots` always uses the unified DMA path. Sample averaging stability is now controlled by `PotsConfig::samples_per_read` and `settle_discard_samples`.
