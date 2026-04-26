@@ -9,16 +9,17 @@ static constexpr uint8_t kMaxPots = 4;
 static constexpr uint8_t kDefaultPotsOutputResolution = 8;
 
 struct PotsConfig {
-	bool simple;
+	bool simple;  // Legacy: ignored under DMA-driven AdcEngine path.
 	uint8_t adc_gpio;
 	uint8_t s0_gpio;
 	uint8_t s1_gpio;
 	uint8_t num_pots;
 	uint8_t channel_map[kMaxPots];
 	uint8_t output_resolution;
-	uint32_t settling_delay_us;
+	uint32_t settling_delay_us;	 // Legacy: ignored. Settle is now `samples_per_read`-driven.
 	uint8_t samples_per_read;
 	uint16_t change_threshold;
+	uint8_t settle_discard_samples;	 // Samples to drop after each mux switch (default 2).
 };
 
 PotsConfig create_default_config(
@@ -33,137 +34,107 @@ public:
 	Pots();
 
 	/**
-	 * @brief Initializes pot mux GPIO/ADC and seeds buffered values from hardware.
+	 * @brief Releases the underlying `AdcEngine` subscription.
+	 */
+	~Pots();
+
+	/**
+	 * @brief Initializes mux GPIOs and subscribes to the pot mux ADC channel via `AdcEngine`.
 	 * @param cfg Pot acquisition config:
-	 * - `simple`: `true` for fastest single-read behavior, `false` for stabilized sampling.
 	 * - `adc_gpio`: ADC input pin connected to pot mux output.
 	 * - `s0_gpio`, `s1_gpio`: mux select lines.
 	 * - `num_pots`: number of pots to read (clamped to `kMaxPots`).
 	 * - `channel_map`: maps logical pot index to mux channel.
 	 * - `output_resolution`: bit depth for returned values (mapped from 12-bit ADC).
-	 * - `settling_delay_us`: delay after mux switch before reading.
-	 * - `samples_per_read`: averaging depth for stabilized mode.
+	 * - `samples_per_read`: averaging depth.
+	 * - `settle_discard_samples`: samples discarded after each mux switch (default 2).
 	 * - `change_threshold`: minimum delta that triggers `on_change` callback.
+	 * - `simple`, `settling_delay_us`: legacy fields, ignored.
 	 */
 	void init(const PotsConfig& cfg);
 
 	/**
 	 * @brief Applies a new configuration without creating a new `Pots` object.
-	 * @param cfg Same semantics as `init(...)`; this call reinitializes hardware and buffers.
 	 */
 	void reconfigure(const PotsConfig& cfg);
 
 	/**
-	 * @brief Switches between fast simple sampling and stabilized sampling strategy.
-	 * @param simple `true` uses minimal settle + single-sample fast path.
-	 * `false` uses longer settle and averaged reads for better stability.
+	 * @brief Legacy API: ignored. The DMA-driven state machine has a single read path.
 	 */
 	void set_simple(bool simple);
 
 	/**
-	 * @brief Enables/disables optimized sampling behavior.
-	 * @param enabled `true` allows optimized stabilized path.
-	 * `false` forces the fast direct-like read behavior even when `simple` is false.
+	 * @brief Legacy API: ignored. Optimized sampling is the only path under `AdcEngine`.
 	 */
 	void set_optimized_sampling_enabled(bool enabled);
 
 	/**
-	 * @brief Reports optimized sampling flag state.
-	 * @return `true` when optimized sampling path is enabled.
+	 * @brief Legacy API: always returns `true` under the unified `AdcEngine`.
 	 */
 	bool is_optimized_sampling_enabled() const;
 
-	/**
-	 * @brief Sets output bit resolution used by `get*()` mapped pot values.
-	 * @param resolution Target resolution in bits. Effective max is capped internally (up to 15 bits for output max math).
-	 */
 	void set_output_resolution(uint8_t resolution);
 
 	/**
-	 * @brief Sets mux settling delay after channel switch.
-	 * @param delay Settling delay in microseconds before sampling selected channel.
+	 * @brief Legacy API: ignored. Settle time is governed by `settle_discard_samples`.
 	 */
 	void set_settling_delay_us(uint32_t delay);
 
-	/**
-	 * @brief Sets averaging depth used in stabilized sampling mode.
-	 * @param samples Number of ADC samples to average per channel read (`0` is treated as `1` internally).
-	 */
 	void set_samples_per_read(uint8_t samples);
-
-	/**
-	 * @brief Sets callback deadband for change detection.
-	 * @param threshold Minimum absolute value delta required to trigger `on_change` callback.
-	 */
 	void set_change_threshold(uint16_t threshold);
 
 	/**
-	 * @brief Scans all configured pots and refreshes buffered values.
+	 * @brief Legacy API: no-op. Pot values are kept fresh by `AdcEngine` callbacks.
 	 *
-	 * Also runs change detection and triggers `set_on_change()` callback for pots that moved beyond threshold.
+	 * Retained so that existing callers (e.g. `Brain::update_pots()`) keep compiling.
 	 */
 	void scan();
 
 	/**
-	 * @brief Returns a one-shot sampled value for the selected pot.
+	 * @brief Returns the latest mapped pot value for the selected index.
 	 * @param index Logical pot index.
-	 * @return Freshly sampled value mapped to configured output resolution, or `0` for invalid index.
+	 * @return Latest cached mapped value, or `0` for invalid index.
 	 */
 	uint16_t get_single(uint8_t index);
 
 	/**
-	 * @brief Returns the standard pot value for the selected index.
-	 * @param index Logical pot index.
-	 * @return Buffered value. If buffer is stale, this method triggers a scan first.
+	 * @brief Returns the latest mapped pot value for the selected index.
 	 */
 	uint16_t get(uint8_t index);
 
 	/**
-	 * @brief Returns the most recently buffered scan value for the selected pot.
-	 * @param index Logical pot index.
-	 * @return Last scanned mapped value without forcing a new read, or `0` for invalid index.
+	 * @brief Returns the latest cached mapped value without touching hardware.
 	 */
 	uint16_t get_buffered(uint8_t index) const;
 
 	/**
-	 * @brief Returns the latest raw ADC reading for the selected input channel.
-	 * @param index Logical pot index.
-	 * @return Immediate 12-bit ADC sample from mapped mux channel (0..4095), or `0` for invalid index.
+	 * @brief Returns the latest averaged raw 12-bit ADC value for the selected pot.
 	 */
 	uint16_t get_raw(uint8_t index);
 
-	/**
-	 * @brief Returns current mapped output resolution.
-	 * @return Current output resolution in bits.
-	 */
 	uint8_t get_output_resolution() const;
-
-	/**
-	 * @brief Returns maximum representable mapped value for current output resolution.
-	 * @return Maximum representable pot value for the current output resolution.
-	 */
 	uint16_t get_output_max() const;
 
-	/**
-	 * @brief Registers callback for pot movement events detected by `scan()`.
-	 * @param cb Callback with `(index, value)` where `index` is pot index and `value` is mapped pot value.
-	 */
 	void set_on_change(std::function<void(uint8_t, uint16_t)> cb);
 
-	/**
-	 * @brief Returns number of logical pots currently configured.
-	 * @return Number of physical pots configured in this `Pots` instance.
-	 */
 	uint8_t get_num_pots() const;
 
 private:
 	void set_mux_channel(uint8_t ch);
-	uint16_t read_channel_once(uint8_t ch);
+	void on_adc_sample(uint16_t raw);
+	void release_subscription();
+	uint16_t map_to_output(uint16_t raw) const;
 
 	PotsConfig config_;
-	uint16_t last_values_[kMaxPots];
+	uint16_t buffered_raw_[kMaxPots];
 	uint16_t buffered_values_[kMaxPots];
-	bool buffer_valid_ = false;
-	bool optimized_sampling_enabled_ = true;
+	uint16_t last_values_[kMaxPots];
+
+	uint32_t pot_accumulator_ = 0;
+	uint8_t pot_samples_collected_ = 0;
+	uint8_t pot_discard_remaining_ = 0;
+	uint8_t active_pot_index_ = 0;
+
 	std::function<void(uint8_t, uint16_t)> on_change_;
+	uint32_t adc_token_ = 0;
 };

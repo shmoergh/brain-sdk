@@ -91,21 +91,20 @@ public:
 	void update();
 
 	/**
-	 * @brief Enables or disables DMA-backed CV/audio ADC sampling.
-	 * @param enabled `true` prefers DMA sampling for channels A/B.
-	 * `false` disables DMA and forces direct `adc_read()` sampling on updates.
+	 * @brief Legacy API: requested DMA-backed CV/audio sampling. Now a no-op.
+	 *
+	 * Under the unified `AdcEngine`, audio CV channels are always DMA-sampled.
+	 * This setter is retained for source compatibility and has no runtime effect.
 	 */
 	void set_audio_cv_dma_enabled(bool enabled);
 
 	/**
-	 * @brief Reports whether DMA mode is requested for CV/audio reads.
-	 * @return `true` if DMA mode is enabled in configuration; `false` if direct read mode is requested.
+	 * @brief Legacy API: always returns `true` under the unified `AdcEngine`.
 	 */
 	bool is_audio_cv_dma_enabled() const;
 
 	/**
-	 * @brief Reports whether the DMA engine is currently active for CV/audio channels.
-	 * @return `true` when DMA channel allocation/configuration succeeded and DMA path is running.
+	 * @brief Legacy API: returns whether `AdcEngine` is sampling the audio CV channels.
 	 */
 	bool is_audio_cv_dma_active() const;
 
@@ -195,9 +194,7 @@ public:
 private:
 	int32_t adc_to_millivolts(uint16_t adc_value) const;
 	void calculate_conversion_parameters();
-	bool init_audio_cv_dma();
-	void release_audio_cv_dma();
-	void sample_audio_cv_dma();
+	void release_audio_cv_subscriptions();
 
 	static void gpio_irq_handler(uint gpio, uint32_t events);
 	void handle_edge(bool raw_state);
@@ -206,11 +203,9 @@ private:
 	int32_t adc_span_millivolts_ = 1;
 	int32_t signal_min_millivolts_ = 0;
 	int32_t signal_span_millivolts_ = 0;
-	uint16_t channel_raw_[2] = {0, 0};
-	bool audio_cv_dma_enabled_ = false;
-	bool audio_cv_dma_active_ = false;
-	int audio_cv_dma_channel_ = -1;
-	uint16_t audio_cv_dma_samples_[2] = {0, 0};
+	volatile uint16_t channel_raw_[2] = {0, 0};
+	uint32_t adc_token_a_ = 0;
+	uint32_t adc_token_b_ = 0;
 
 	uint pulse_in_gpio_ = 0;
 	bool pulse_initialized_ = false;

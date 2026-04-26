@@ -1,4 +1,5 @@
 add_library(brain
+    src/adc-engine.cpp
     src/audio-processor.cpp
     src/button.cpp
     src/inputs.cpp

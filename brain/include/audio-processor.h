@@ -9,6 +9,8 @@
 #include "constants.h"
 #include "init-status.h"
 
+class Pots;
+
 namespace brain::utils {
 
 struct AudioProcessorFrame {
@@ -25,17 +27,17 @@ struct AudioProcessorFrame {
 struct AudioProcessorStats {
 	uint64_t tick_count = 0;
 	uint32_t overrun_count = 0;
-	uint32_t pot_mux_switch_count = 0;
-	uint32_t pot_settle_discard_count = 0;
+	uint32_t pot_mux_switch_count = 0;	// legacy: always 0 under AdcEngine
+	uint32_t pot_settle_discard_count = 0;	// legacy: always 0 under AdcEngine
 };
 
 struct AudioProcessorConfig {
 	uint32_t sample_period_us = 23;
-	bool enable_pot_mux = true;
-	uint8_t pot_count = 3;
-	uint8_t pot_settle_discard_samples = 2;
-	uint8_t pot_average_samples = 4;
-	uint16_t max_dma_drain_samples_per_tick = 64;
+	bool enable_pot_mux = true;	 // legacy: pot reading is owned by Pots, not AudioProcessor
+	uint8_t pot_count = 3;	// legacy: pot count is owned by Pots
+	uint8_t pot_settle_discard_samples = 2;	 // legacy: ignored
+	uint8_t pot_average_samples = 4;  // legacy: ignored
+	uint16_t max_dma_drain_samples_per_tick = 64;  // legacy: ignored
 	uint32_t spi_baud_hz = 1000000;
 };
 
@@ -43,101 +45,55 @@ using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFr
 
 class AudioProcessor {
 public:
-	/**
-	 * @brief Constructs a `AudioProcessor` instance and prepares default runtime state.
-	 */
 	AudioProcessor() = default;
-
-	/**
-	 * @brief Releases resources owned by `AudioProcessor`.
-	 */
 	~AudioProcessor();
-
-	/**
-	 * @brief Copy construction is disabled for this type.
-	 */
 	AudioProcessor(const AudioProcessor&) = delete;
-
-	/**
-	 * @brief Copy assignment is disabled for this type.
-	 */
 	AudioProcessor& operator=(const AudioProcessor&) = delete;
-
-	/**
-	 * @brief Move construction is disabled for this type.
-	 */
 	AudioProcessor(AudioProcessor&&) = delete;
-
-	/**
-	 * @brief Move assignment is disabled for this type.
-	 */
 	AudioProcessor& operator=(AudioProcessor&&) = delete;
 
 	/**
-	 * @brief Starts timer-driven audio processing with ADC DMA input and DAC output on channel A.
-	 * @param config Runtime configuration:
-	 * - `sample_period_us`: tick period for processing callback.
-	 * - `enable_pot_mux`: include pot-mux ADC channel in the DMA stream.
-	 * - `pot_count`: number of pot channels to cycle (clamped to `AudioProcessorFrame::kMaxPots`).
-	 * - `pot_settle_discard_samples`: samples discarded after each mux switch.
-	 * - `pot_average_samples`: samples averaged per pot update.
-	 * - `max_dma_drain_samples_per_tick`: backlog limit per processing tick.
-	 * - `spi_baud_hz`: DAC SPI clock rate.
-	 * @param process_sample_fn Audio callback called each tick with input sample and frame metadata.
-	 * Returning value becomes output sample written to DAC.
-	 * @param user_ctx Opaque pointer passed through to each `process_sample_fn` call.
-	 * @return `BrainInitStatus::kOk` on success, `BrainInitStatus::kAlreadyInitialized` if already running,
-	 * or `BrainInitStatus::kFailed` for invalid config/callback or hardware/timer init failure.
+	 * @brief Wires up an optional `Pots` instance so `get_pot_raw_u8(...)` keeps working.
+	 *
+	 * Callers that don't use `get_pot_raw_u8(...)` may skip this. Must be called before `init(...)`
+	 * (or any time before the first call to `get_pot_raw_u8(...)`).
+	 */
+	void set_pots(::Pots* pots);
+
+	/**
+	 * @brief Starts timer-driven audio processing.
+	 *
+	 * The audio input ADC channel is registered with the global `AdcEngine` and sampled
+	 * concurrently with any pot/CV consumers — there is no longer any need to coordinate
+	 * with `Pots` or `Inputs`.
+	 *
+	 * @return `BrainInitStatus::kOk` on success, `kAlreadyInitialized` if already running,
+	 * or `kFailed` for invalid config/callback or hardware/timer init failure.
 	 */
 	BrainInitStatus init(
 		const AudioProcessorConfig& config,
 		ProcessSampleFn process_sample_fn,
 		void* user_ctx = nullptr);
 
-	/**
-	 * @brief Stops timer, DMA, and DAC activity and releases acquired runtime resources.
-	 */
 	void stop();
-
-	/**
-	 * @brief Reports whether the audio processor is currently initialized and running.
-	 * @return `true` after successful `init(...)` until `stop()` is called.
-	 */
 	bool is_initialized() const;
-
-	/**
-	 * @brief Returns a thread-safe snapshot of runtime counters.
-	 * @return `AudioProcessorStats` containing tick count, overruns, pot mux switches, and settle discards.
-	 */
 	AudioProcessorStats get_stats() const;
 
 	/**
-	 * @brief Reads the latest 8-bit pot value sampled by the audio processor path.
-	 * @param index Pot index in range `0..AudioProcessorFrame::kMaxPots-1`.
-	 * @return Latest pot value in 0..255 for valid index, or `0` when index is out of range.
+	 * @brief Legacy API: returns the latest pot value from the wired `Pots` instance, mapped to 8 bits.
+	 *
+	 * Returns `0` if no `Pots` instance was wired via `set_pots(...)`. Apps written against the
+	 * unified API should call `pots.get(i)` directly.
 	 */
 	uint16_t get_pot_raw_u8(uint8_t index) const;
 
 private:
 	static constexpr uint16_t kDacMaxValue = 4095;
-	static constexpr uint16_t kDmaRingSamples = 256;
-	static constexpr uint16_t kDmaRingMask = kDmaRingSamples - 1;
-	static constexpr uint16_t kDmaRingBytes = kDmaRingSamples * sizeof(uint16_t);
-	static constexpr uint8_t kDmaRingBits = 9;
-	static_assert((kDmaRingSamples & (kDmaRingSamples - 1)) == 0, "kDmaRingSamples must be power-of-two");
-	static_assert((1u << kDmaRingBits) == kDmaRingBytes, "kDmaRingBits must match ring byte size");
 
 	static bool timer_callback(repeating_timer_t* timer);
 	void process_tick();
 	bool init_spi_dac();
-	bool init_adc_dma();
 	void deinit_spi_dac();
-	void deinit_adc_dma();
-	void set_pot_mux_channel(uint8_t channel);
-	void process_pot_sample(uint16_t raw);
-	void drain_dma_ring(bool* tick_overrun);
-	void reset_runtime_state();
-	uint16_t read_dma_write_index() const;
 	int16_t adc_raw_to_audio_sample(uint16_t raw) const;
 	uint16_t audio_sample_to_dac_value(int16_t sample) const;
 	void write_dac_channel_a(uint16_t dac_value);
@@ -145,12 +101,11 @@ private:
 	AudioProcessorConfig config_{};
 	ProcessSampleFn process_sample_fn_ = nullptr;
 	void* user_ctx_ = nullptr;
+	::Pots* pots_ = nullptr;
 
 	bool initialized_ = false;
 	bool timer_running_ = false;
-	bool adc_includes_pot_channel_ = false;
 	bool spi_initialized_ = false;
-	bool adc_dma_initialized_ = false;
 	repeating_timer_t timer_{};
 
 	spi_inst_t* spi_instance_ = spi0;
@@ -159,22 +114,11 @@ private:
 	uint tx_pin_ = kAudioCvOutTxPin;
 	uint coupling_pin_a_ = kAudioCvOutCouplingAPin;
 
-	int dma_channel_ = -1;
-	alignas(512) uint16_t dma_ring_[kDmaRingSamples] = {0};
-	uint16_t dma_read_index_ = 0;
-	bool next_dma_sample_is_audio_ = true;
-	volatile uint16_t latest_audio_raw_ = 2048;
-
-	uint8_t active_pot_index_ = 0;
-	uint8_t pot_discard_remaining_ = 0;
-	uint8_t pot_samples_collected_ = 0;
-	uint32_t pot_accumulator_ = 0;
-	volatile uint8_t pot_raw_u8_[AudioProcessorFrame::kMaxPots] = {0};
+	uint8_t audio_adc_channel_ = 0;
+	uint32_t audio_adc_token_ = 0;
 
 	volatile uint64_t tick_count_ = 0;
 	volatile uint32_t overrun_count_ = 0;
-	volatile uint32_t pot_mux_switch_count_ = 0;
-	volatile uint32_t pot_settle_discard_count_ = 0;
 };
 
 }  // namespace brain::utils
