@@ -236,8 +236,8 @@ You can call `init_*` functions multiple times, it won't re-initialize or break 
 
 ## Legacy ADC switches
 
-These setters remain on the `Brain` API for source compatibility with apps written against earlier SDK versions. Under the unified `AdcEngine` they have no runtime effect — DMA-driven sampling is always on for both `Inputs` and `Pots`, and there is no longer a "fallback" path:
+These setters are accepted by `Brain` for source compatibility but have no runtime effect:
 
 - `enable_adc_optimization(bool)` — no-op. Optimized DMA-driven sampling is always on.
 - `set_audio_cv_dma_enabled(bool)` — no-op. `Inputs` audio/CV is always DMA-sampled.
-- `set_shared_pot_sampling_enabled(bool)` — no-op. `Pots` always uses the unified DMA path. Sample averaging stability is now controlled by `PotsConfig::samples_per_read` and `settle_discard_samples`.
+- `set_shared_pot_sampling_enabled(bool)` — no-op. Pot sampling stability is controlled by `PotsConfig::samples_per_read` and `settle_discard_samples`.

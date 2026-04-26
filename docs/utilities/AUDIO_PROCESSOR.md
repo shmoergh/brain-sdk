@@ -9,7 +9,7 @@ It owns:
 - timer ISR scheduling at the configured sample period
 - DAC channel-A output writes (SPI)
 
-ADC sampling is handled by the shared `AdcEngine` — `AudioProcessor` subscribes to the audio input ADC channel at `init()` and pulls the latest sample from the engine each tick. Pot mux sampling is owned exclusively by `Pots`; `AudioProcessor` no longer touches multiplexer GPIOs or runs its own pot averaging. This means you can run `Pots`, `Inputs`, and `AudioProcessor` together with no special setup or restrictions.
+ADC sampling is handled by the shared `AdcEngine` — `AudioProcessor` subscribes to the audio input ADC channel at `init()` and pulls the latest sample from the engine each tick. Pot mux sampling is owned by `Pots`. `Pots`, `Inputs`, and `AudioProcessor` can run together in any combination.
 
 
 ## Processing model
@@ -93,9 +93,9 @@ int main() {
 
 ### Runtime telemetry
 - `AudioProcessorStats get_stats() const`
-  Returns tick and overrun counters. (`pot_mux_switch_count` and `pot_settle_discard_count` remain in the struct for source compatibility but are always `0` — pot mux work happens inside `Pots` now.)
+  Returns tick and overrun counters. (`pot_mux_switch_count` and `pot_settle_discard_count` are legacy fields on the struct and are always `0`.)
 - `uint16_t get_pot_raw_u8(uint8_t index) const`
-  Legacy shim. Returns the latest pot value from the wired `Pots` instance, mapped to 8 bits. Returns `0` if no `Pots` was wired. New code should call `pots.get(i)` directly.
+  Legacy shim. Returns the latest pot value from the wired `Pots` instance, mapped to 8 bits. Returns `0` if no `Pots` was wired. Prefer calling `pots.get(i)` directly.
 
 
 ## Config and callback types
@@ -108,7 +108,7 @@ int main() {
 
 #### Legacy fields (ignored at runtime)
 
-These fields remain in the struct so existing code keeps compiling. They no longer drive behavior because pot sampling is owned by `Pots`/`AdcEngine`:
+These fields are accepted on the config struct for source compatibility and have no runtime effect. Pot sampling is configured via `Pots`/`PotsConfig`:
 
 - `enable_pot_mux` — ignored. Pot sampling is configured on the `Pots` side.
 - `pot_count` — ignored. Pot count is configured on the `Pots` side.
@@ -129,8 +129,8 @@ These fields remain in the struct so existing code keeps compiling. They no long
 ### `AudioProcessorStats`
 - `tick_count` — number of sample-rate timer ticks since init.
 - `overrun_count` — ticks that exceeded `sample_period_us` of work.
-- `pot_mux_switch_count` — legacy field, always `0`.
-- `pot_settle_discard_count` — legacy field, always `0`.
+- `pot_mux_switch_count` — legacy field. Always `0`.
+- `pot_settle_discard_count` — legacy field. Always `0`.
 
 ### Callback type
 - `using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFrame* frame, void* user_ctx);`

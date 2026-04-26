@@ -2,9 +2,9 @@
 
 `Pots` class reads the Brain potentiometers. The Brain hardware uses a multiplexer to read its three pots through a single ADC channel (the other two channels are used by the two audio/CV inputs). The multiplexer needs some time between two reads, otherwise pot readings will "bleed/crosstalk", ie. the reading of one pot will have an effect on another.
 
-Under the hood `Pots` subscribes to the pot mux ADC channel via the shared `AdcEngine`. ADC samples flow in continuously via DMA, the multiplexer is advanced between samples, and a small number of post-switch samples are discarded so crosstalk never reaches your code. **Reads never block** — `get(i)` simply returns the latest cached value. There is no need to call `update_pots()` or `scan()` to keep values fresh; both remain only for backwards compatibility.
+Under the hood `Pots` subscribes to the pot mux ADC channel via the shared `AdcEngine`. ADC samples flow in continuously via DMA, the multiplexer is advanced between samples, and a small number of post-switch samples are discarded so crosstalk never reaches your code. **Reads never block** — `get(i)` returns the latest cached value. Calling `update_pots()` or `scan()` is not required to keep values fresh.
 
-`Pots` runs concurrently with `Inputs` and `AudioProcessor` — the old "must not mix" restriction is gone.
+`Pots` runs concurrently with `Inputs` and `AudioProcessor`; any combination of these components can be initialized together.
 
 
 ## Quick Start
@@ -74,7 +74,7 @@ int main() {
 
 #### Legacy setters (no-op shims)
 
-These are kept so existing apps keep compiling. They have no runtime effect under the unified `AdcEngine` path:
+These methods accept calls for source compatibility and have no runtime effect:
 
 - `void set_simple(bool);` — no-op. There is only one read path (DMA-driven).
 - `void set_optimized_sampling_enabled(bool);` — no-op. Optimized sampling is always on.
@@ -91,11 +91,11 @@ All reads return the latest cached value populated by `AdcEngine` callbacks. Non
 
 - `uint16_t get_buffered(uint8_t index) const;`
 
-	Identical to `get(index)`. Kept for source compatibility.
+	Identical to `get(index)`.
 
 - `uint16_t get_single(uint8_t index);`
 
-	Legacy alias of `get(index)`. Used to perform an immediate hardware read; now returns the cached value.
+	Legacy alias of `get(index)`.
 
 - `uint16_t get_raw(uint8_t index);`
 
@@ -103,7 +103,7 @@ All reads return the latest cached value populated by `AdcEngine` callbacks. Non
 
 - `void scan();`
 
-	Legacy no-op. Pot values are kept fresh continuously; calling this is harmless and unnecessary. Retained so `Brain::update_pots()` keeps compiling.
+	Legacy no-op. Pot values are kept fresh continuously by `AdcEngine`.
 
 - `uint8_t get_output_resolution() const;`
 
