@@ -116,13 +116,19 @@ void AdcEngine::ensure_started_locked() {
 	channel_config_set_dreq(&cfg, DREQ_ADC);
 	channel_config_set_ring(&cfg, true, kRingBits);
 
+	// Start the DMA channel immediately so it is listening for DREQs when
+	// `reconfigure_locked()` later turns the ADC on. `adc_run(true)` only
+	// starts the ADC; it does NOT start the DMA channel. With `trigger=false`
+	// the FIFO would fill, the ADC would stall, and no samples would ever
+	// reach the ring buffer — every subscriber callback would silently
+	// never fire.
 	dma_channel_configure(
 		dma_channel_,
 		&cfg,
 		ring_,
 		&adc_hw->fifo,
 		0xffffffffu,
-		false);  // don't start until first reconfigure_locked() runs adc_run
+		true);
 
 	ring_read_index_ = 0;
 	for (uint8_t i = 0; i < kMaxAdcChannels; ++i) {
