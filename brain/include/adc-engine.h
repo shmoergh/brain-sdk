@@ -56,11 +56,13 @@ public:
 	void unregister(uint32_t token);
 
 	/**
-	 * @brief Raises the floor for aggregate ADC sample rate across all active channels.
-	 * @param hz Aggregate samples-per-second floor. AdcEngine recomputes ADC clkdiv to meet it.
+	 * @brief Raises the floor for the per-channel ADC sample rate.
+	 * @param hz Per-channel samples-per-second floor. AdcEngine multiplies by the
+	 * number of active channels in round-robin and recomputes ADC clkdiv to meet
+	 * the resulting aggregate rate. Only ever raises; never lowers automatically.
 	 *
-	 * Called by AudioProcessor at init to ensure audio sample rate is met. Only ever raises;
-	 * never lowers automatically.
+	 * Called by AudioProcessor at init so each channel still hits audio rate even
+	 * when other components register additional channels.
 	 */
 	void set_min_sample_rate_hz(uint32_t hz);
 
@@ -68,8 +70,22 @@ public:
 	 * @brief Returns the latest cached raw ADC sample for the given channel.
 	 * @param adc_channel ADC input index (0..3).
 	 * @return Latest 12-bit sample (0..4095), or `0` if invalid channel or no sample yet.
+	 *
+	 * The cache is updated by the internal drain timer and by `drain_now()`. Consumers
+	 * that need sample-accurate freshness (e.g. AudioProcessor) should call
+	 * `drain_now()` immediately before `get_latest(...)`.
 	 */
 	uint16_t get_latest(uint8_t adc_channel) const;
+
+	/**
+	 * @brief Drains the DMA ring synchronously and updates the per-channel `latest`
+	 * cache before returning.
+	 *
+	 * Cheap (typically a handful of samples) and safe to call from any context,
+	 * including IRQ context. AudioProcessor calls this on every audio tick so
+	 * `get_latest(audio_channel)` reflects the most recent ADC sample.
+	 */
+	void drain_now();
 
 	/**
 	 * @brief Snapshot of internal counters (drain count, overruns, reconfigures).

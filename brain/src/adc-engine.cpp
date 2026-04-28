@@ -85,6 +85,12 @@ uint16_t AdcEngine::get_latest(uint8_t adc_channel) const {
 	return value;
 }
 
+void AdcEngine::drain_now() {
+	BrainAdcLockGuard guard;
+	drain_ring_locked();
+	++stats_drain_count_;
+}
+
 AdcEngine::Stats AdcEngine::get_stats() const {
 	Stats stats{};
 	const uint32_t irq_state = save_and_disable_interrupts();
@@ -188,7 +194,13 @@ void AdcEngine::reconfigure_locked() {
 void AdcEngine::compute_clkdiv_locked() {
 	// `adc_set_clkdiv(d)` configures one sample every (1 + d) ADC clock cycles
 	// when d >= 1, where the ADC clock is 48 MHz on RP2040.
-	const float target_total_hz = static_cast<float>(min_sample_rate_hz_);
+	//
+	// `min_sample_rate_hz_` is a per-channel rate. With N active channels in
+	// round-robin, each channel only gets 1/N of the aggregate ADC rate, so we
+	// multiply by N to keep per-channel throughput at the requested floor.
+	const uint8_t channels = (num_active_channels_ == 0) ? 1u : num_active_channels_;
+	const float target_total_hz =
+		static_cast<float>(min_sample_rate_hz_) * static_cast<float>(channels);
 	float clkdiv = 0.0f;
 	if (target_total_hz > 0.0f) {
 		clkdiv = (kAdcClockHz / target_total_hz) - 1.0f;

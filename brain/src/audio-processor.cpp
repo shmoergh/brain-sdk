@@ -71,10 +71,11 @@ BrainInitStatus AudioProcessor::init(
 		return BrainInitStatus::kFailed;
 	}
 
-	// Aggregate ADC rate must cover the audio sample period across all active channels.
-	// AdcEngine multiplies internally if more channels are registered.
+	// Per-channel ADC rate must match the audio sample period. AdcEngine
+	// multiplies by the number of active channels internally to compute clkdiv,
+	// so this stays correct as more components register channels.
 	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
-	AdcEngine::instance().set_min_sample_rate_hz(target_per_channel_hz * 2);
+	AdcEngine::instance().set_min_sample_rate_hz(target_per_channel_hz);
 
 	initialized_ = true;
 	timer_running_ = true;
@@ -141,6 +142,12 @@ bool AudioProcessor::timer_callback(repeating_timer_t* timer) {
 void AudioProcessor::process_tick() {
 	const absolute_time_t tick_start = get_absolute_time();
 
+	// Drain the ADC ring inline before reading. Without this, `get_latest()`
+	// returns whatever the background drain timer last cached — typically
+	// hundreds of microseconds stale, which sounds like a heavy bitcrusher
+	// because the audio is effectively sampled at the drain rate, not the
+	// audio rate.
+	AdcEngine::instance().drain_now();
 	const uint16_t raw_audio = AdcEngine::instance().get_latest(audio_adc_channel_);
 
 	AudioProcessorFrame frame{};
