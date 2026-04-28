@@ -7,6 +7,7 @@
 #include "apps/midi_to_cv_test.h"
 #include "apps/multipot_test.h"
 #include "apps/audio_processor_test.h"
+#include "apps/audio_volume_test.h"
 #include "apps/pot_live_monitor_test.h"
 #include "apps/pot_read_stability_test.h"
 #include "apps/storage_persistence_check_test.h"
@@ -39,6 +40,7 @@ void print_menu() {
 	printf("  7) AudioProcessor effect + guardrails\n");
 	printf("  8) AdcEngine 2.1 unified ADC test\n");
 	printf("  9) Pot live monitor (turn knobs to verify)\n");
+	printf(" 10) Audio volume (In1 -> Out1, Pot1 = volume)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -109,6 +111,8 @@ int main() {
 				run_selected_app<sandbox::apps::AdcEngineTest>();
 			case 9:
 				run_selected_app<sandbox::apps::PotLiveMonitorTest>();
+			case 10:
+				run_selected_app<sandbox::apps::AudioVolumeTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);
