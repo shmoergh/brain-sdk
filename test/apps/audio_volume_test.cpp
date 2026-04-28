@@ -79,14 +79,17 @@ void AudioVolumeTest::update() {
 	last_print_us_ = now_us;
 
 	const AudioProcessorStats stats = brain_.audio_processor.get_stats();
+	const AdcEngine::Stats adc_stats = AdcEngine::instance().get_stats();
 	const uint16_t pot0 = brain_.pots.get(0);
 
 	printf(
-		"\rPot1=%3u  Volume=%3u/255  Ticks=%llu  Overruns=%lu      ",
+		"\rPot1=%3u  Vol=%3u/255  Ticks=%llu  AP-Ovr=%lu  ADC-Ovr=%lu  Drains=%llu      ",
 		static_cast<unsigned>(pot0),
 		static_cast<unsigned>(state_.volume_q8),
 		static_cast<unsigned long long>(stats.tick_count),
-		static_cast<unsigned long>(stats.overrun_count));
+		static_cast<unsigned long>(stats.overrun_count),
+		static_cast<unsigned long>(adc_stats.overrun_count),
+		static_cast<unsigned long long>(adc_stats.drain_count));
 	fflush(stdout);
 
 	sleep_ms(1);

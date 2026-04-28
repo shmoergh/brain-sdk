@@ -88,6 +88,7 @@ uint16_t AdcEngine::get_latest(uint8_t adc_channel) const {
 void AdcEngine::drain_now() {
 	BrainAdcLockGuard guard;
 	drain_ring_locked();
+	last_drain_us_ = time_us_64();
 	++stats_drain_count_;
 }
 
@@ -273,7 +274,14 @@ bool AdcEngine::drain_timer_callback(repeating_timer_t* timer) {
 	if (self == nullptr) return false;
 
 	BrainAdcLockGuard guard;
+	// If a consumer drained recently (e.g. AudioProcessor's audio tick), the
+	// cache is already fresh and the ring is empty — skip to avoid redundant
+	// lock activity that competes with the audio tick.
+	const uint64_t now = time_us_64();
+	if (now - self->last_drain_us_ < kRecentDrainSkipUs) return true;
+
 	self->drain_ring_locked();
+	self->last_drain_us_ = now;
 	++self->stats_drain_count_;
 	return true;
 }

@@ -103,6 +103,10 @@ private:
 	static constexpr uint8_t kRingBits = 9;
 	static constexpr uint32_t kDefaultDrainPeriodUs = 500;
 	static constexpr uint32_t kDefaultMinSampleRateHz = 4000;
+	// If a consumer (e.g. AudioProcessor) drained within this window, the
+	// background timer skips its drain pass to avoid redundant lock activity
+	// that competes with the audio tick at ~23 us cadence.
+	static constexpr uint64_t kRecentDrainSkipUs = 1000;
 
 	struct Subscriber {
 		uint32_t token = 0;	 // 0 = empty slot
@@ -140,4 +144,5 @@ private:
 	uint64_t stats_drain_count_ = 0;
 	uint32_t stats_overrun_count_ = 0;
 	uint32_t stats_reconfigure_count_ = 0;
+	volatile uint64_t last_drain_us_ = 0;
 };
