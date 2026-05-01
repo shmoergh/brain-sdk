@@ -61,24 +61,10 @@ BrainInitStatus AudioProcessor::init(
 	}
 
 	audio_adc_channel_ = static_cast<uint8_t>(GPIO_BRAIN_AUDIO_CV_IN_A - 26);
+	AdcEngine::instance().enable_channel(audio_adc_channel_);
 
-	// Subscribe to the audio input channel; we don't use the per-sample callback
-	// (process_tick polls get_latest), but registering keeps the channel in the
-	// AdcEngine round-robin set.
-	audio_adc_token_ = AdcEngine::instance().register_channel(
-		audio_adc_channel_,
-		[](uint16_t /*raw*/) {});
-	if (audio_adc_token_ == 0) {
-		fprintf(stderr, "AudioProcessor: failed to register audio ADC channel\n");
-		stop();
-		return BrainInitStatus::kFailed;
-	}
-
-	// Per-channel ADC rate must match the audio sample period. AdcEngine
-	// multiplies by the number of active channels internally to compute clkdiv,
-	// so this stays correct as more components register channels.
 	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
-	AdcEngine::instance().set_min_sample_rate_hz(target_per_channel_hz);
+	AdcEngine::instance().set_min_per_channel_rate_hz(target_per_channel_hz);
 
 	initialized_ = true;
 	timer_running_ = true;
@@ -126,24 +112,11 @@ BrainInitStatus AudioProcessor::init(
 
 	audio_adc_channel_ = static_cast<uint8_t>(GPIO_BRAIN_AUDIO_CV_IN_A - 26);
 	audio_adc_channel_b_ = static_cast<uint8_t>(GPIO_BRAIN_AUDIO_CV_IN_B - 26);
-
-	// Subscribe to both audio input channels. We don't use the per-sample
-	// callback (process_tick polls get_latest), but registering keeps both
-	// channels in the AdcEngine round-robin set.
-	audio_adc_token_ = AdcEngine::instance().register_channel(
-		audio_adc_channel_,
-		[](uint16_t /*raw*/) {});
-	audio_adc_token_b_ = AdcEngine::instance().register_channel(
-		audio_adc_channel_b_,
-		[](uint16_t /*raw*/) {});
-	if (audio_adc_token_ == 0 || audio_adc_token_b_ == 0) {
-		fprintf(stderr, "AudioProcessor: failed to register dual audio ADC channels\n");
-		stop();
-		return BrainInitStatus::kFailed;
-	}
+	AdcEngine::instance().enable_channel(audio_adc_channel_);
+	AdcEngine::instance().enable_channel(audio_adc_channel_b_);
 
 	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
-	AdcEngine::instance().set_min_sample_rate_hz(target_per_channel_hz);
+	AdcEngine::instance().set_min_per_channel_rate_hz(target_per_channel_hz);
 
 	initialized_ = true;
 	timer_running_ = true;
@@ -161,22 +134,14 @@ BrainInitStatus AudioProcessor::init(
 }
 
 void AudioProcessor::stop() {
-	if (!initialized_ && !timer_running_ && !spi_initialized_
-		&& audio_adc_token_ == 0 && audio_adc_token_b_ == 0) {
-		return;
-	}
+	if (!initialized_ && !timer_running_ && !spi_initialized_) return;
 
 	timer_running_ = false;
 	cancel_repeating_timer(&timer_);
 
-	if (audio_adc_token_ != 0) {
-		AdcEngine::instance().unregister(audio_adc_token_);
-		audio_adc_token_ = 0;
-	}
-	if (audio_adc_token_b_ != 0) {
-		AdcEngine::instance().unregister(audio_adc_token_b_);
-		audio_adc_token_b_ = 0;
-	}
+	// AdcEngine channels stay enabled across stop() — disabling them would
+	// thrash other consumers (Pots, Inputs). The audio cache simply goes
+	// stale, which is fine because nothing is reading it anymore.
 
 	deinit_spi_dac();
 	initialized_ = false;

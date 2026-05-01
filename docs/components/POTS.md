@@ -2,7 +2,14 @@
 
 `Pots` class reads the Brain potentiometers. The Brain hardware uses a multiplexer to read its three pots through a single ADC channel (the other two channels are used by the two audio/CV inputs). The multiplexer needs some time between two reads, otherwise pot readings will "bleed/crosstalk", ie. the reading of one pot will have an effect on another.
 
-Under the hood `Pots` subscribes to the pot mux ADC channel via the shared `AdcEngine`. ADC samples flow in continuously via DMA, the multiplexer is advanced between samples, and a small number of post-switch samples are discarded so crosstalk never reaches your code. **Reads never block** — `get(i)` returns the latest cached value. Calling `update_pots()` or `scan()` is not required to keep values fresh.
+Under the hood, `Pots` runs a small periodic timer that drives a two-phase state machine:
+
+1. **Settle** — the mux GPIO has just been flipped to the next pot. Wait `settle_us` (default 1 ms) for the analog frontend and ADC pipeline to catch up. Don't read.
+2. **Sample** — once per tick, read `AdcEngine::get_latest(pot_mux_channel)`, accumulate. After `samples_per_read` reads, store the average, advance the mux to the next pot, and go back to settling.
+
+The mux flip and the next read are separated by a known wall-clock interval, so cross-bleed between pots is structurally impossible — there's no "how many ADC samples are still in flight" math to get wrong. ADC sampling itself is shared with `Inputs` and `AudioProcessor` via the DMA-driven `AdcEngine`.
+
+**Reads never block** — `get(i)` just returns the latest cached value. `update_pots()` and `scan()` are kept as no-op shims for source compatibility; you don't need to call them.
 
 `Pots` runs concurrently with `Inputs` and `AudioProcessor`; any combination of these components can be initialized together.
 

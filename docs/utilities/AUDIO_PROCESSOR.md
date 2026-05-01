@@ -9,7 +9,7 @@ It owns:
 - timer ISR scheduling at the configured sample period
 - DAC output writes (SPI) — channel A in single-stream mode, both A and B in dual-stream mode
 
-ADC sampling is handled by the shared `AdcEngine` — `AudioProcessor` subscribes to the audio input channel(s) at `init()` and pulls the latest sample from the engine each tick. Pot mux sampling is owned by `Pots`. `Pots`, `Inputs`, and `AudioProcessor` can run together in any combination.
+ADC sampling is handled by the shared `AdcEngine` — `AudioProcessor` enables the audio input channel(s) at `init()` and reads the latest sample from the engine's per-channel cache each tick. The engine just runs DMA-driven round-robin sampling and updates a small cache; consumers (`AudioProcessor`, `Pots`, `Inputs`) just call `get_latest(channel)`. No callbacks, no tokens. `Pots`, `Inputs`, and `AudioProcessor` can run together in any combination.
 
 `AudioProcessor` ships with two `init(...)` overloads:
 

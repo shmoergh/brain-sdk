@@ -194,7 +194,6 @@ public:
 private:
 	int32_t adc_to_millivolts(uint16_t adc_value) const;
 	void calculate_conversion_parameters();
-	void release_audio_cv_subscriptions();
 
 	static void gpio_irq_handler(uint gpio, uint32_t events);
 	void handle_edge(bool raw_state);
@@ -203,9 +202,7 @@ private:
 	int32_t adc_span_millivolts_ = 1;
 	int32_t signal_min_millivolts_ = 0;
 	int32_t signal_span_millivolts_ = 0;
-	volatile uint16_t channel_raw_[2] = {0, 0};
-	uint32_t adc_token_a_ = 0;
-	uint32_t adc_token_b_ = 0;
+	bool audio_cv_enabled_ = false;
 
 	uint pulse_in_gpio_ = 0;
 	bool pulse_initialized_ = false;

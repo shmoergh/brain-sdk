@@ -165,8 +165,6 @@ private:
 
 	uint8_t audio_adc_channel_ = 0;
 	uint8_t audio_adc_channel_b_ = 0;
-	uint32_t audio_adc_token_ = 0;
-	uint32_t audio_adc_token_b_ = 0;
 
 	volatile uint64_t tick_count_ = 0;
 	volatile uint32_t overrun_count_ = 0;

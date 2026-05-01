@@ -20,32 +20,22 @@ int32_t round_div_i64(int64_t numerator, int64_t denominator) {
 	return static_cast<int32_t>((numerator - denominator / 2) / denominator);
 }
 
+constexpr uint8_t kAdcChannelA = GPIO_BRAIN_AUDIO_CV_IN_A - 26;
+constexpr uint8_t kAdcChannelB = GPIO_BRAIN_AUDIO_CV_IN_B - 26;
+
 }  // namespace
 
 Inputs::Inputs(uint pulse_in_gpio)
 	: pulse_in_gpio_(pulse_in_gpio) {}
 
-Inputs::~Inputs() {
-	release_audio_cv_subscriptions();
-}
+Inputs::~Inputs() = default;
 
 bool Inputs::init_audio_cv() {
 	calculate_conversion_parameters();
-
-	if (adc_token_a_ == 0) {
-		const uint8_t channel_a = GPIO_BRAIN_AUDIO_CV_IN_A - 26;
-		adc_token_a_ = AdcEngine::instance().register_channel(
-			channel_a,
-			[this](uint16_t raw) { channel_raw_[AudioCvInChannel::kChannelA] = raw; });
-	}
-	if (adc_token_b_ == 0) {
-		const uint8_t channel_b = GPIO_BRAIN_AUDIO_CV_IN_B - 26;
-		adc_token_b_ = AdcEngine::instance().register_channel(
-			channel_b,
-			[this](uint16_t raw) { channel_raw_[AudioCvInChannel::kChannelB] = raw; });
-	}
-
-	return adc_token_a_ != 0 && adc_token_b_ != 0;
+	AdcEngine::instance().enable_channel(kAdcChannelA);
+	AdcEngine::instance().enable_channel(kAdcChannelB);
+	audio_cv_enabled_ = true;
+	return true;
 }
 
 bool Inputs::init_pulse() {
@@ -86,7 +76,7 @@ bool Inputs::init() {
 }
 
 void Inputs::update_audio_cv() {
-	// AdcEngine keeps `channel_raw_` fresh via callbacks; nothing to do here.
+	// Legacy no-op: AdcEngine keeps the per-channel cache fresh.
 }
 
 void Inputs::pulse_poll() {
@@ -118,7 +108,6 @@ void Inputs::pulse_poll() {
 }
 
 void Inputs::update() {
-	update_audio_cv();
 	pulse_poll();
 }
 
@@ -131,37 +120,33 @@ bool Inputs::is_audio_cv_dma_enabled() const {
 }
 
 bool Inputs::is_audio_cv_dma_active() const {
-	return adc_token_a_ != 0 && adc_token_b_ != 0;
+	return audio_cv_enabled_;
 }
 
 uint16_t Inputs::get_raw(int channel) const {
-	if (channel == AudioCvInChannel::kChannelA || channel == AudioCvInChannel::kChannelB) {
-		return channel_raw_[channel];
-	}
+	if (channel == AudioCvInChannel::kChannelA) return AdcEngine::instance().get_latest(kAdcChannelA);
+	if (channel == AudioCvInChannel::kChannelB) return AdcEngine::instance().get_latest(kAdcChannelB);
 	return 0;
 }
 
 uint16_t Inputs::get_raw_channel_a() const {
-	return channel_raw_[AudioCvInChannel::kChannelA];
+	return AdcEngine::instance().get_latest(kAdcChannelA);
 }
 
 uint16_t Inputs::get_raw_channel_b() const {
-	return channel_raw_[AudioCvInChannel::kChannelB];
+	return AdcEngine::instance().get_latest(kAdcChannelB);
 }
 
 int32_t Inputs::get_voltage_millivolts(int channel) const {
-	if (channel == AudioCvInChannel::kChannelA || channel == AudioCvInChannel::kChannelB) {
-		return adc_to_millivolts(channel_raw_[channel]);
-	}
-	return 0;
+	return adc_to_millivolts(get_raw(channel));
 }
 
 int32_t Inputs::get_voltage_millivolts_channel_a() const {
-	return adc_to_millivolts(channel_raw_[AudioCvInChannel::kChannelA]);
+	return adc_to_millivolts(get_raw_channel_a());
 }
 
 int32_t Inputs::get_voltage_millivolts_channel_b() const {
-	return adc_to_millivolts(channel_raw_[AudioCvInChannel::kChannelB]);
+	return adc_to_millivolts(get_raw_channel_b());
 }
 
 bool Inputs::pulse_read() const {
@@ -225,17 +210,6 @@ void Inputs::calculate_conversion_parameters() {
 	}
 	signal_min_millivolts_ = signal_min_mv;
 	signal_span_millivolts_ = signal_max_mv - signal_min_mv;
-}
-
-void Inputs::release_audio_cv_subscriptions() {
-	if (adc_token_a_ != 0) {
-		AdcEngine::instance().unregister(adc_token_a_);
-		adc_token_a_ = 0;
-	}
-	if (adc_token_b_ != 0) {
-		AdcEngine::instance().unregister(adc_token_b_);
-		adc_token_b_ = 0;
-	}
 }
 
 void Inputs::gpio_irq_handler(uint gpio, uint32_t events) {
