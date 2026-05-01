@@ -18,12 +18,20 @@
 namespace {
 
 template <typename TApp>
-[[noreturn]] void run_selected_app() {
+void run_selected_app() {
 	TApp app;
 	app.init();
+	printf("\n[Press 'q' then Enter to return to the menu]\n");
+	fflush(stdout);
 	while (true) {
 		app.update();
-		sleep_ms(1);
+		const int ch = getchar_timeout_us(0);
+		if (ch == 'q' || ch == 'Q') {
+			printf("\n\nReturning to menu...\n");
+			fflush(stdout);
+			sleep_ms(200);
+			return;
+		}
 	}
 }
 
@@ -99,28 +107,40 @@ int main() {
 		switch (selection) {
 			case 1:
 				run_selected_app<sandbox::apps::PotReadStabilityTest>();
+				break;
 			case 2:
 				run_selected_app<sandbox::apps::MultipotTest>();
+				break;
 			case 3:
 				run_selected_app<sandbox::apps::MidiToCvTest>();
+				break;
 			case 4:
 				run_selected_app<sandbox::apps::StorageTest>();
+				break;
 			case 5:
 				run_selected_app<sandbox::apps::StoragePersistenceCheckTest>();
+				break;
 			case 6:
 				run_selected_app<sandbox::apps::LedsTest>();
+				break;
 			case 7:
 				run_selected_app<sandbox::apps::AudioProcessorTest>();
+				break;
 			case 8:
 				run_selected_app<sandbox::apps::AdcEngineTest>();
+				break;
 			case 9:
 				run_selected_app<sandbox::apps::PotLiveMonitorTest>();
+				break;
 			case 10:
 				run_selected_app<sandbox::apps::AudioVolumeTest>();
+				break;
 			case 11:
 				run_selected_app<sandbox::apps::AudioDualStreamTest>();
+				break;
 			case 12:
 				run_selected_app<sandbox::apps::PotCrossBleedTest>();
+				break;
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);
