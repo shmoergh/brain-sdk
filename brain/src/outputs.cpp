@@ -5,6 +5,8 @@
 
 #include <cstdio>
 
+#include "audio-cv-out-spi-arbiter.h"
+
 namespace {
 
 int32_t div_round_nearest(int32_t numerator, int32_t denominator) {
@@ -263,6 +265,10 @@ void Outputs::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
 	uint8_t data[2];
 	data[0] = config << 4 | (dac_value & 0xf00) >> 8;
 	data[1] = dac_value & 0xff;
+
+	// Hold the shared MCP4822 SPI mutex for the entire CS-low → write → CS-high
+	// sequence so we can't collide with AudioProcessor's audio-rate writes.
+	BrainAudioDacSpiLockGuard guard;
 
 	asm volatile("nop \n nop \n nop");
 	gpio_put(cs_pin_, 0);

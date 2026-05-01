@@ -597,6 +597,32 @@ public:
 	}
 
 	/**
+	 * @brief Initializes `AudioProcessor` in dual-stream mode.
+	 *
+	 * Subscribes to ADC channels A and B, calls the dual-stream callback once per
+	 * tick with both inputs, and writes both DAC channels each tick. Single-stream
+	 * users should keep using the `ProcessSampleFn` overload above.
+	 *
+	 * @param config `AudioProcessorConfig` forwarded to `audio_processor.init(...)`.
+	 * @param process_dual_fn Per-tick DSP callback receiving both inputs and writing both outputs.
+	 * @param user_ctx User context pointer forwarded unchanged to each callback invocation.
+	 */
+	BrainInitStatus init_audio_processor(
+		const AudioProcessorConfig& config,
+		ProcessDualStreamFn process_dual_fn,
+		void* user_ctx = nullptr) {
+		if (audio_processor.is_initialized()) return BrainInitStatus::kAlreadyInitialized;
+
+#if BRAIN_CFG_POTS
+		if (pots_initialized_) {
+			audio_processor.set_pots(&pots);
+		}
+#endif
+
+		return audio_processor.init(config, process_dual_fn, user_ctx);
+	}
+
+	/**
 	 * @brief Reports `AudioProcessor` initialization state.
 	 * @return `true` when `audio_processor.is_initialized()` is true.
 	 */

@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "adc-engine.h"
+#include "audio-cv-out-spi-arbiter.h"
 #include "common.h"
 #include "pots.h"
 
@@ -48,6 +49,8 @@ BrainInitStatus AudioProcessor::init(
 	if (config_.spi_baud_hz == 0) config_.spi_baud_hz = 1000000;
 
 	process_sample_fn_ = process_sample_fn;
+	process_dual_fn_ = nullptr;
+	dual_stream_mode_ = false;
 	user_ctx_ = user_ctx;
 	tick_count_ = 0;
 	overrun_count_ = 0;
@@ -92,8 +95,74 @@ BrainInitStatus AudioProcessor::init(
 	return BrainInitStatus::kOk;
 }
 
+BrainInitStatus AudioProcessor::init(
+	const AudioProcessorConfig& config,
+	ProcessDualStreamFn process_dual_fn,
+	void* user_ctx) {
+	if (initialized_) return BrainInitStatus::kAlreadyInitialized;
+	if (process_dual_fn == nullptr) {
+		fprintf(stderr, "AudioProcessor: dual-stream callback is required\n");
+		return BrainInitStatus::kFailed;
+	}
+	if (config.sample_period_us == 0) {
+		fprintf(stderr, "AudioProcessor: sample_period_us must be > 0\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	config_ = config;
+	if (config_.spi_baud_hz == 0) config_.spi_baud_hz = 1000000;
+
+	process_sample_fn_ = nullptr;
+	process_dual_fn_ = process_dual_fn;
+	dual_stream_mode_ = true;
+	user_ctx_ = user_ctx;
+	tick_count_ = 0;
+	overrun_count_ = 0;
+
+	if (!init_spi_dac()) {
+		stop();
+		return BrainInitStatus::kFailed;
+	}
+
+	audio_adc_channel_ = static_cast<uint8_t>(GPIO_BRAIN_AUDIO_CV_IN_A - 26);
+	audio_adc_channel_b_ = static_cast<uint8_t>(GPIO_BRAIN_AUDIO_CV_IN_B - 26);
+
+	// Subscribe to both audio input channels. We don't use the per-sample
+	// callback (process_tick polls get_latest), but registering keeps both
+	// channels in the AdcEngine round-robin set.
+	audio_adc_token_ = AdcEngine::instance().register_channel(
+		audio_adc_channel_,
+		[](uint16_t /*raw*/) {});
+	audio_adc_token_b_ = AdcEngine::instance().register_channel(
+		audio_adc_channel_b_,
+		[](uint16_t /*raw*/) {});
+	if (audio_adc_token_ == 0 || audio_adc_token_b_ == 0) {
+		fprintf(stderr, "AudioProcessor: failed to register dual audio ADC channels\n");
+		stop();
+		return BrainInitStatus::kFailed;
+	}
+
+	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
+	AdcEngine::instance().set_min_sample_rate_hz(target_per_channel_hz);
+
+	initialized_ = true;
+	timer_running_ = true;
+	if (!add_repeating_timer_us(
+			-static_cast<int64_t>(config_.sample_period_us),
+			&AudioProcessor::timer_callback,
+			this,
+			&timer_)) {
+		fprintf(stderr, "AudioProcessor: failed to start dual-stream sample timer\n");
+		stop();
+		return BrainInitStatus::kFailed;
+	}
+
+	return BrainInitStatus::kOk;
+}
+
 void AudioProcessor::stop() {
-	if (!initialized_ && !timer_running_ && !spi_initialized_ && audio_adc_token_ == 0) {
+	if (!initialized_ && !timer_running_ && !spi_initialized_
+		&& audio_adc_token_ == 0 && audio_adc_token_b_ == 0) {
 		return;
 	}
 
@@ -104,10 +173,16 @@ void AudioProcessor::stop() {
 		AdcEngine::instance().unregister(audio_adc_token_);
 		audio_adc_token_ = 0;
 	}
+	if (audio_adc_token_b_ != 0) {
+		AdcEngine::instance().unregister(audio_adc_token_b_);
+		audio_adc_token_b_ = 0;
+	}
 
 	deinit_spi_dac();
 	initialized_ = false;
+	dual_stream_mode_ = false;
 	process_sample_fn_ = nullptr;
+	process_dual_fn_ = nullptr;
 	user_ctx_ = nullptr;
 }
 
@@ -139,6 +214,17 @@ bool AudioProcessor::timer_callback(repeating_timer_t* timer) {
 	return self->timer_running_;
 }
 
+void AudioProcessor::fill_pot_frame(AudioProcessorFrame& frame) const {
+	if (pots_ == nullptr) return;
+
+	const uint8_t pot_count = pots_->get_num_pots();
+	frame.pot_count = (pot_count > AudioProcessorFrame::kMaxPots)
+		? AudioProcessorFrame::kMaxPots : pot_count;
+	for (uint8_t i = 0; i < frame.pot_count; ++i) {
+		frame.pot_raw_u8[i] = static_cast<uint8_t>(get_pot_raw_u8(i));
+	}
+}
+
 void AudioProcessor::process_tick() {
 	const absolute_time_t tick_start = get_absolute_time();
 
@@ -148,26 +234,39 @@ void AudioProcessor::process_tick() {
 	// because the audio is effectively sampled at the drain rate, not the
 	// audio rate.
 	AdcEngine::instance().drain_now();
-	const uint16_t raw_audio = AdcEngine::instance().get_latest(audio_adc_channel_);
 
 	AudioProcessorFrame frame{};
 	frame.tick = tick_count_ + 1;
-	if (pots_ != nullptr) {
-		const uint8_t pot_count = pots_->get_num_pots();
-		frame.pot_count = (pot_count > AudioProcessorFrame::kMaxPots)
-			? AudioProcessorFrame::kMaxPots : pot_count;
-		for (uint8_t i = 0; i < frame.pot_count; ++i) {
-			frame.pot_raw_u8[i] = static_cast<uint8_t>(get_pot_raw_u8(i));
+	fill_pot_frame(frame);
+
+	if (dual_stream_mode_) {
+		DualStreamSamples samples{};
+		samples.in[kAudioStreamA] = adc_raw_to_audio_sample(
+			AdcEngine::instance().get_latest(audio_adc_channel_));
+		samples.in[kAudioStreamB] = adc_raw_to_audio_sample(
+			AdcEngine::instance().get_latest(audio_adc_channel_b_));
+		// Pass-through default if user callback decides not to overwrite.
+		samples.out[kAudioStreamA] = samples.in[kAudioStreamA];
+		samples.out[kAudioStreamB] = samples.in[kAudioStreamB];
+
+		if (process_dual_fn_ != nullptr) {
+			process_dual_fn_(&samples, &frame, user_ctx_);
 		}
+
+		// Two SPI writes per tick. The SPI mutex is taken inside write_dac_channel
+		// so a concurrent CV write from `Outputs` can't collide with us.
+		write_dac_channel(kMcp4822ChannelA, audio_sample_to_dac_value(samples.out[kAudioStreamA]));
+		write_dac_channel(kMcp4822ChannelB, audio_sample_to_dac_value(samples.out[kAudioStreamB]));
+	} else {
+		const uint16_t raw_audio = AdcEngine::instance().get_latest(audio_adc_channel_);
+		const int16_t input_sample = adc_raw_to_audio_sample(raw_audio);
+		int16_t output_sample = input_sample;
+		if (process_sample_fn_ != nullptr) {
+			output_sample = process_sample_fn_(input_sample, &frame, user_ctx_);
+		}
+		write_dac_channel(kMcp4822ChannelA, audio_sample_to_dac_value(output_sample));
 	}
 
-	const int16_t input_sample = adc_raw_to_audio_sample(raw_audio);
-	int16_t output_sample = input_sample;
-	if (process_sample_fn_ != nullptr) {
-		output_sample = process_sample_fn_(input_sample, &frame, user_ctx_);
-	}
-
-	write_dac_channel_a(audio_sample_to_dac_value(output_sample));
 	++tick_count_;
 
 	const int64_t elapsed_us = absolute_time_diff_us(tick_start, get_absolute_time());
@@ -188,9 +287,18 @@ bool AudioProcessor::init_spi_dac() {
 	gpio_set_dir(cs_pin_, GPIO_OUT);
 	gpio_put(cs_pin_, 1);
 
+	// Channel A coupling: -5..+5V range for signed audio output.
 	gpio_init(coupling_pin_a_);
 	gpio_set_dir(coupling_pin_a_, GPIO_OUT);
 	gpio_put(coupling_pin_a_, true);
+
+	if (dual_stream_mode_) {
+		// Channel B coupling: same range as A so both streams behave identically.
+		gpio_init(coupling_pin_b_);
+		gpio_set_dir(coupling_pin_b_, GPIO_OUT);
+		gpio_put(coupling_pin_b_, true);
+	}
+
 	spi_initialized_ = true;
 	return true;
 }
@@ -212,13 +320,20 @@ uint16_t AudioProcessor::audio_sample_to_dac_value(int16_t sample) const {
 	return static_cast<uint16_t>(clamped >> 4);
 }
 
-void AudioProcessor::write_dac_channel_a(uint16_t dac_value) {
+void AudioProcessor::write_dac_channel(uint8_t channel, uint16_t dac_value) {
 	const uint16_t clamped = clamp_u16(dac_value, 0, kDacMaxValue);
-	const uint8_t config = (0u << 3) | (0u << 2) | (0u << 1) | 1u;
+	// MCP4822 config byte (high nibble): bit 3 selects channel A (0) or B (1),
+	// bit 2 unused (0), bit 1 sets gain (0 = 1x), bit 0 SHDN (1 = active).
+	const uint8_t channel_bit = static_cast<uint8_t>((channel & 1u) << 3);
+	const uint8_t config = channel_bit | (0u << 2) | (0u << 1) | 1u;
 
 	uint8_t data[2];
 	data[0] = static_cast<uint8_t>((config << 4) | ((clamped >> 8) & 0x0F));
 	data[1] = static_cast<uint8_t>(clamped & 0xFF);
+
+	// Mutex protects against `Outputs` simultaneously writing CV to the same
+	// MCP4822 over the same SPI bus + CS line.
+	BrainAudioDacSpiLockGuard guard;
 
 	asm volatile("nop \n nop \n nop");
 	gpio_put(cs_pin_, 0);
@@ -229,6 +344,12 @@ void AudioProcessor::write_dac_channel_a(uint16_t dac_value) {
 	asm volatile("nop \n nop \n nop");
 	gpio_put(cs_pin_, 1);
 	asm volatile("nop \n nop \n nop");
+}
+
+// Legacy thin wrapper kept for source compatibility — older internal callers
+// or downstream code that referenced the symbol keep working.
+void AudioProcessor::write_dac_channel_a(uint16_t dac_value) {
+	write_dac_channel(kMcp4822ChannelA, dac_value);
 }
 
 }  // namespace brain::utils

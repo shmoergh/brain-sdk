@@ -43,6 +43,29 @@ struct AudioProcessorConfig {
 
 using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFrame* frame, void* user_ctx);
 
+// Stream selector for both ADC-in and DAC-out under the dual-stream API.
+// Mirrors the A/B convention used by `AudioCvInChannel` / `AudioCvOutChannel`.
+enum AudioStream : uint8_t {
+	kAudioStreamA = 0,
+	kAudioStreamB = 1,
+};
+constexpr uint8_t kMaxAudioStreams = 2;
+
+// Per-tick I/O for the dual-stream callback. The user reads `in[]` and fills
+// `out[]`. Independent processing is just `out[A] = f(in[A]); out[B] = g(in[B]);`
+// — but cross-mix (e.g. mid/side, ping-pong delay) is also natural because
+// the callback sees both inputs at once.
+struct DualStreamSamples {
+	int16_t in[kMaxAudioStreams];
+	int16_t out[kMaxAudioStreams];
+};
+
+// Dual-stream callback signature. Called once per audio tick with both inputs.
+using ProcessDualStreamFn = void (*)(
+	DualStreamSamples* samples,
+	const AudioProcessorFrame* frame,
+	void* user_ctx);
+
 class AudioProcessor {
 public:
 	AudioProcessor() = default;
@@ -61,11 +84,11 @@ public:
 	void set_pots(::Pots* pots);
 
 	/**
-	 * @brief Starts timer-driven audio processing.
+	 * @brief Starts timer-driven single-stream audio processing.
 	 *
-	 * The audio input ADC channel is registered with the global `AdcEngine` and sampled
-	 * concurrently with any pot/CV consumers — there is no longer any need to coordinate
-	 * with `Pots` or `Inputs`.
+	 * Subscribes to ADC channel A only, calls the callback once per tick with the
+	 * single input sample, and writes the returned sample to DAC channel A. Channel
+	 * B is left untouched and incurs no per-tick cost.
 	 *
 	 * @return `BrainInitStatus::kOk` on success, `kAlreadyInitialized` if already running,
 	 * or `kFailed` for invalid config/callback or hardware/timer init failure.
@@ -73,6 +96,24 @@ public:
 	BrainInitStatus init(
 		const AudioProcessorConfig& config,
 		ProcessSampleFn process_sample_fn,
+		void* user_ctx = nullptr);
+
+	/**
+	 * @brief Starts timer-driven dual-stream audio processing.
+	 *
+	 * Subscribes to ADC channels A and B, calls the callback once per tick with both
+	 * inputs, and writes both DAC channels each tick. The two SPI writes per tick
+	 * roughly double DAC bus time vs single-stream — the default `spi_baud_hz` of
+	 * 1 MHz is too low for dual-stream at the default 23 µs sample period; raise it
+	 * to at least 4 MHz (8 MHz recommended). See AUDIO_PROCESSOR.md for the
+	 * per-tick performance budget.
+	 *
+	 * @return `BrainInitStatus::kOk` on success, `kAlreadyInitialized` if already running,
+	 * or `kFailed` for invalid config/callback or hardware/timer init failure.
+	 */
+	BrainInitStatus init(
+		const AudioProcessorConfig& config,
+		ProcessDualStreamFn process_dual_fn,
 		void* user_ctx = nullptr);
 
 	void stop();
@@ -89,23 +130,30 @@ public:
 
 private:
 	static constexpr uint16_t kDacMaxValue = 4095;
+	static constexpr uint8_t kMcp4822ChannelA = 0;
+	static constexpr uint8_t kMcp4822ChannelB = 1;
 
 	static bool timer_callback(repeating_timer_t* timer);
 	void process_tick();
+	void fill_pot_frame(AudioProcessorFrame& frame) const;
 	bool init_spi_dac();
 	void deinit_spi_dac();
 	int16_t adc_raw_to_audio_sample(uint16_t raw) const;
 	uint16_t audio_sample_to_dac_value(int16_t sample) const;
+	void write_dac_channel(uint8_t channel, uint16_t dac_value);
+	// Legacy thin wrapper kept for source compatibility.
 	void write_dac_channel_a(uint16_t dac_value);
 
 	AudioProcessorConfig config_{};
 	ProcessSampleFn process_sample_fn_ = nullptr;
+	ProcessDualStreamFn process_dual_fn_ = nullptr;
 	void* user_ctx_ = nullptr;
 	::Pots* pots_ = nullptr;
 
 	bool initialized_ = false;
 	bool timer_running_ = false;
 	bool spi_initialized_ = false;
+	bool dual_stream_mode_ = false;
 	repeating_timer_t timer_{};
 
 	spi_inst_t* spi_instance_ = spi0;
@@ -113,9 +161,12 @@ private:
 	uint sck_pin_ = kAudioCvOutSckPin;
 	uint tx_pin_ = kAudioCvOutTxPin;
 	uint coupling_pin_a_ = kAudioCvOutCouplingAPin;
+	uint coupling_pin_b_ = kAudioCvOutCouplingBPin;
 
 	uint8_t audio_adc_channel_ = 0;
+	uint8_t audio_adc_channel_b_ = 0;
 	uint32_t audio_adc_token_ = 0;
+	uint32_t audio_adc_token_b_ = 0;
 
 	volatile uint64_t tick_count_ = 0;
 	volatile uint32_t overrun_count_ = 0;
@@ -128,5 +179,11 @@ using AudioProcessorConfig = brain::utils::AudioProcessorConfig;
 using AudioProcessorFrame = brain::utils::AudioProcessorFrame;
 using AudioProcessorStats = brain::utils::AudioProcessorStats;
 using ProcessSampleFn = brain::utils::ProcessSampleFn;
+using ProcessDualStreamFn = brain::utils::ProcessDualStreamFn;
+using DualStreamSamples = brain::utils::DualStreamSamples;
+using brain::utils::AudioStream;
+using brain::utils::kAudioStreamA;
+using brain::utils::kAudioStreamB;
+using brain::utils::kMaxAudioStreams;
 
 #endif

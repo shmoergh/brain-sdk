@@ -220,7 +220,8 @@ You can call `init_*` functions multiple times, it won't re-initialize or break 
 
 #### Audio utility init/status
 
-- `init_audio_processor(const AudioProcessorConfig&, ProcessSampleFn, void* user_ctx = nullptr)`
+- `init_audio_processor(const AudioProcessorConfig&, ProcessSampleFn, void* user_ctx = nullptr)` — single-stream (Input A → Output A)
+- `init_audio_processor(const AudioProcessorConfig&, ProcessDualStreamFn, void* user_ctx = nullptr)` — dual-stream (Input A → Output A and Input B → Output B). See [AUDIO_PROCESSOR.md](../utilities/AUDIO_PROCESSOR.md) for the per-tick performance budget.
 - `is_audio_processor_initialized()`
 - `brain.audio_processor.get_stats()`
 - `brain.audio_processor.get_pot_raw_u8(index)`
