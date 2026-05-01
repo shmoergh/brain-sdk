@@ -76,6 +76,11 @@ void Pots::init(const PotsConfig& cfg) {
 	// round-robin and keeps `latest_[pot_mux_channel]` fresh.
 	const uint8_t adc_channel = static_cast<uint8_t>(config_.adc_gpio - 26);
 	AdcEngine::instance().enable_channel(adc_channel);
+	// Ensure the ADC produces at least 2 samples per Pots tick so that each
+	// `drain_now() + get_latest()` pair sees a distinct value even under
+	// timing jitter. `set_min_per_channel_rate_hz` only ever raises, so this
+	// never fights with AudioProcessor's higher request when audio is active.
+	AdcEngine::instance().set_min_per_channel_rate_hz(8000);
 
 	// Tick rate: a small fraction of `settle_us` so the state machine
 	// progresses smoothly. 250 µs gives ~4 ticks per 1 ms settle window
@@ -149,6 +154,11 @@ void Pots::on_tick() {
 	}
 
 	const uint8_t adc_channel = static_cast<uint8_t>(config_.adc_gpio - 26);
+	// Pull the freshest ADC sample into the cache before reading. Without this,
+	// two consecutive Pots ticks can read the same cached value because the
+	// background drain timer hasn't fired in between — `samples_per_read`
+	// would then average duplicates instead of distinct samples.
+	AdcEngine::instance().drain_now();
 	const uint16_t raw = AdcEngine::instance().get_latest(adc_channel);
 	accumulator_ += raw;
 	++samples_collected_;
