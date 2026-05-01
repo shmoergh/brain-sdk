@@ -132,7 +132,10 @@ private:
 
 	uint32_t pot_accumulator_ = 0;
 	uint8_t pot_samples_collected_ = 0;
-	uint8_t pot_discard_remaining_ = 0;
+	// Held in a 16-bit field because the post-flip discard count includes the
+	// full ADC + DMA pipeline depth, which can briefly exceed 255 if drains
+	// are infrequent (e.g. only `Pots` registered with no audio inline drain).
+	uint16_t pot_discard_remaining_ = 0;
 	uint8_t active_pot_index_ = 0;
 
 	std::function<void(uint8_t, uint16_t)> on_change_;

@@ -6,6 +6,7 @@ add_executable(test
     apps/audio_processor_test.cpp
     apps/audio_volume_test.cpp
     apps/audio_dual_stream_test.cpp
+    apps/pot_cross_bleed_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp

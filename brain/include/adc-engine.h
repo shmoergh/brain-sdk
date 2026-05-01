@@ -88,6 +88,25 @@ public:
 	void drain_now();
 
 	/**
+	 * @brief Returns the number of in-flight ADC samples for the given channel.
+	 *
+	 * "In-flight" means: samples already captured by the ADC but not yet
+	 * dispatched to subscribers — i.e. samples sitting in the DMA ring buffer
+	 * (between read and write pointers) plus a conservative estimate for the
+	 * RP2040/RP2350 ADC FIFO depth and any in-progress sample-and-hold.
+	 *
+	 * Used by `Pots` after a mux GPIO flip to know how many subsequent samples
+	 * still reflect the *previous* mux state, so they can be discarded before
+	 * accumulating averages for the new pot.
+	 *
+	 * IMPORTANT: only safe to call from inside a `SampleCallback` — the engine's
+	 * internal lock is already held by the dispatcher in that context. Calling
+	 * from anywhere else will return a value but is not guaranteed correct under
+	 * concurrent reconfiguration.
+	 */
+	uint16_t pending_sample_count_for_channel_unlocked(uint8_t adc_channel) const;
+
+	/**
 	 * @brief Snapshot of internal counters (drain count, overruns, reconfigures).
 	 */
 	Stats get_stats() const;

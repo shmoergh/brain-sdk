@@ -92,6 +92,45 @@ void AdcEngine::drain_now() {
 	++stats_drain_count_;
 }
 
+uint16_t AdcEngine::pending_sample_count_for_channel_unlocked(uint8_t adc_channel) const {
+	if (adc_channel >= kMaxAdcChannels || num_active_channels_ == 0) {
+		return 0;
+	}
+
+	// Find which round-robin slot this channel occupies.
+	uint8_t channel_slot = num_active_channels_;
+	for (uint8_t i = 0; i < num_active_channels_; ++i) {
+		if (active_channels_[i] == adc_channel) {
+			channel_slot = i;
+			break;
+		}
+	}
+	if (channel_slot >= num_active_channels_) return 0;
+
+	// Count samples for this channel in the unread portion of the ring.
+	// The next sample to dispatch is at slot `next_channel_cursor_`, and
+	// subsequent samples cycle through slots in round-robin order.
+	const uint16_t write_idx = read_dma_write_index();
+	const uint16_t total_pending = static_cast<uint16_t>(
+		(write_idx - ring_read_index_) & kRingMask);
+
+	uint16_t channel_count = 0;
+	uint8_t cursor = next_channel_cursor_;
+	for (uint16_t i = 0; i < total_pending; ++i) {
+		if (cursor == channel_slot) ++channel_count;
+		cursor = static_cast<uint8_t>((cursor + 1) % num_active_channels_);
+	}
+
+	// Conservative allowance for samples still in the ADC FIFO (4 deep on
+	// RP2040/RP2350) plus one in-progress conversion. Distributed across
+	// active channels, rounded up so we never under-count.
+	constexpr uint16_t kAdcPipelineDepth = 4u + 1u;
+	const uint16_t pipeline_for_channel = static_cast<uint16_t>(
+		(kAdcPipelineDepth + num_active_channels_ - 1u) / num_active_channels_);
+
+	return static_cast<uint16_t>(channel_count + pipeline_for_channel);
+}
+
 AdcEngine::Stats AdcEngine::get_stats() const {
 	Stats stats{};
 	const uint32_t irq_state = save_and_disable_interrupts();

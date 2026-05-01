@@ -9,6 +9,7 @@
 #include "apps/audio_dual_stream_test.h"
 #include "apps/audio_processor_test.h"
 #include "apps/audio_volume_test.h"
+#include "apps/pot_cross_bleed_test.h"
 #include "apps/pot_live_monitor_test.h"
 #include "apps/pot_read_stability_test.h"
 #include "apps/storage_persistence_check_test.h"
@@ -43,6 +44,7 @@ void print_menu() {
 	printf("  9) Pot live monitor (turn knobs to verify)\n");
 	printf(" 10) Audio volume (In1 -> Out1, Pot1 = volume)\n");
 	printf(" 11) Audio dual stream (In1->Out1 Pot1, In2->Out2 Pot2)\n");
+	printf(" 12) Pot cross-bleed regression (set Pot1 min, Pot3 max)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -117,6 +119,8 @@ int main() {
 				run_selected_app<sandbox::apps::AudioVolumeTest>();
 			case 11:
 				run_selected_app<sandbox::apps::AudioDualStreamTest>();
+			case 12:
+				run_selected_app<sandbox::apps::PotCrossBleedTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

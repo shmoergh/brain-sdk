@@ -157,8 +157,25 @@ void Pots::on_adc_sample(uint16_t raw) {
 	if (config_.num_pots > 1) {
 		active_pot_index_ = static_cast<uint8_t>((pot_idx + 1) % config_.num_pots);
 		set_mux_channel(config_.channel_map[active_pot_index_]);
+
+		// At the moment of the mux flip, samples already captured by the ADC
+		// (sitting in the DMA ring or the ADC FIFO) still reflect the OLD mux
+		// state. They will arrive at this callback before any post-flip sample
+		// does. Discard the full pipeline depth so the new pot's average is
+		// only built from samples captured AFTER the flip; then add the
+		// configured analog-settle discard on top.
+		//
+		// Without this, `samples_per_read` averages mix in N stale samples from
+		// the previous pot, producing a `prev_value / samples_per_read`
+		// contamination term in the new pot's reading.
+		const uint8_t adc_channel = static_cast<uint8_t>(config_.adc_gpio - 26);
+		const uint16_t pipeline_pending = AdcEngine::instance()
+			.pending_sample_count_for_channel_unlocked(adc_channel);
+		pot_discard_remaining_ = static_cast<uint16_t>(
+			pipeline_pending + config_.settle_discard_samples);
+	} else {
+		pot_discard_remaining_ = config_.settle_discard_samples;
 	}
-	pot_discard_remaining_ = config_.settle_discard_samples;
 }
 
 void Pots::release_subscription() {
