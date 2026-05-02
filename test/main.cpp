@@ -17,21 +17,20 @@
 
 namespace {
 
+// Apps run in a noreturn loop. To switch tests, power-cycle / reset the
+// device. We tried a "press 'q' to quit back to the menu" path, but the
+// per-component re-init across runs hit a stack-reuse race against the
+// alarm-pool worker (canceled timer callbacks could still fire against
+// the Brain stack frame about to be reused), causing hard faults on
+// certain test sequences (notably test10→test11 and test12×3). The
+// reset-to-switch model is rock-solid; not worth the failure modes.
 template <typename TApp>
-void run_selected_app() {
+[[noreturn]] void run_selected_app() {
 	TApp app;
 	app.init();
-	printf("\n[Press 'q' then Enter to return to the menu]\n");
-	fflush(stdout);
 	while (true) {
 		app.update();
-		const int ch = getchar_timeout_us(0);
-		if (ch == 'q' || ch == 'Q') {
-			printf("\n\nReturning to menu...\n");
-			fflush(stdout);
-			sleep_ms(200);
-			return;
-		}
+		sleep_ms(1);
 	}
 }
 
@@ -107,40 +106,28 @@ int main() {
 		switch (selection) {
 			case 1:
 				run_selected_app<sandbox::apps::PotReadStabilityTest>();
-				break;
 			case 2:
 				run_selected_app<sandbox::apps::MultipotTest>();
-				break;
 			case 3:
 				run_selected_app<sandbox::apps::MidiToCvTest>();
-				break;
 			case 4:
 				run_selected_app<sandbox::apps::StorageTest>();
-				break;
 			case 5:
 				run_selected_app<sandbox::apps::StoragePersistenceCheckTest>();
-				break;
 			case 6:
 				run_selected_app<sandbox::apps::LedsTest>();
-				break;
 			case 7:
 				run_selected_app<sandbox::apps::AudioProcessorTest>();
-				break;
 			case 8:
 				run_selected_app<sandbox::apps::AdcEngineTest>();
-				break;
 			case 9:
 				run_selected_app<sandbox::apps::PotLiveMonitorTest>();
-				break;
 			case 10:
 				run_selected_app<sandbox::apps::AudioVolumeTest>();
-				break;
 			case 11:
 				run_selected_app<sandbox::apps::AudioDualStreamTest>();
-				break;
 			case 12:
 				run_selected_app<sandbox::apps::PotCrossBleedTest>();
-				break;
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

@@ -37,7 +37,7 @@ PotsConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 	cfg.samples_per_read = 6;
 	cfg.change_threshold = 1;
 	cfg.settle_discard_samples = 0;
-	cfg.settle_us = 1000;	 // 1 ms — huge for analog, trivial for human pots.
+	cfg.settle_us = 2000;	 // 2 ms — covers ≥ 2 Pots ticks of wall-clock settle.
 	return cfg;
 }
 
@@ -59,7 +59,7 @@ void Pots::init(const PotsConfig& cfg) {
 	config_ = cfg;
 	if (config_.num_pots > kMaxPots) config_.num_pots = kMaxPots;
 	if (config_.samples_per_read == 0) config_.samples_per_read = 1;
-	if (config_.settle_us == 0) config_.settle_us = 1000;
+	if (config_.settle_us == 0) config_.settle_us = 2000;
 
 	gpio_init(config_.s0_gpio);
 	gpio_set_dir(config_.s0_gpio, GPIO_OUT);
@@ -82,11 +82,13 @@ void Pots::init(const PotsConfig& cfg) {
 	// never fights with AudioProcessor's higher request when audio is active.
 	AdcEngine::instance().set_min_per_channel_rate_hz(8000);
 
-	// Tick rate: a small fraction of `settle_us` so the state machine
-	// progresses smoothly. 250 µs gives ~4 ticks per 1 ms settle window
-	// and ~250 µs per accumulation sample — total ~3 ms per pot, ~9 ms
-	// per full 3-pot cycle, which is plenty for human knob movement.
-	constexpr int64_t kTickPeriodUs = 250;
+	// Tick rate: 1 ms. Slow enough that the alarm-pool callback doesn't
+	// meaningfully contend with `AudioProcessor`'s 23 µs audio tick
+	// (collisions are at 1 kHz × ~1-2 µs each — below the audio noise
+	// floor in practice). Fast enough that settle (2 ms) plus
+	// `samples_per_read` (default 6) finishes a 3-pot cycle in ~24 ms,
+	// i.e. ~42 Hz refresh per pot — plenty for a human turning a knob.
+	constexpr int64_t kTickPeriodUs = 1000;
 
 	start_settling_for(0);
 	initialized_ = true;
@@ -154,11 +156,14 @@ void Pots::on_tick() {
 	}
 
 	const uint8_t adc_channel = static_cast<uint8_t>(config_.adc_gpio - 26);
-	// Pull the freshest ADC sample into the cache before reading. Without this,
-	// two consecutive Pots ticks can read the same cached value because the
-	// background drain timer hasn't fired in between — `samples_per_read`
-	// would then average duplicates instead of distinct samples.
-	AdcEngine::instance().drain_now();
+	// Don't `drain_now()` here. Whoever else is using AdcEngine keeps the
+	// cache fresh — `AudioProcessor`'s audio tick drains every ~23 µs, and
+	// the background drain timer (500 µs) drains otherwise. Both are faster
+	// than our 1 ms tick, so two consecutive Pots ticks always see distinct
+	// samples. Skipping `drain_now()` here removes the spinlock acquire from
+	// the alarm-pool callback, which is the main contention source against
+	// the audio tick — that's where the test 10 / 11 pop-noise was coming
+	// from.
 	const uint16_t raw = AdcEngine::instance().get_latest(adc_channel);
 	accumulator_ += raw;
 	++samples_collected_;
