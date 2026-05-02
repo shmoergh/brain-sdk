@@ -144,6 +144,17 @@ bool Pots::timer_callback(repeating_timer_t* timer) {
 	return self->timer_running_;
 }
 
+void Pots::cancel_internal_timer() {
+	if (timer_running_) {
+		cancel_repeating_timer(&timer_);
+		timer_running_ = false;
+	}
+}
+
+void Pots::external_tick() {
+	on_tick();
+}
+
 void Pots::on_tick() {
 	if (config_.num_pots == 0) return;
 

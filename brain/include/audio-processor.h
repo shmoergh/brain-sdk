@@ -166,6 +166,15 @@ private:
 	uint8_t audio_adc_channel_ = 0;
 	uint8_t audio_adc_channel_b_ = 0;
 
+	// AudioProcessor drives `Pots`' state machine inline from `process_tick`,
+	// counting audio ticks and invoking `pots_->external_tick()` once per
+	// `pots_tick_audio_interval_` audio ticks (~1 ms wall-clock at default
+	// sample_period_us). Pots' own alarm-pool timer is canceled while audio
+	// is running so the two never compete in the same IRQ batch — that
+	// competition was the source of the audible 1 kHz "pop noise" on test 10.
+	uint16_t pots_tick_counter_ = 0;
+	uint16_t pots_tick_audio_interval_ = 0;
+
 	volatile uint64_t tick_count_ = 0;
 	volatile uint32_t overrun_count_ = 0;
 };

@@ -29,6 +29,12 @@ AudioProcessor::~AudioProcessor() {
 
 void AudioProcessor::set_pots(::Pots* pots) {
 	pots_ = pots;
+	// If audio is already running, take Pots out of the alarm pool now —
+	// audio's process_tick will drive the Pots state machine inline. If
+	// audio isn't running yet, init() will do this when it starts up.
+	if (pots_ != nullptr && initialized_) {
+		pots_->cancel_internal_timer();
+	}
 }
 
 BrainInitStatus AudioProcessor::init(
@@ -66,6 +72,12 @@ BrainInitStatus AudioProcessor::init(
 	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
 	AdcEngine::instance().set_min_per_channel_rate_hz(target_per_channel_hz);
 
+	// Drive Pots' state machine inline at ~1 ms intervals (so cross-bleed
+	// settle and averaging timing stay the same as Pots' standalone tick).
+	pots_tick_audio_interval_ = static_cast<uint16_t>(1000u / config_.sample_period_us);
+	if (pots_tick_audio_interval_ == 0) pots_tick_audio_interval_ = 1;
+	pots_tick_counter_ = 0;
+
 	initialized_ = true;
 	timer_running_ = true;
 	if (!add_repeating_timer_us(
@@ -77,6 +89,9 @@ BrainInitStatus AudioProcessor::init(
 		stop();
 		return BrainInitStatus::kFailed;
 	}
+
+	// Audio's tick is now firing — take Pots out of the alarm pool.
+	if (pots_ != nullptr) pots_->cancel_internal_timer();
 
 	return BrainInitStatus::kOk;
 }
@@ -118,6 +133,10 @@ BrainInitStatus AudioProcessor::init(
 	const uint32_t target_per_channel_hz = kMicrosPerSecond / config_.sample_period_us;
 	AdcEngine::instance().set_min_per_channel_rate_hz(target_per_channel_hz);
 
+	pots_tick_audio_interval_ = static_cast<uint16_t>(1000u / config_.sample_period_us);
+	if (pots_tick_audio_interval_ == 0) pots_tick_audio_interval_ = 1;
+	pots_tick_counter_ = 0;
+
 	initialized_ = true;
 	timer_running_ = true;
 	if (!add_repeating_timer_us(
@@ -129,6 +148,8 @@ BrainInitStatus AudioProcessor::init(
 		stop();
 		return BrainInitStatus::kFailed;
 	}
+
+	if (pots_ != nullptr) pots_->cancel_internal_timer();
 
 	return BrainInitStatus::kOk;
 }
@@ -233,6 +254,16 @@ void AudioProcessor::process_tick() {
 	}
 
 	++tick_count_;
+
+	// Drive Pots' state machine inline, after the audio DAC update is done.
+	// This avoids any alarm-pool collision between Pots' tick and audio's
+	// tick that would otherwise delay the audio DAC write at ~1 kHz.
+	if (pots_ != nullptr && pots_tick_audio_interval_ > 0) {
+		if (++pots_tick_counter_ >= pots_tick_audio_interval_) {
+			pots_tick_counter_ = 0;
+			pots_->external_tick();
+		}
+	}
 
 	const int64_t elapsed_us = absolute_time_diff_us(tick_start, get_absolute_time());
 	if (elapsed_us > static_cast<int64_t>(config_.sample_period_us)) {

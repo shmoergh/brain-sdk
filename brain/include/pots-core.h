@@ -78,6 +78,18 @@ public:
 	void set_settling_delay_us(uint32_t /*delay*/) {}
 	void scan() {}
 
+	// Cancels Pots' internal repeating timer. Called by `AudioProcessor`
+	// when it takes over driving the Pots state machine inline from its
+	// audio tick — keeps Pots out of the alarm pool while audio is running
+	// so the two never compete in the same IRQ batch.
+	void cancel_internal_timer();
+
+	// Advances the Pots state machine by one tick. Used by `AudioProcessor`
+	// to drive Pots inline (after `cancel_internal_timer()`). Equivalent to
+	// what the internal timer callback does, just invoked from a different
+	// context.
+	void external_tick();
+
 private:
 	enum class Phase : uint8_t { kSettling, kSampling };
 
