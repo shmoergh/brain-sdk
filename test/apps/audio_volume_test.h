@@ -26,7 +26,10 @@ public:
 
 private:
 	struct State {
-		volatile uint8_t volume_q8 = 0;	 // 0..255, written from main loop, read in ISR
+		volatile int16_t last_input_sample = 0;
+		volatile uint32_t sample_count = 0;
+		volatile uint32_t spike_count = 0;
+		volatile uint32_t max_abs_delta = 0;
 	};
 
 	static int16_t process_sample(

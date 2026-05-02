@@ -28,6 +28,7 @@ public:
 		uint64_t drain_count = 0;
 		uint32_t overrun_count = 0;
 		uint32_t reconfigure_count = 0;
+		uint32_t conversion_error_count = 0;
 	};
 
 	/**
@@ -56,6 +57,16 @@ public:
 	 * every audio tick.
 	 */
 	void drain_now();
+
+	/**
+	 * @brief Enables/disables the 500 us background drain timer.
+	 *
+	 * AudioProcessor drains inline every audio tick; in that mode the
+	 * background timer only adds lock contention and jitter, so callers should
+	 * disable it while real-time audio is active and re-enable it when audio
+	 * stops.
+	 */
+	void set_background_drain_enabled(bool enabled);
 
 	/**
 	 * @brief Returns the latest cached raw ADC sample for the given channel.
@@ -108,9 +119,11 @@ private:
 
 	repeating_timer_t timer_{};
 	bool timer_running_ = false;
+	bool background_drain_enabled_ = true;
 
 	uint64_t stats_drain_count_ = 0;
 	uint32_t stats_overrun_count_ = 0;
 	uint32_t stats_reconfigure_count_ = 0;
-	volatile uint64_t last_drain_us_ = 0;
+	uint32_t stats_conversion_error_count_ = 0;
+	volatile uint32_t last_drain_us_ = 0;
 };

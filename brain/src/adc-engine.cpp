@@ -58,8 +58,29 @@ void AdcEngine::set_min_per_channel_rate_hz(uint32_t hz) {
 void AdcEngine::drain_now() {
 	BrainAdcLockGuard guard;
 	drain_ring_locked();
-	last_drain_us_ = time_us_64();
+	last_drain_us_ = time_us_32();
 	++stats_drain_count_;
+}
+
+void AdcEngine::set_background_drain_enabled(bool enabled) {
+	BrainAdcLockGuard guard;
+	background_drain_enabled_ = enabled;
+
+	if (!background_drain_enabled_) {
+		if (timer_running_) {
+			cancel_repeating_timer(&timer_);
+			timer_running_ = false;
+		}
+		return;
+	}
+
+	if (initialized_ && !timer_running_) {
+		timer_running_ = add_repeating_timer_us(
+			-static_cast<int64_t>(kDefaultDrainPeriodUs),
+			&AdcEngine::drain_timer_callback,
+			this,
+			&timer_);
+	}
 }
 
 uint16_t AdcEngine::get_latest(uint8_t adc_channel) const {
@@ -76,6 +97,7 @@ AdcEngine::Stats AdcEngine::get_stats() const {
 	stats.drain_count = stats_drain_count_;
 	stats.overrun_count = stats_overrun_count_;
 	stats.reconfigure_count = stats_reconfigure_count_;
+	stats.conversion_error_count = stats_conversion_error_count_;
 	restore_interrupts(irq_state);
 	return stats;
 }
@@ -91,7 +113,7 @@ void AdcEngine::ensure_started_locked() {
 		true,	// enable FIFO
 		true,	// DMA request
 		1,		// DREQ when >=1 sample present
-		false,	// no ERR bit
+		true,	// include conversion ERR bit in FIFO word (bit 15)
 		false); // 12-bit samples
 
 	dma_channel_config cfg = dma_channel_get_default_config(dma_channel_);
@@ -115,7 +137,7 @@ void AdcEngine::ensure_started_locked() {
 	ring_read_index_ = 0;
 	for (uint8_t i = 0; i < kMaxAdcChannels; ++i) latest_[i] = 0;
 
-	if (!timer_running_) {
+	if (background_drain_enabled_ && !timer_running_) {
 		timer_running_ = add_repeating_timer_us(
 			-static_cast<int64_t>(kDefaultDrainPeriodUs),
 			&AdcEngine::drain_timer_callback,
@@ -202,11 +224,18 @@ void AdcEngine::drain_ring_locked() {
 	}
 
 	for (uint16_t i = 0; i < available; ++i) {
-		const uint16_t raw = static_cast<uint16_t>(ring_[ring_read_index_] & kAdcMaxValue);
+		const uint16_t sample_word = ring_[ring_read_index_];
 		ring_read_index_ = static_cast<uint16_t>((ring_read_index_ + 1) & kRingMask);
 
 		const uint8_t channel = active_channels_[next_channel_cursor_];
-		latest_[channel] = raw;
+		if ((sample_word & 0x8000u) == 0) {
+			const uint16_t raw = static_cast<uint16_t>(sample_word & kAdcMaxValue);
+			latest_[channel] = raw;
+		} else {
+			// Drop errored conversions to avoid injecting undefined/noisy ADC
+			// words into realtime consumers such as AudioProcessor.
+			++stats_conversion_error_count_;
+		}
 		next_channel_cursor_ = static_cast<uint8_t>((next_channel_cursor_ + 1) % num_active_channels_);
 	}
 }
@@ -215,14 +244,24 @@ bool AdcEngine::drain_timer_callback(repeating_timer_t* timer) {
 	auto* self = static_cast<AdcEngine*>(timer->user_data);
 	if (self == nullptr) return false;
 
+	if (!self->background_drain_enabled_) return true;
+
+	// Fast-path skip before taking the ADC lock. In audio mode `drain_now()`
+	// runs every ~23 us, so this avoids needless lock contention from the
+	// 500 us timer callback.
+	const uint32_t now = time_us_32();
+	const uint32_t last = self->last_drain_us_;
+	if ((now - last) < kRecentDrainSkipUs) return true;
+
 	BrainAdcLockGuard guard;
 	// If a consumer drained recently (e.g. the audio tick), skip — the cache
 	// is already fresh and another lock acquisition just costs cycles.
-	const uint64_t now = time_us_64();
-	if (now - self->last_drain_us_ < kRecentDrainSkipUs) return true;
+	const uint32_t now_locked = time_us_32();
+	const uint32_t last_locked = self->last_drain_us_;
+	if ((now_locked - last_locked) < kRecentDrainSkipUs) return true;
 
 	self->drain_ring_locked();
-	self->last_drain_us_ = now;
+	self->last_drain_us_ = now_locked;
 	++self->stats_drain_count_;
 	return true;
 }

@@ -29,6 +29,18 @@ struct AudioProcessorStats {
 	uint32_t overrun_count = 0;
 	uint32_t pot_mux_switch_count = 0;	// legacy: always 0 under AdcEngine
 	uint32_t pot_settle_discard_count = 0;	// legacy: always 0 under AdcEngine
+
+	// Diagnostic: how many audio ticks fired more than 50 µs after the
+	// previous tick (i.e. were delayed by some other IRQ or critical
+	// section blocking the alarm pool). Should be near-zero in healthy
+	// operation; non-zero indicates audio-path jitter.
+	uint32_t late_tick_count = 0;
+
+	// Diagnostic: longest observed gap between two consecutive audio ticks
+	// since `init()`. Nominal value is ~`sample_period_us`. Spikes of
+	// hundreds of microseconds or milliseconds indicate something is
+	// blocking the audio IRQ.
+	uint32_t max_tick_interval_us = 0;
 };
 
 struct AudioProcessorConfig {
@@ -39,6 +51,10 @@ struct AudioProcessorConfig {
 	uint8_t pot_average_samples = 4;  // legacy: ignored
 	uint16_t max_dma_drain_samples_per_tick = 64;  // legacy: ignored
 	uint32_t spi_baud_hz = 1000000;
+	// Single-stream input deglitcher (median-of-3) for suppressing isolated
+	// ADC impulse pops. Enabled by default; disable to maximize callback
+	// compute headroom when input path is already clean.
+	bool input_deglitch_enabled = true;
 };
 
 using ProcessSampleFn = int16_t (*)(int16_t input_sample, const AudioProcessorFrame* frame, void* user_ctx);
@@ -134,11 +150,16 @@ private:
 	static constexpr uint8_t kMcp4822ChannelB = 1;
 
 	static bool timer_callback(repeating_timer_t* timer);
+	static void hardware_alarm_callback(uint alarm_num);
 	void process_tick();
+	bool start_tick_scheduler();
+	void stop_tick_scheduler();
+	void schedule_next_hardware_alarm();
 	void fill_pot_frame(AudioProcessorFrame& frame) const;
 	bool init_spi_dac();
 	void deinit_spi_dac();
 	int16_t adc_raw_to_audio_sample(uint16_t raw) const;
+	int16_t median3_i16(int16_t a, int16_t b, int16_t c) const;
 	uint16_t audio_sample_to_dac_value(int16_t sample) const;
 	void write_dac_channel(uint8_t channel, uint16_t dac_value);
 	// Legacy thin wrapper kept for source compatibility.
@@ -154,7 +175,10 @@ private:
 	bool timer_running_ = false;
 	bool spi_initialized_ = false;
 	bool dual_stream_mode_ = false;
+	bool using_hardware_alarm_ = false;
 	repeating_timer_t timer_{};
+	int hardware_alarm_num_ = -1;
+	absolute_time_t next_alarm_deadline_{};
 
 	spi_inst_t* spi_instance_ = spi0;
 	uint cs_pin_ = kAudioCvOutCsPin;
@@ -165,6 +189,9 @@ private:
 
 	uint8_t audio_adc_channel_ = 0;
 	uint8_t audio_adc_channel_b_ = 0;
+	int16_t in_a_hist0_ = 0;
+	int16_t in_a_hist1_ = 0;
+	bool in_a_hist_seeded_ = false;
 
 	// AudioProcessor drives `Pots`' state machine inline from `process_tick`,
 	// counting audio ticks and invoking `pots_->external_tick()` once per
@@ -177,6 +204,11 @@ private:
 
 	volatile uint64_t tick_count_ = 0;
 	volatile uint32_t overrun_count_ = 0;
+
+	// Tick-interval diagnostics (see AudioProcessorStats fields).
+	absolute_time_t last_tick_start_us_{};
+	volatile uint32_t late_tick_count_ = 0;
+	volatile uint32_t max_tick_interval_us_ = 0;
 };
 
 }  // namespace brain::utils
