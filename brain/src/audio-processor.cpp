@@ -222,18 +222,10 @@ bool AudioProcessor::start_tick_scheduler() {
 	using_hardware_alarm_ = false;
 	hardware_alarm_num_ = -1;
 
-	const int claimed_alarm = hardware_alarm_claim_unused(false);
-	if (claimed_alarm >= 0 && claimed_alarm < NUM_ALARMS) {
-		hardware_alarm_num_ = claimed_alarm;
-		g_alarm_owners[hardware_alarm_num_] = this;
-		hardware_alarm_set_callback(
-			static_cast<uint>(hardware_alarm_num_),
-			&AudioProcessor::hardware_alarm_callback);
-		using_hardware_alarm_ = true;
-		next_alarm_deadline_ = delayed_by_us(get_absolute_time(), config_.sample_period_us);
-		hardware_alarm_set_target(static_cast<uint>(hardware_alarm_num_), next_alarm_deadline_);
-		return true;
-	}
+	// Use the alarm-pool repeating timer for now. The one-shot hardware-alarm
+	// scheduler path can silently halt on some RP2350 runs under sustained
+	// audio load (observed as frozen `tick_count` / pot updates after a few
+	// seconds), while repeating timer remains stable.
 
 	if (!add_repeating_timer_us(
 			-static_cast<int64_t>(config_.sample_period_us),

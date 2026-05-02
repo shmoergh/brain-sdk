@@ -9,9 +9,9 @@ namespace sandbox::apps {
 
 int16_t AudioVolumeTest::process_sample(
 	int16_t input_sample,
-	const AudioProcessorFrame* /*frame*/,
+	const AudioProcessorFrame* frame,
 	void* user_ctx) {
-	// DIAGNOSTIC MODE: raw passthrough plus ISR-side discontinuity counters.
+	// Pot-controlled passthrough plus lightweight ADC discontinuity counters.
 	State* state = static_cast<State*>(user_ctx);
 	if (state == nullptr) return input_sample;
 
@@ -26,7 +26,14 @@ int16_t AudioVolumeTest::process_sample(
 	}
 	state->last_input_sample = input_sample;
 	++state->sample_count;
-	return input_sample;
+
+	uint8_t gain_q8 = state->volume_q8;
+	if (frame != nullptr && frame->pot_count > 0) {
+		gain_q8 = frame->pot_raw_u8[0];
+		state->volume_q8 = gain_q8;
+	}
+	const int32_t scaled = (static_cast<int32_t>(input_sample) * static_cast<int32_t>(gain_q8)) >> 8;
+	return static_cast<int16_t>(scaled);
 }
 
 void AudioVolumeTest::init() {
@@ -37,6 +44,13 @@ void AudioVolumeTest::init() {
 	printf(" Audio volume test\n");
 	printf(" Input 1 -> Output 1, gain = Pot 1\n");
 	printf("========================================\n\n");
+
+	BrainInitStatus pots_status = brain_.init_pots(create_default_pots_config(3, 8));
+	if (!brain_init_succeeded(pots_status)) {
+		printf("[ERROR] init_pots failed (status=%d)\n", static_cast<int>(pots_status));
+		initialized_ = false;
+		return;
+	}
 
 	AudioProcessorConfig audio_cfg{};
 	audio_cfg.sample_period_us = 23;
@@ -49,11 +63,12 @@ void AudioVolumeTest::init() {
 		initialized_ = false;
 		return;
 	}
+	state_.volume_q8 = 255;
 
 	printf("Init OK. Sample period=%lu us, SPI baud=%lu Hz.\n",
 		   static_cast<unsigned long>(audio_cfg.sample_period_us),
 		   static_cast<unsigned long>(audio_cfg.spi_baud_hz));
-	printf("Raw passthrough with ADC discontinuity diagnostics.\n\n");
+	printf("Turn Pot 1 to set volume (0..255).\n\n");
 
 	initialized_ = true;
 }
@@ -63,7 +78,6 @@ void AudioVolumeTest::update() {
 		sleep_ms(50);
 		return;
 	}
-
 	const uint32_t now_us = to_us_since_boot(get_absolute_time());
 	if ((now_us - last_print_us_) < 1000000) {
 		sleep_ms(1);
@@ -74,10 +88,15 @@ void AudioVolumeTest::update() {
 	const uint32_t samples = state_.sample_count;
 	const uint32_t spikes = state_.spike_count;
 	const uint32_t max_abs_delta = state_.max_abs_delta;
+	const uint16_t pot0 = brain_.audio_processor.get_pot_raw_u8(0);
+	const AudioProcessorStats audio_stats = brain_.audio_processor.get_stats();
 	const AdcEngine::Stats adc_stats = AdcEngine::instance().get_stats();
 
-	printf("ADC path diag: samples=%lu spikes=%lu max_abs_delta=%lu ADC-Err=%lu\n",
+	printf("Pot1=%u VolQ8=%u samples=%lu ticks=%llu spikes=%lu max_abs_delta=%lu ADC-Err=%lu\n",
+		static_cast<unsigned>(pot0),
+		static_cast<unsigned>(state_.volume_q8),
 		static_cast<unsigned long>(samples),
+		static_cast<unsigned long long>(audio_stats.tick_count),
 		static_cast<unsigned long>(spikes),
 		static_cast<unsigned long>(max_abs_delta),
 		static_cast<unsigned long>(adc_stats.conversion_error_count));
