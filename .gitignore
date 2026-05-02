@@ -9,3 +9,4 @@ build-*-unsafe
 *.lck
 **/ai
 wd*.md
+.cache
