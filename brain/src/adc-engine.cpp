@@ -317,6 +317,18 @@ void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
 		: pots_config.settling_delay_us;
 	uint32_t derived_settling = settling / kPotSamplePeriodUs;
 	if (derived_settling < 1) derived_settling = 1;
+	// Settling must cover at least one full DMA buffer period plus one sample
+	// of margin. The IRQ processes a buffer (`kFramesPerBuffer` pot samples)
+	// that was captured before the IRQ fired; when the state machine completes
+	// an average mid-buffer and switches the mux, the remaining frames in the
+	// SAME buffer were captured under the old mux setting. If the settle
+	// window is shorter than the buffer, the first averaging sample for the
+	// next pot can land on one of those stale frames — pot N's average then
+	// gets contaminated with pot N-1's voltage. Clamping to `kFramesPerBuffer
+	// + 1` guarantees the first averaging sample is always in a fresh buffer
+	// captured after the mux GPIO change took effect.
+	constexpr uint32_t kMinSettlingSamples = kFramesPerBuffer + 1;
+	if (derived_settling < kMinSettlingSamples) derived_settling = kMinSettlingSamples;
 	if (derived_settling > 0xFFFF) derived_settling = 0xFFFF;
 	pot_settling_samples_ = static_cast<uint16_t>(derived_settling);
 
