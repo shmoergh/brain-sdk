@@ -14,12 +14,20 @@ enum class AudioCvOutRange {
 	kRangeMinus5To5V = 1
 };
 
+enum class AudioCvOutOwner : uint8_t {
+	kManual = 0,
+	kAudio = 1,
+};
+
 // Convenience aliases for less verbose call sites.
 constexpr AudioCvOutChannel kOutputsChannelA = AudioCvOutChannel::kChannelA;
 constexpr AudioCvOutChannel kOutputsChannelB = AudioCvOutChannel::kChannelB;
 
 constexpr AudioCvOutRange kOutputsRange0To10V = AudioCvOutRange::kRange0To10V;
 constexpr AudioCvOutRange kOutputsRangeMinus5To5V = AudioCvOutRange::kRangeMinus5To5V;
+
+constexpr AudioCvOutOwner kOutputsOwnerManual = AudioCvOutOwner::kManual;
+constexpr AudioCvOutOwner kOutputsOwnerAudio = AudioCvOutOwner::kAudio;
 
 class Outputs {
 public:
@@ -87,8 +95,8 @@ public:
 	 * - `kOutputsChannelA`
 	 * - `kOutputsChannelB`
 	 * @param millivolts Requested output voltage in mV, validated against the channel's current range.
-	 * @return `true` when the value is in-range and written to DAC; `false` if audio/CV is not initialized or
-	 * the requested value is out of range.
+	 * @return `true` when the value is in-range and written to DAC; `false` if audio/CV is not initialized,
+	 * the requested value is out of range, or the channel's current owner is `kOutputsOwnerAudio`.
 	 */
 	bool set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivolts);
 
@@ -96,7 +104,8 @@ public:
 	 * @brief Writes voltage using the calibration table (with clamping) on one DAC channel.
 	 * @param channel Output channel (`kOutputsChannelA` or `kOutputsChannelB`).
 	 * @param target_millivolts Requested output voltage in mV. Out-of-range values are clamped to the channel range.
-	 * @return `true` when audio/CV is initialized and DAC write succeeds; `false` if hardware is not initialized.
+	 * @return `true` when audio/CV is initialized and DAC write succeeds; `false` if hardware is not initialized
+	 * or the channel's current owner is `kOutputsOwnerAudio`.
 	 */
 	bool set_voltage_calibrated_millivolts(AudioCvOutChannel channel, int32_t target_millivolts);
 
@@ -188,6 +197,24 @@ public:
 	 * @return `true` when pulse output is logically high (gate on), `false` when logically low.
 	 */
 	bool pulse_get() const;
+
+	/**
+	 * @brief Sets per-channel ownership for the streamed DAC output.
+	 * @param channel Output channel (`kOutputsChannelA` or `kOutputsChannelB`).
+	 * @param owner New owner:
+	 * - `kOutputsOwnerManual`: stream is sourced from the latest `set_voltage_*` hold value.
+	 * - `kOutputsOwnerAudio`: stream is sourced from per-sample `OutputEngine::write_audio_sample`
+	 *   pushes; manual `set_voltage_*` calls return `false` until ownership flips back to manual.
+	 *
+	 * The flip is glitch-free: on Manual -> Audio, the audio slot is seeded with the current hold
+	 * value so the first emitted frame after the flip is continuous.
+	 */
+	void set_channel_owner(AudioCvOutChannel channel, AudioCvOutOwner owner);
+
+	/**
+	 * @brief Returns the current ownership for one channel.
+	 */
+	AudioCvOutOwner get_channel_owner(AudioCvOutChannel channel) const;
 
 private:
 	bool to_dac_input_millivolts(

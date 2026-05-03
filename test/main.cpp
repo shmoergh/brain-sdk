@@ -9,6 +9,7 @@
 #include "apps/midi_to_cv_test.h"
 #include "apps/multipot_test.h"
 #include "apps/output_engine_timing_test.h"
+#include "apps/output_ownership_test.h"
 #include "apps/storage_persistence_check_test.h"
 #include "apps/storage_test.h"
 
@@ -39,6 +40,7 @@ void print_menu() {
 	printf("  7) AudioProcessor effect + guardrails\n");
 	printf("  8) Inputs + Pots concurrent (engine-shared)\n");
 	printf("  9) OutputEngine timing (Slice 1)\n");
+	printf(" 10) Output ownership (Slice 3)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -109,6 +111,8 @@ int main() {
 				run_selected_app<sandbox::apps::InputsAndPotsTest>();
 			case 9:
 				run_selected_app<sandbox::apps::OutputEngineTimingTest>();
+			case 10:
+				run_selected_app<sandbox::apps::OutputOwnershipTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

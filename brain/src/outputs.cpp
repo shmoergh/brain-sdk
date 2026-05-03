@@ -260,6 +260,21 @@ bool Outputs::pulse_get() const {
 	return pulse_state_;
 }
 
+void Outputs::set_channel_owner(AudioCvOutChannel channel, AudioCvOutOwner owner) {
+	const auto engine_owner = (owner == AudioCvOutOwner::kAudio)
+		? brain::internal::ChannelOwner::kAudio
+		: brain::internal::ChannelOwner::kManual;
+	brain::internal::OutputEngine::instance().set_channel_owner(channel, engine_owner);
+}
+
+AudioCvOutOwner Outputs::get_channel_owner(AudioCvOutChannel channel) const {
+	const auto engine_owner =
+		brain::internal::OutputEngine::instance().get_channel_owner(channel);
+	return (engine_owner == brain::internal::ChannelOwner::kAudio)
+		? AudioCvOutOwner::kAudio
+		: AudioCvOutOwner::kManual;
+}
+
 bool Outputs::to_dac_input_millivolts(
 	AudioCvOutChannel channel,
 	int32_t requested_millivolts,
