@@ -93,6 +93,53 @@ public:
 	 */
 	bool is_running() const { return running_; }
 
+	/**
+	 * @brief Per-sample callback fired from the DMA IRQ in audio mode.
+	 *
+	 * Receives the latest raw IN1/IN2 readings (12-bit), a coherent snapshot of
+	 * cached state (pot raw values, counters), and the registered context. Runs
+	 * in DMA IRQ context — must be brief (≤ ~20 µs at sample_period_us = 23 to
+	 * leave headroom inside the 23 µs IRQ budget).
+	 */
+	using AdcAudioCallback = void (*)(uint16_t in1_raw, uint16_t in2_raw,
+	                                   const AdcSnapshot& snap, void* ctx);
+
+	/**
+	 * @brief Switches the engine into audio mode: 1-frame DMA buffer at sample rate.
+	 *
+	 * Reconfigures ADC clkdiv so each round-robin frame [POT, IN1, IN2] takes
+	 * `sample_period_us` µs, and shrinks the DMA transfer count to one frame so
+	 * the IRQ fires at sample rate (~43 kHz at the default 23 µs). The pot
+	 * scanner advances by one POT sample per IRQ.
+	 *
+	 * Calls `start()` first if the engine isn't running. Idempotent: calling
+	 * again with a different period reapplies the new clkdiv atomically.
+	 *
+	 * @return true on success, false if the engine could not be started.
+	 */
+	bool enable_audio_mode(uint32_t sample_period_us);
+
+	/**
+	 * @brief Returns the engine to CV mode: 32-frame buffer at full ADC speed.
+	 *
+	 * Reverts ADC clkdiv to 0 (full speed) and restores the original 32-frame
+	 * buffer. Clears the audio callback. No-op if audio mode wasn't enabled.
+	 */
+	void disable_audio_mode();
+
+	/**
+	 * @brief Registers the per-sample callback fired from the DMA IRQ in audio mode.
+	 *
+	 * Single subscriber; passing `nullptr` clears the callback. Must be called
+	 * after `enable_audio_mode()` for the callback to fire.
+	 */
+	void set_audio_callback(AdcAudioCallback callback, void* ctx);
+
+	/**
+	 * @brief Reports whether the engine is currently in audio mode.
+	 */
+	bool is_audio_mode() const { return audio_mode_enabled_; }
+
 private:
 	AdcEngine() = default;
 	AdcEngine(const AdcEngine&) = delete;
@@ -101,14 +148,21 @@ private:
 	void apply_pot_scan_config(const PotsConfig& pots_config);
 	void reset_pot_state_machine();
 	void switch_mux_to(uint8_t logical_pot_index);
+	void run_pot_scanner_one_sample(uint16_t pot_sample);
+	AdcSnapshot build_snapshot_inline() const;
 
 	void on_dma_irq();
 	static void dma_irq_handler_static();
 
 	bool running_ = false;
 	bool pot_scanning_enabled_ = false;
+	bool audio_mode_enabled_ = false;
 	int dma_data_chan_ = -1;
 	int dma_ctrl_chan_ = -1;
+
+	// Audio-mode subscriber. Cleared by disable_audio_mode().
+	AdcAudioCallback audio_callback_ = nullptr;
+	void* audio_ctx_ = nullptr;
 
 	// Mux pin storage (set on first start, fixed thereafter)
 	uint8_t mux_s0_gpio_ = 0;

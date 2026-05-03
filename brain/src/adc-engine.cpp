@@ -189,6 +189,15 @@ void AdcEngine::reconfigure_pots(const PotsConfig& pots_config) {
 AdcSnapshot AdcEngine::get_snapshot() const {
 	AdcSnapshot snapshot;
 	const uint32_t saved_irq = save_and_disable_interrupts();
+	snapshot = build_snapshot_inline();
+	restore_interrupts(saved_irq);
+	return snapshot;
+}
+
+AdcSnapshot AdcEngine::build_snapshot_inline() const {
+	// Caller must hold disabled-IRQ (or be running inside the DMA IRQ itself,
+	// which is the sole writer of the cached state).
+	AdcSnapshot snapshot;
 	snapshot.in1_raw = latest_in1_raw_;
 	snapshot.in2_raw = latest_in2_raw_;
 	for (uint8_t i = 0; i < kMaxPots; ++i) {
@@ -197,8 +206,74 @@ AdcSnapshot AdcEngine::get_snapshot() const {
 	snapshot.total_samples = total_samples_;
 	snapshot.pot_switch_count = pot_switch_count_;
 	snapshot.pot_discard_count = pot_discard_count_;
-	restore_interrupts(saved_irq);
 	return snapshot;
+}
+
+bool AdcEngine::enable_audio_mode(uint32_t sample_period_us) {
+	if (sample_period_us == 0) return false;
+	if (!start()) return false;
+
+	const uint32_t saved_irq = save_and_disable_interrupts();
+
+	// Halt sampling and DMA so we can reconfigure cleanly without races.
+	adc_run(false);
+	dma_channel_abort(dma_data_chan_);
+	adc_fifo_drain();
+
+	// Tune ADC clkdiv so each round-robin frame [POT, IN1, IN2] takes
+	// sample_period_us. Per-sample period = sample_period_us / kSamplesPerFrame.
+	// adc_set_clkdiv argument is "(48 MHz / target sample rate) - 1".
+	const float per_sample_us =
+		static_cast<float>(sample_period_us) / static_cast<float>(kSamplesPerFrame);
+	float clkdiv = 48.0f * per_sample_us - 1.0f;
+	if (clkdiv < 0.0f) clkdiv = 0.0f;
+	adc_set_clkdiv(clkdiv);
+
+	// Shrink DMA transfer count to a single frame and re-arm write_addr.
+	// trans_count is reloaded from the data channel's TRANS_COUNT register on
+	// each ctrl chain restart, so a one-time write here applies to every cycle.
+	dma_channel_set_trans_count(dma_data_chan_, kSamplesPerFrame, false);
+	dma_channel_set_write_addr(dma_data_chan_, adc_buffer, false);
+
+	audio_mode_enabled_ = true;
+
+	// Restart the chain.
+	dma_channel_start(dma_data_chan_);
+	adc_run(true);
+
+	restore_interrupts(saved_irq);
+	return true;
+}
+
+void AdcEngine::disable_audio_mode() {
+	if (!audio_mode_enabled_) return;
+
+	const uint32_t saved_irq = save_and_disable_interrupts();
+
+	adc_run(false);
+	dma_channel_abort(dma_data_chan_);
+	adc_fifo_drain();
+
+	// Revert to full-speed ADC + 32-frame buffer.
+	adc_set_clkdiv(0.0f);
+	dma_channel_set_trans_count(dma_data_chan_, kSamplesPerBuffer, false);
+	dma_channel_set_write_addr(dma_data_chan_, adc_buffer, false);
+
+	audio_mode_enabled_ = false;
+	audio_callback_ = nullptr;
+	audio_ctx_ = nullptr;
+
+	dma_channel_start(dma_data_chan_);
+	adc_run(true);
+
+	restore_interrupts(saved_irq);
+}
+
+void AdcEngine::set_audio_callback(AdcAudioCallback callback, void* ctx) {
+	const uint32_t saved_irq = save_and_disable_interrupts();
+	audio_callback_ = callback;
+	audio_ctx_ = ctx;
+	restore_interrupts(saved_irq);
 }
 
 void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
@@ -242,16 +317,74 @@ void AdcEngine::dma_irq_handler_static() {
 	AdcEngine::instance().on_dma_irq();
 }
 
+void AdcEngine::run_pot_scanner_one_sample(uint16_t pot_sample) {
+	// Caller is the DMA IRQ. Advances the pot settle/average state machine by
+	// one POT sample. No-op if scanning hasn't been enabled.
+	if (!pot_scanning_enabled_) return;
+
+	if (pot_state_ == kPotStateSettling) {
+		pot_discard_count_++;
+		if (pot_settling_samples_remaining_ > 0) {
+			pot_settling_samples_remaining_--;
+		}
+		if (pot_settling_samples_remaining_ == 0) {
+			pot_state_ = kPotStateAveraging;
+			pot_average_samples_remaining_ = pot_average_samples_;
+			pot_average_accumulator_ = 0;
+		}
+		// Note: the sample that triggers the settling->averaging transition
+		// is intentionally discarded. The first averaged sample is the next
+		// pot sample to arrive, guaranteeing a full settle window.
+	} else {
+		pot_average_accumulator_ += pot_sample;
+		if (pot_average_samples_remaining_ > 0) {
+			pot_average_samples_remaining_--;
+		}
+		if (pot_average_samples_remaining_ == 0) {
+			const uint16_t averaged = static_cast<uint16_t>(
+				pot_average_accumulator_ / pot_average_samples_);
+			latest_pot_raw_[pot_current_index_] = averaged;
+
+			// Advance to next logical pot, switch external mux, restart settling.
+			pot_current_index_ = (pot_current_index_ + 1) % pot_count_;
+			switch_mux_to(pot_current_index_);
+			pot_switch_count_++;
+
+			pot_state_ = kPotStateSettling;
+			pot_settling_samples_remaining_ = pot_settling_samples_;
+		}
+	}
+}
+
 void AdcEngine::on_dma_irq() {
 	if ((dma_hw->ints0 & (1u << dma_data_chan_)) == 0) {
 		return;
 	}
 	dma_hw->ints0 = 1u << dma_data_chan_;  // clear (write-1-to-clear)
 
-	// The ctrl channel has already rewound write_addr and re-armed the data
-	// channel via chain_to, so the next buffer cycle is already in flight.
-	// We have ~192 µs of margin (one full buffer period) to walk this buffer
-	// before the writer overtakes us — well beyond per-IRQ cost.
+	if (audio_mode_enabled_) {
+		// Audio mode: one frame per IRQ at sample rate (~43 kHz at 23 µs).
+		// The ctrl channel has already re-armed data with trans_count = 3, so
+		// the next frame is already being filled. We must finish before that
+		// next frame completes (~23 µs).
+		const uint16_t pot_sample = adc_buffer[0];
+		const uint16_t in1_sample = adc_buffer[1];
+		const uint16_t in2_sample = adc_buffer[2];
+
+		latest_in1_raw_ = in1_sample;
+		latest_in2_raw_ = in2_sample;
+		total_samples_ += kSamplesPerFrame;
+
+		run_pot_scanner_one_sample(pot_sample);
+
+		if (audio_callback_ != nullptr) {
+			audio_callback_(in1_sample, in2_sample, build_snapshot_inline(), audio_ctx_);
+		}
+		return;
+	}
+
+	// CV mode: walk the just-completed 32-frame buffer. We have ~192 µs of
+	// margin (one full buffer period) before the writer overtakes us.
 	for (uint32_t frame = 0; frame < kFramesPerBuffer; ++frame) {
 		const uint16_t* samples = adc_buffer + (frame * kSamplesPerFrame);
 		const uint16_t pot_sample = samples[0];
@@ -262,46 +395,7 @@ void AdcEngine::on_dma_irq() {
 		latest_in2_raw_ = in2_sample;
 		total_samples_ += kSamplesPerFrame;
 
-		// Pot state machine only runs when pot scanning has been enabled via
-		// enable_pots(). Without it, the POT slot is sampled (for deterministic
-		// frame layout) but discarded.
-		if (!pot_scanning_enabled_) {
-			continue;
-		}
-
-		// Pot scanner state machine.
-		if (pot_state_ == kPotStateSettling) {
-			pot_discard_count_++;
-			if (pot_settling_samples_remaining_ > 0) {
-				pot_settling_samples_remaining_--;
-			}
-			if (pot_settling_samples_remaining_ == 0) {
-				pot_state_ = kPotStateAveraging;
-				pot_average_samples_remaining_ = pot_average_samples_;
-				pot_average_accumulator_ = 0;
-			}
-			// Note: the sample that triggers the settling->averaging transition
-			// is intentionally discarded. The first averaged sample is the next
-			// pot sample to arrive, guaranteeing a full settle window.
-		} else {
-			pot_average_accumulator_ += pot_sample;
-			if (pot_average_samples_remaining_ > 0) {
-				pot_average_samples_remaining_--;
-			}
-			if (pot_average_samples_remaining_ == 0) {
-				const uint16_t averaged = static_cast<uint16_t>(
-					pot_average_accumulator_ / pot_average_samples_);
-				latest_pot_raw_[pot_current_index_] = averaged;
-
-				// Advance to next logical pot, switch external mux, restart settling.
-				pot_current_index_ = (pot_current_index_ + 1) % pot_count_;
-				switch_mux_to(pot_current_index_);
-				pot_switch_count_++;
-
-				pot_state_ = kPotStateSettling;
-				pot_settling_samples_remaining_ = pot_settling_samples_;
-			}
-		}
+		run_pot_scanner_one_sample(pot_sample);
 	}
 }
 
