@@ -6,6 +6,7 @@ add_library(brain
     src/leds.cpp
     src/midi-parser.cpp
     src/midi-to-cv.cpp
+    src/output-engine.cpp
     src/outputs.cpp
     src/pot-multi-function.cpp
     src/pots.cpp
