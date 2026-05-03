@@ -138,8 +138,12 @@ bool AdcEngine::start() {
 		false);
 
 	// Only the data channel raises an IRQ; the ctrl channel is silent.
+	// In audio mode this IRQ has a 7.67 µs deadline to read adc_buffer before
+	// DMA starts overwriting it for the next cycle. Bump it to highest priority
+	// (0 on Cortex-M) so USB / other IRQs cannot delay it past that window.
 	dma_channel_set_irq0_enabled(dma_data_chan_, true);
 	irq_set_exclusive_handler(DMA_IRQ_0, &AdcEngine::dma_irq_handler_static);
+	irq_set_priority(DMA_IRQ_0, 0);
 	irq_set_enabled(DMA_IRQ_0, true);
 
 	// Start: trigger data channel, then ADC. Hardware loops forever after this.
@@ -217,6 +221,11 @@ bool AdcEngine::enable_audio_mode(uint32_t sample_period_us) {
 
 	// Halt sampling and DMA so we can reconfigure cleanly without races.
 	adc_run(false);
+	// adc_run(false) only clears START_MANY; an in-flight conversion still
+	// completes and advances AINSEL asynchronously. A conversion is at most
+	// 96 ADC clock cycles (2 µs at 48 MHz). Wait a bit longer than that so
+	// any in-flight conversion finishes before we re-seat AINSEL below.
+	busy_wait_us(5);
 	dma_channel_abort(dma_data_chan_);
 	adc_fifo_drain();
 
@@ -228,6 +237,19 @@ bool AdcEngine::enable_audio_mode(uint32_t sample_period_us) {
 	float clkdiv = 48.0f * per_sample_us - 1.0f;
 	if (clkdiv < 0.0f) clkdiv = 0.0f;
 	adc_set_clkdiv(clkdiv);
+
+	// Also abort the ctrl channel and clear any pending IRQ status to avoid
+	// stale state from the just-aborted CV-mode cycle interfering with the
+	// audio-mode restart.
+	dma_channel_abort(dma_ctrl_chan_);
+	dma_hw->ints0 = 1u << dma_data_chan_;
+
+	// Reset the ADC round-robin pointer back to POT so each 3-sample audio
+	// frame lays out as [POT, IN1, IN2] deterministically. Without this, the
+	// pointer is wherever it stopped at adc_run(false), which can leave the
+	// frame mis-aligned (e.g. [IN1, IN2, POT]) and the DSP would receive
+	// IN2 instead of IN1.
+	adc_select_input(kAdcChannelPot);
 
 	// Shrink DMA transfer count to a single frame and re-arm write_addr.
 	// trans_count is reloaded from the data channel's TRANS_COUNT register on
@@ -251,8 +273,12 @@ void AdcEngine::disable_audio_mode() {
 	const uint32_t saved_irq = save_and_disable_interrupts();
 
 	adc_run(false);
+	busy_wait_us(5);
 	dma_channel_abort(dma_data_chan_);
+	dma_channel_abort(dma_ctrl_chan_);
 	adc_fifo_drain();
+	dma_hw->ints0 = 1u << dma_data_chan_;
+	adc_select_input(kAdcChannelPot);
 
 	// Revert to full-speed ADC + 32-frame buffer.
 	adc_set_clkdiv(0.0f);

@@ -2,6 +2,7 @@
 
 #include "pico/stdlib.h"
 
+#include "apps/audio_passthrough_test.h"
 #include "apps/audio_processor_test.h"
 #include "apps/basic_pot_reads_test.h"
 #include "apps/inputs_and_pots_test.h"
@@ -41,6 +42,7 @@ void print_menu() {
 	printf("  8) Inputs + Pots concurrent (engine-shared)\n");
 	printf("  9) OutputEngine timing (Slice 1)\n");
 	printf(" 10) Output ownership (Slice 3)\n");
+	printf(" 11) Audio passthrough (IN1 -> OUT A, simplest)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -85,7 +87,7 @@ int read_selection() {
 }  // namespace
 
 int main() {
-	stdio_init_all();
+		stdio_init_all();
 	sleep_ms(1200);
 
 	while (true) {
@@ -113,6 +115,8 @@ int main() {
 				run_selected_app<sandbox::apps::OutputEngineTimingTest>();
 			case 10:
 				run_selected_app<sandbox::apps::OutputOwnershipTest>();
+			case 11:
+				run_selected_app<sandbox::apps::AudioPassthroughTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

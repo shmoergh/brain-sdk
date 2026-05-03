@@ -98,7 +98,7 @@ void AudioProcessorTest::update() {
 		const uint16_t pot2 = brain_.audio_processor.get_pot_raw_u8(2);
 
 		printf(
-			"\rTicks=%llu Overruns=%lu Pot=[%3u %3u %3u] MuxSw=%lu SettleDrop=%lu      ",
+			"\n\rTicks=%llu Overruns=%lu Pot=[%3u %3u %3u] MuxSw=%lu SettleDrop=%lu      ",
 			static_cast<unsigned long long>(stats.tick_count),
 			static_cast<unsigned long>(stats.overrun_count),
 			static_cast<unsigned>(pot0),
