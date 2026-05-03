@@ -9,9 +9,9 @@ The Brain wrapper is the SDK’s top-level “manager” class. Instead of you m
 - owns those components
 - initializes them through consistent init_*() calls
 - updates them through update_*() / update_all()
-- enforces dependency and ownership rules (for example, conflicts with AudioProcessor vs inputs/pots paths)
+- enforces dependency rules (for example, `init_outputs()` requires storage; `init_pot_multi()` requires pots)
 
-In practice, this is the easiest and safest way to build firmware because startup order, shared-resource rules, and feature selection are centralized in one place.
+In practice, this is the easiest and safest way to build firmware because startup order, dependencies, and feature selection are centralized in one place. Components share the SDK's internal `AdcEngine` and `OutputEngine` so they coexist freely on one `Brain` instance — `AudioProcessor` runs alongside `Inputs`, `Pots`, and `PotMultiFunction` without conflicts.
 
 ### Example
 

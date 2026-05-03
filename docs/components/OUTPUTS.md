@@ -59,6 +59,15 @@ int main() {
 }
 ```
 
+### Channel ownership (2.1)
+
+Each output channel has an owner — `kOutputsOwnerManual` (the default) or `kOutputsOwnerAudio`. Manual writes via `set_voltage_*` work on `kOutputsOwnerManual` channels and are rejected (`false` return, no-op) on channels that `AudioProcessor` has claimed as audio. Use `get_channel_owner(channel)` to inspect the current owner.
+
+In normal usage you don't manage ownership directly — `AudioProcessor` claims channels when `init_audio_processor` / `init_audio_processor_v2` is called and releases them on `stop()`. You only need to know that:
+
+- `set_voltage_*` works on a channel until audio claims it.
+- The unclaimed channel always works for manual CV, even while audio is running on the other.
+
 ### Audio/CV output API
 
 #### Initialization and wiring
@@ -73,9 +82,15 @@ int main() {
 
 #### Voltage write methods
 - `bool set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivolts)`
-  Writes voltage in mV. Returns `false` for out-of-range values.
+  Writes voltage in mV. Returns `false` for out-of-range values, or when the channel is currently audio-owned (`AudioProcessor` claimed it).
 - `bool set_voltage_calibrated_millivolts(AudioCvOutChannel channel, int32_t target_millivolts)`
-  Writes voltage using calibration offsets when available/enabled.
+  Writes voltage using calibration offsets when available/enabled. Same ownership rules as `set_voltage_millivolts`.
+
+#### Channel ownership inspection
+- `AudioCvOutOwner get_channel_owner(AudioCvOutChannel channel) const`
+  Returns `kOutputsOwnerManual` or `kOutputsOwnerAudio`.
+- `void set_channel_owner(AudioCvOutChannel channel, AudioCvOutOwner owner)`
+  Manually changes ownership. Normally not needed — `AudioProcessor` does this for you. Use it only if you're writing a custom audio path bypassing `AudioProcessor`.
 
 #### Range control
 - `bool set_output_range(AudioCvOutChannel channel, AudioCvOutRange range)`

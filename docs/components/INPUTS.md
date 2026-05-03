@@ -7,6 +7,8 @@
 
 So instead of handling ADC setup, scaling, GPIO edge handling, and optional filtering yourself, you use `Inputs` to read raw or millivolt values of `In 1` / `In 2` and react to pulse rise/fall events happening on `Pulse In` via callbacks or polling.
 
+Since 2.1, `Inputs` is a thin reader over the shared internal `AdcEngine`. It coexists freely with `Pots`, `PotMultiFunction`, and `AudioProcessor` — initialize them in any order on the same `Brain` instance.
+
 ## Audio/CV inputs
 
 The Brain input circuit scales the module signal before it reaches the RP2040/RP2350 ADC, so the SDK has to map ADC voltage back to signal voltage.

@@ -23,6 +23,8 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 ### [👉 SDK Docs](./docs/)
 
+Updating from 2.0? See [docs/2.1_MIGRATION.md](./docs/2.1_MIGRATION.md). For most firmwares, the upgrade is just a submodule bump.
+
 ### Folder Structure
 ```
 brain-sdk/
