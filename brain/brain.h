@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#include "include/adc-arbiter.h"
 #include "include/audio-processor.h"
 #include "include/buttons.h"
 #include "include/constants.h"
