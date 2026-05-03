@@ -190,7 +190,6 @@ public:
 	bool pulse_get() const;
 
 private:
-	void write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value);
 	bool to_dac_input_millivolts(
 		AudioCvOutChannel channel,
 		int32_t requested_millivolts,
