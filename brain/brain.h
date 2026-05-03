@@ -643,6 +643,27 @@ public:
 	}
 
 	/**
+	 * @brief Initializes `AudioProcessor` with the v2 dual-channel API.
+	 *
+	 * Coexists freely with `Inputs`, `Pots`, and `PotMultiFunction` — all components
+	 * share the internal `AdcEngine` and `OutputEngine` singletons.
+	 *
+	 * @param config `AudioProcessorConfigV2` with sample_rate_hz and per-channel claim flags.
+	 * @param process_frame_fn Dual-input/dual-output DSP callback.
+	 * @param user_ctx Opaque pointer passed through to each callback invocation.
+	 * @return `BrainInitStatus::kOk` on success,
+	 * `BrainInitStatus::kAlreadyInitialized` if audio processor is already initialized,
+	 * or `BrainInitStatus::kFailed` on processor init failure.
+	 */
+	BrainInitStatus init_audio_processor_v2(
+		const AudioProcessorConfigV2& config,
+		ProcessFrameFnV2 process_frame_fn,
+		void* user_ctx = nullptr) {
+		if (audio_processor.is_initialized()) return BrainInitStatus::kAlreadyInitialized;
+		return audio_processor.init_v2(config, process_frame_fn, user_ctx);
+	}
+
+	/**
 	 * @brief Reports `AudioProcessor` initialization state.
 	 * @return `true` when `audio_processor.is_initialized()` is true.
 	 */

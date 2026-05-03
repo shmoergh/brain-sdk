@@ -70,9 +70,81 @@ BrainInitStatus AudioProcessor::init(
 	}
 
 	process_sample_fn_ = process_sample_fn;
+	process_frame_fn_v2_ = nullptr;
 	user_ctx_ = user_ctx;
+	mode_v2_ = false;
+
+	const EngineSetup setup{
+		config_.sample_period_us,
+		config_.enable_pot_mux,
+		config_.pot_count,
+		config_.pot_settle_discard_samples,
+		config_.pot_average_samples,
+		/*claim_channel_a=*/true,
+		/*claim_channel_b=*/false,
+	};
+	return start_engines(setup);
+}
+
+BrainInitStatus AudioProcessor::init_v2(
+	const AudioProcessorConfigV2& config,
+	ProcessFrameFnV2 process_frame_fn,
+	void* user_ctx) {
+	if (initialized_) return BrainInitStatus::kAlreadyInitialized;
+	if (process_frame_fn == nullptr) {
+		fprintf(stderr, "AudioProcessor: v2 process callback is required\n");
+		return BrainInitStatus::kFailed;
+	}
+	if (config.sample_rate_hz == 0) {
+		fprintf(stderr, "AudioProcessor: v2 sample_rate_hz must be > 0\n");
+		return BrainInitStatus::kFailed;
+	}
+	if (!config.claim_channel_a && !config.claim_channel_b) {
+		fprintf(stderr, "AudioProcessor: v2 must claim at least one output channel\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	const uint32_t derived_period_us = 1'000'000u / config.sample_rate_hz;
+	if (derived_period_us == 0) {
+		fprintf(stderr, "AudioProcessor: v2 sample_rate_hz too high (period rounds to 0)\n");
+		return BrainInitStatus::kFailed;
+	}
+
+	uint8_t pot_count = config.pot_count;
+	if (pot_count > AudioProcessorFrame::kMaxPots) {
+		pot_count = AudioProcessorFrame::kMaxPots;
+	}
+	bool enable_pot_mux = config.enable_pot_mux && (pot_count > 0);
+
+	process_sample_fn_ = nullptr;
+	process_frame_fn_v2_ = process_frame_fn;
+	user_ctx_ = user_ctx;
+	mode_v2_ = true;
+
+	// Mirror v2 config into config_ for shared accessors (get_pot_raw_u8 etc.).
+	config_ = AudioProcessorConfig{};
+	config_.sample_period_us = derived_period_us;
+	config_.enable_pot_mux = enable_pot_mux;
+	config_.pot_count = pot_count;
+	config_.pot_settle_discard_samples = config.pot_settle_discard_samples;
+	config_.pot_average_samples =
+		config.pot_average_samples == 0 ? 1 : config.pot_average_samples;
+
+	const EngineSetup setup{
+		derived_period_us,
+		enable_pot_mux,
+		pot_count,
+		config.pot_settle_discard_samples,
+		config_.pot_average_samples,
+		config.claim_channel_a,
+		config.claim_channel_b,
+	};
+	return start_engines(setup);
+}
+
+BrainInitStatus AudioProcessor::start_engines(const EngineSetup& s) {
 	tick_count_ = 0;
-	active_pot_count_ = config_.enable_pot_mux ? config_.pot_count : 0;
+	active_pot_count_ = s.enable_pot_mux ? s.pot_count : 0;
 
 	// 1) Start OutputEngine (idempotent).
 	brain::internal::OutputEngineConfig out_cfg;
@@ -80,35 +152,42 @@ BrainInitStatus AudioProcessor::init(
 	out_cfg.cs_gpio = kAudioCvOutCsPin;
 	out_cfg.sck_gpio = kAudioCvOutSckPin;
 	out_cfg.tx_gpio = kAudioCvOutTxPin;
-	out_cfg.sample_period_us = config_.sample_period_us;
+	out_cfg.sample_period_us = s.sample_period_us;
 	if (!brain::internal::OutputEngine::instance().start(out_cfg)) {
 		fprintf(stderr, "AudioProcessor: OutputEngine::start failed\n");
 		stop();
 		return BrainInitStatus::kFailed;
 	}
 
-	// AudioProcessor writes signed samples around 0; drive coupling pin A high
-	// to select the bipolar -5..+5V range (matches legacy behavior).
-	gpio_init(kAudioCvOutCouplingAPin);
-	gpio_set_dir(kAudioCvOutCouplingAPin, GPIO_OUT);
-	gpio_put(kAudioCvOutCouplingAPin, true);
+	// AudioProcessor writes signed samples around 0; drive coupling pins of
+	// claimed channels high to select the bipolar -5..+5V range.
+	if (s.claim_channel_a) {
+		gpio_init(kAudioCvOutCouplingAPin);
+		gpio_set_dir(kAudioCvOutCouplingAPin, GPIO_OUT);
+		gpio_put(kAudioCvOutCouplingAPin, true);
+	}
+	if (s.claim_channel_b) {
+		gpio_init(kAudioCvOutCouplingBPin);
+		gpio_set_dir(kAudioCvOutCouplingBPin, GPIO_OUT);
+		gpio_put(kAudioCvOutCouplingBPin, true);
+	}
 
 	// 2) Configure AdcEngine with optional pot scanning.
-	if (config_.enable_pot_mux) {
+	if (s.enable_pot_mux) {
 		PotsConfig pots_cfg = {};
 		pots_cfg.simple = false;
 		pots_cfg.adc_gpio = GPIO_BRAIN_POTMUX_ADC;
 		pots_cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
 		pots_cfg.s1_gpio = GPIO_BRAIN_POTMUX_S1;
-		pots_cfg.num_pots = config_.pot_count;
+		pots_cfg.num_pots = s.pot_count;
 		for (uint8_t i = 0; i < kMaxPots; ++i) {
-			pots_cfg.channel_map[i] = (i < config_.pot_count) ? i : 0;
+			pots_cfg.channel_map[i] = (i < s.pot_count) ? i : 0;
 		}
 		pots_cfg.output_resolution = 8;
 		pots_cfg.settling_delay_us =
-			static_cast<uint32_t>(config_.pot_settle_discard_samples) *
+			static_cast<uint32_t>(s.pot_settle_discard_samples) *
 			kAdcEnginePotSamplePeriodUs;
-		pots_cfg.samples_per_read = config_.pot_average_samples;
+		pots_cfg.samples_per_read = s.pot_average_samples;
 		pots_cfg.change_threshold = 1;
 		if (!brain::internal::AdcEngine::instance().enable_pots(pots_cfg)) {
 			fprintf(stderr, "AudioProcessor: AdcEngine::enable_pots failed\n");
@@ -124,18 +203,24 @@ BrainInitStatus AudioProcessor::init(
 	}
 
 	// 3) Switch AdcEngine into audio mode (1-frame DMA, sample-rate IRQ).
-	if (!brain::internal::AdcEngine::instance().enable_audio_mode(config_.sample_period_us)) {
+	if (!brain::internal::AdcEngine::instance().enable_audio_mode(s.sample_period_us)) {
 		fprintf(stderr, "AudioProcessor: AdcEngine::enable_audio_mode failed\n");
 		stop();
 		return BrainInitStatus::kFailed;
 	}
 	audio_mode_started_ = true;
 
-	// 4) Claim OutputEngine channel A as audio-owned. set_hold_value writes
-	// from Outputs are now refused on channel A until stop() releases it.
-	brain::internal::OutputEngine::instance().set_channel_owner(
-		AudioCvOutChannel::kChannelA, brain::internal::ChannelOwner::kAudio);
-	channel_a_claimed_ = true;
+	// 4) Claim selected OutputEngine channels as audio-owned.
+	if (s.claim_channel_a) {
+		brain::internal::OutputEngine::instance().set_channel_owner(
+			AudioCvOutChannel::kChannelA, brain::internal::ChannelOwner::kAudio);
+		channel_a_claimed_ = true;
+	}
+	if (s.claim_channel_b) {
+		brain::internal::OutputEngine::instance().set_channel_owner(
+			AudioCvOutChannel::kChannelB, brain::internal::ChannelOwner::kAudio);
+		channel_b_claimed_ = true;
+	}
 
 	// 5) Capture baseline underrun count so get_stats() reports overruns
 	// accumulated during this run only.
@@ -154,10 +239,10 @@ BrainInitStatus AudioProcessor::init(
 void AudioProcessor::stop() {
 	// No-op if this instance never claimed shared engine resources. Critical
 	// because each `Brain` aggregates an `AudioProcessor` and unrelated `Brain`
-	// instances (e.g. those created by guardrail tests) must not touch the
-	// shared AdcEngine/OutputEngine state owned by the running instance when
-	// they go out of scope.
-	if (!initialized_ && !audio_mode_started_ && !channel_a_claimed_) {
+	// instances must not touch the shared engines owned by the running instance
+	// when they go out of scope.
+	if (!initialized_ && !audio_mode_started_ &&
+	    !channel_a_claimed_ && !channel_b_claimed_) {
 		return;
 	}
 
@@ -169,6 +254,11 @@ void AudioProcessor::stop() {
 			AudioCvOutChannel::kChannelA, brain::internal::ChannelOwner::kManual);
 		channel_a_claimed_ = false;
 	}
+	if (channel_b_claimed_) {
+		brain::internal::OutputEngine::instance().set_channel_owner(
+			AudioCvOutChannel::kChannelB, brain::internal::ChannelOwner::kManual);
+		channel_b_claimed_ = false;
+	}
 
 	if (audio_mode_started_) {
 		brain::internal::AdcEngine::instance().disable_audio_mode();
@@ -176,7 +266,9 @@ void AudioProcessor::stop() {
 	}
 
 	process_sample_fn_ = nullptr;
+	process_frame_fn_v2_ = nullptr;
 	user_ctx_ = nullptr;
+	mode_v2_ = false;
 	initialized_ = false;
 }
 
@@ -221,11 +313,38 @@ void AudioProcessor::on_adc_sample_static(uint16_t in1_raw, uint16_t in2_raw,
 	self->on_adc_sample(in1_raw, in2_raw, snap);
 }
 
-void AudioProcessor::on_adc_sample(uint16_t in1_raw, uint16_t /*in2_raw*/,
+void AudioProcessor::on_adc_sample(uint16_t in1_raw, uint16_t in2_raw,
                                     const brain::internal::AdcSnapshot& snap) {
-	// Build the per-tick frame for the user callback.
+	const uint64_t tick = ++tick_count_;
+	const int16_t input_a = adc_raw_to_audio_sample(in1_raw);
+
+	if (mode_v2_) {
+		AudioProcessorFrameV2 frame{};
+		frame.tick = tick;
+		frame.pot_count = active_pot_count_;
+		for (uint8_t i = 0; i < AudioProcessorFrameV2::kMaxPots; ++i) {
+			const uint32_t raw = snap.pot_raw[i] & kAdcMaxValue;
+			frame.pot_raw_u8[i] = static_cast<uint8_t>(
+				(raw * 255u + (kAdcMaxValue / 2)) / kAdcMaxValue);
+		}
+		const int16_t input_b = adc_raw_to_audio_sample(in2_raw);
+		int16_t out_a = 0;
+		int16_t out_b = 0;
+		process_frame_fn_v2_(input_a, input_b, &frame, &out_a, &out_b, user_ctx_);
+		if (channel_a_claimed_) {
+			brain::internal::OutputEngine::instance().write_audio_sample(
+				AudioCvOutChannel::kChannelA, audio_sample_to_dac_value(out_a));
+		}
+		if (channel_b_claimed_) {
+			brain::internal::OutputEngine::instance().write_audio_sample(
+				AudioCvOutChannel::kChannelB, audio_sample_to_dac_value(out_b));
+		}
+		return;
+	}
+
+	// Legacy single-channel path: IN1 -> ProcessSampleFn -> OUT A.
 	AudioProcessorFrame frame{};
-	frame.tick = ++tick_count_;
+	frame.tick = tick;
 	frame.pot_count = active_pot_count_;
 	for (uint8_t i = 0; i < AudioProcessorFrame::kMaxPots; ++i) {
 		const uint32_t raw = snap.pot_raw[i] & kAdcMaxValue;
@@ -233,7 +352,7 @@ void AudioProcessor::on_adc_sample(uint16_t in1_raw, uint16_t /*in2_raw*/,
 			(raw * 255u + (kAdcMaxValue / 2)) / kAdcMaxValue);
 	}
 
-	const int16_t input_sample = adc_raw_to_audio_sample(in1_raw);
+	const int16_t input_sample = input_a;
 	int16_t output_sample = input_sample;
 	if (process_sample_fn_ != nullptr) {
 		output_sample = process_sample_fn_(input_sample, &frame, user_ctx_);

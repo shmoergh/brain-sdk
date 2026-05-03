@@ -3,6 +3,7 @@
 
 add_executable(test
     apps/audio_passthrough_test.cpp
+    apps/audio_passthrough_v2_test.cpp
     apps/audio_processor_test.cpp
     apps/basic_pot_reads_test.cpp
     apps/inputs_and_pots_test.cpp
