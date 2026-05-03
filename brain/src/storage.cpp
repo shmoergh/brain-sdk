@@ -181,7 +181,11 @@ StorageStatus write_region_impl(
 	const uint32_t region_offset_bytes = region_offset_impl(region);
 	const size_t region_size_bytes = region_size_impl(region);
 
-	uint8_t sector_buffer[StorageLayout::kFlashSectorSizeBytes];
+	// Static rather than stack: a 4 KB sector buffer overflows the default
+	// PICO_STACK_SIZE (0x800 = 2 KB), silently corrupting adjacent SRAM.
+	// Flash writes are serialized through the public Storage API +
+	// flash_safe_execute, so a single shared buffer is safe.
+	static uint8_t sector_buffer[StorageLayout::kFlashSectorSizeBytes];
 	std::memcpy(
 		sector_buffer,
 		reinterpret_cast<const void*>(XIP_BASE + region_offset_bytes),
@@ -212,7 +216,8 @@ StorageStatus erase_region_impl(StorageRegion region, bool require_protected_lay
 		return StorageStatus::kUnprotectedLayout;
 	}
 
-	uint8_t blank_sector[StorageLayout::kFlashSectorSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t blank_sector[StorageLayout::kFlashSectorSizeBytes];
 	std::memset(blank_sector, 0xFF, sizeof(blank_sector));
 
 	FlashProgramRequest request{
@@ -397,7 +402,8 @@ StorageStatus Storage::read_app_blob(void* out, size_t max_size, size_t* actual_
 	}
 	*actual_size = 0;
 
-	uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
 	StorageStatus read_status = read_region_impl(
 		StorageRegion::kAppData,
 		0,
@@ -459,7 +465,8 @@ StorageStatus Storage::write_app_blob(const void* data, size_t size) const {
 		return StorageStatus::kTooLarge;
 	}
 
-	uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
 	std::memset(sector_buffer, 0xFF, sizeof(sector_buffer));
 
 	AppBlobRecordHeaderV1 header{};
