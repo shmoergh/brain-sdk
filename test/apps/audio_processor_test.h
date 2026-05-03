@@ -20,7 +20,6 @@ private:
 		int16_t input_sample,
 		const AudioProcessorFrame* frame,
 		void* user_ctx);
-	bool run_guardrail_checks(const AudioProcessorConfig& config);
 
 	Brain brain_{};
 	bool initialized_ = false;

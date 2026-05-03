@@ -12,10 +12,6 @@ int16_t clamp_i16(int32_t value) {
 	return static_cast<int16_t>(value);
 }
 
-void print_guardrail_result(const char* label, bool pass) {
-	printf("[%-4s] %s\n", pass ? "PASS" : "FAIL", label);
-}
-
 }  // namespace
 
 namespace sandbox::apps {
@@ -78,7 +74,6 @@ void AudioProcessorTest::init() {
 	}
 
 	printf("AudioProcessor running.\n");
-	run_guardrail_checks(config);
 	initialized_ = true;
 }
 
@@ -110,47 +105,6 @@ void AudioProcessorTest::update() {
 	}
 
 	sleep_ms(1);
-}
-
-bool AudioProcessorTest::run_guardrail_checks(const AudioProcessorConfig& config) {
-	printf("\n\nGuardrail checks:\n");
-
-	const bool fail_inputs_after_audio =
-		(brain_.init_inputs() == BrainInitStatus::kFailed);
-	const bool fail_pots_after_audio =
-		(brain_.init_pots() == BrainInitStatus::kFailed);
-	const bool fail_pot_multi_after_audio =
-		(brain_.init_pot_multi() == BrainInitStatus::kFailed);
-
-	print_guardrail_result("audio->inputs fails", fail_inputs_after_audio);
-	print_guardrail_result("audio->pots fails", fail_pots_after_audio);
-	print_guardrail_result("audio->pot_multi fails", fail_pot_multi_after_audio);
-
-	EffectState scratch_state_1{};
-	Brain pots_first{};
-	const bool pots_first_ok = brain_init_succeeded(pots_first.init_pots());
-	const bool audio_fails_after_pots = (pots_first.init_audio_processor(
-		config, &AudioProcessorTest::process_sample, &scratch_state_1) == BrainInitStatus::kFailed);
-	print_guardrail_result("pots->audio fails", pots_first_ok && audio_fails_after_pots);
-
-	EffectState scratch_state_2{};
-	Brain inputs_first{};
-	const bool inputs_first_ok = brain_init_succeeded(inputs_first.init_inputs());
-	const bool audio_fails_after_inputs = (inputs_first.init_audio_processor(
-		config, &AudioProcessorTest::process_sample, &scratch_state_2) == BrainInitStatus::kFailed);
-	print_guardrail_result("inputs->audio fails", inputs_first_ok && audio_fails_after_inputs);
-
-	EffectState scratch_state_3{};
-	Brain pot_multi_first{};
-	const bool pot_multi_first_ok = brain_init_succeeded(pot_multi_first.init_pot_multi());
-	const bool audio_fails_after_pot_multi = (pot_multi_first.init_audio_processor(
-		config, &AudioProcessorTest::process_sample, &scratch_state_3) == BrainInitStatus::kFailed);
-	print_guardrail_result("pot_multi->audio fails", pot_multi_first_ok && audio_fails_after_pot_multi);
-
-	return fail_inputs_after_audio && fail_pots_after_audio && fail_pot_multi_after_audio &&
-		pots_first_ok && audio_fails_after_pots &&
-		inputs_first_ok && audio_fails_after_inputs &&
-		pot_multi_first_ok && audio_fails_after_pot_multi;
 }
 
 }  // namespace sandbox::apps

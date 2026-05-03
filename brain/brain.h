@@ -392,17 +392,15 @@ public:
 	/**
 	 * @brief Initializes `Inputs` and applies current Brain ADC policy flags.
 	 *
-	 * This call fails if `AudioProcessor` is already initialized because both features contend for ADC resources.
+	 * Coexists freely with `AudioProcessor`, `Pots`, and `PotMultiFunction` —
+	 * all components share the internal `AdcEngine` singleton.
 	 *
 	 * @return `BrainInitStatus::kOk` on success,
 	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
-	 * or `BrainInitStatus::kFailed` on resource conflict or `inputs.init()` failure.
+	 * or `BrainInitStatus::kFailed` on `inputs.init()` failure.
 	 */
 	BrainInitStatus init_inputs() {
 		if (inputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
-#if BRAIN_CFG_AUDIO_PROCESSOR
-		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
-#endif
 		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
 		if (!inputs.init()) return BrainInitStatus::kFailed;
 		inputs_initialized_ = true;
@@ -432,18 +430,15 @@ public:
 	/**
 	 * @brief Initializes `Pots` with provided config and applies Brain sampling policy.
 	 *
-	 * This call fails if `AudioProcessor` is already initialized because both features use shared ADC/mux resources.
+	 * Coexists freely with `AudioProcessor`, `Inputs`, and `PotMultiFunction` —
+	 * all components share the internal `AdcEngine` singleton.
 	 *
 	 * @param config Pot configuration passed to `pots.init(...)`.
 	 * @return `BrainInitStatus::kOk` on success,
-	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
-	 * or `BrainInitStatus::kFailed` on resource conflict.
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized.
 	 */
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
-#if BRAIN_CFG_AUDIO_PROCESSOR
-		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
-#endif
 		pots.init(config);
 		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 		pots_initialized_ = true;
@@ -455,16 +450,12 @@ public:
 	 * @param config New pot configuration passed to `pots.reconfigure(...)`.
 	 * @param reset_pot_multi_state `true` calls `pot_multi.reset_for_mode_change(...)` after reconfigure (if initialized).
 	 * @param clear_pot_multi_active_mappings Forwarded to `reset_for_mode_change(...)` to optionally clear active IDs.
-	 * @return `BrainInitStatus::kOk` on success,
-	 * or `BrainInitStatus::kFailed` when `AudioProcessor` is active and pot reconfigure is blocked.
+	 * @return `BrainInitStatus::kOk` on success.
 	 */
 	BrainInitStatus reconfigure_pots(
 		const PotsConfig& config,
 		bool reset_pot_multi_state = true,
 		bool clear_pot_multi_active_mappings = false) {
-#if BRAIN_CFG_AUDIO_PROCESSOR
-		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
-#endif
 		if (!pots_initialized_) {
 			return init_pots(config);
 		}
@@ -576,18 +567,16 @@ public:
 	/**
 	 * @brief Initializes `PotMultiFunction`, ensuring `Pots` is available.
 	 *
-	 * Fails if `AudioProcessor` is active because pot resources are shared.
+	 * Coexists freely with `AudioProcessor`, `Inputs`, and `Pots` — all components
+	 * share the internal `AdcEngine` singleton.
 	 *
 	 * @param max_functions Maximum logical function slots (`PotMultiFunction` clamps to its hard limit).
 	 * @return `BrainInitStatus::kOk` on success,
 	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
-	 * or `BrainInitStatus::kFailed` on dependency/resource conflict.
+	 * or `BrainInitStatus::kFailed` on dependency init failure.
 	 */
 	BrainInitStatus init_pot_multi(uint8_t max_functions = PotMultiFunction::kMaxFunctions) {
 		if (pot_multi_initialized_) return BrainInitStatus::kAlreadyInitialized;
-#if BRAIN_CFG_AUDIO_PROCESSOR
-		if (audio_processor.is_initialized()) return BrainInitStatus::kFailed;
-#endif
 		if (init_pots() == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
 		pot_multi.init(max_functions);
 		pot_multi_initialized_ = true;
@@ -633,38 +622,24 @@ public:
 
 #if BRAIN_CFG_AUDIO_PROCESSOR
 	/**
-	 * @brief Initializes `AudioProcessor` for timer-driven audio callback processing.
+	 * @brief Initializes `AudioProcessor` for audio-rate DSP processing on the shared engines.
 	 *
-	 * Fails when `Inputs`, `Pots`, or `PotMultiFunction` are already initialized, because these paths
-	 * share ADC/mux resources with `AudioProcessor`.
+	 * Coexists freely with `Inputs`, `Pots`, and `PotMultiFunction` — all components
+	 * share the internal `AdcEngine` and `OutputEngine` singletons.
 	 *
 	 * @param config `AudioProcessorConfig` forwarded to `audio_processor.init(...)`.
 	 * @param process_sample_fn Per-sample DSP callback that receives input sample and control frame.
 	 * @param user_ctx User context pointer forwarded unchanged to each callback invocation.
 	 * @return `BrainInitStatus::kOk` on success,
 	 * `BrainInitStatus::kAlreadyInitialized` if audio processor is already initialized,
-	 * or `BrainInitStatus::kFailed` on resource conflict or processor init failure.
+	 * or `BrainInitStatus::kFailed` on processor init failure.
 	 */
 	BrainInitStatus init_audio_processor(
 		const AudioProcessorConfig& config,
 		ProcessSampleFn process_sample_fn,
 		void* user_ctx = nullptr) {
 		if (audio_processor.is_initialized()) return BrainInitStatus::kAlreadyInitialized;
-
-#if BRAIN_CFG_INPUTS
-		if (inputs_initialized_) return BrainInitStatus::kFailed;
-#endif
-#if BRAIN_CFG_POTS
-		if (pots_initialized_) return BrainInitStatus::kFailed;
-#endif
-#if BRAIN_CFG_POT_MULTI_FUNCTION
-		if (pot_multi_initialized_) return BrainInitStatus::kFailed;
-#endif
-
-		BrainInitStatus status = audio_processor.init(config, process_sample_fn, user_ctx);
-		if (status == BrainInitStatus::kFailed) return BrainInitStatus::kFailed;
-
-		return status;
+		return audio_processor.init(config, process_sample_fn, user_ctx);
 	}
 
 	/**
