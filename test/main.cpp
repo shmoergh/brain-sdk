@@ -2,11 +2,11 @@
 
 #include "pico/stdlib.h"
 
+#include "apps/audio_processor_test.h"
+#include "apps/basic_pot_reads_test.h"
 #include "apps/leds_test.h"
 #include "apps/midi_to_cv_test.h"
 #include "apps/multipot_test.h"
-#include "apps/audio_processor_test.h"
-#include "apps/pot_read_stability_test.h"
 #include "apps/storage_persistence_check_test.h"
 #include "apps/storage_test.h"
 
@@ -28,7 +28,7 @@ void print_menu() {
 	printf("Brain SDK - Critical Issues Test Package\n");
 	printf("========================================\n\n");
 	printf("Select a test app:\n");
-	printf("  1) Pot read stability regression (mux bleed)\n");
+	printf("  1) Basic pot reads (engine-driven, buffered)\n");
 	printf("  2) Multi-function pot behavior\n");
 	printf("  3) MIDI to CV path\n");
 	printf("  4) Storage write/read smoke test\n");
@@ -88,7 +88,7 @@ int main() {
 
 		switch (selection) {
 			case 1:
-				run_selected_app<sandbox::apps::PotReadStabilityTest>();
+				run_selected_app<sandbox::apps::BasicPotReadsTest>();
 			case 2:
 				run_selected_app<sandbox::apps::MultipotTest>();
 			case 3:

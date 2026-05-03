@@ -3,11 +3,11 @@
 
 add_executable(test
     apps/audio_processor_test.cpp
+    apps/basic_pot_reads_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp
     apps/multipot_test.cpp
-    apps/pot_read_stability_test.cpp
     apps/storage_test.cpp
     apps/storage_persistence_check_test.cpp
 )

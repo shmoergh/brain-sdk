@@ -157,9 +157,6 @@ public:
 	uint8_t get_num_pots() const;
 
 private:
-	void set_mux_channel(uint8_t ch);
-	uint16_t read_channel_once(uint8_t ch);
-
 	PotsConfig config_;
 	uint16_t last_values_[kMaxPots];
 	uint16_t buffered_values_[kMaxPots];
