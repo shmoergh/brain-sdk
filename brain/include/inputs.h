@@ -49,10 +49,13 @@ public:
 	/**
 	 * @brief Initializes CV/audio ADC channels (A and B) and prepares voltage conversion parameters.
 	 *
-	 * If DMA sampling is enabled, this also tries to allocate and configure a DMA channel for ADC reads.
-	 * On DMA allocation failure, `Inputs` transparently falls back to direct ADC reads.
+	 * Starts the shared `brain::internal::AdcEngine` if not already running. The
+	 * engine continuously samples (POT, IN1, IN2) round-robin via DMA at full ADC
+	 * speed; this method does not own the ADC directly. Voltage-conversion
+	 * parameters (mapping IN1/IN2 raw samples to signed millivolts) are computed
+	 * once here.
 	 *
-	 * @return Always returns `true` (the function degrades gracefully to non-DMA mode on DMA failure).
+	 * @return Always returns `true`.
 	 */
 	bool init_audio_cv();
 
@@ -74,9 +77,9 @@ public:
 	bool init();
 
 	/**
-	 * @brief Refreshes latest ADC samples for input channels A and B.
+	 * @brief Refreshes the cached IN1/IN2 raw samples from the engine snapshot.
 	 *
-	 * Uses DMA path when enabled and active; otherwise performs direct ADC reads.
+	 * Non-blocking. Pulls the latest values from `brain::internal::AdcEngine`.
 	 */
 	void update_audio_cv();
 
@@ -91,21 +94,18 @@ public:
 	void update();
 
 	/**
-	 * @brief Enables or disables DMA-backed CV/audio ADC sampling.
-	 * @param enabled `true` prefers DMA sampling for channels A/B.
-	 * `false` disables DMA and forces direct `adc_read()` sampling on updates.
+	 * @brief Deprecated. Engine always uses DMA — this is a no-op kept for source compatibility.
 	 */
 	void set_audio_cv_dma_enabled(bool enabled);
 
 	/**
-	 * @brief Reports whether DMA mode is requested for CV/audio reads.
-	 * @return `true` if DMA mode is enabled in configuration; `false` if direct read mode is requested.
+	 * @brief Deprecated. Always returns `true` — engine always uses DMA.
 	 */
 	bool is_audio_cv_dma_enabled() const;
 
 	/**
-	 * @brief Reports whether the DMA engine is currently active for CV/audio channels.
-	 * @return `true` when DMA channel allocation/configuration succeeded and DMA path is running.
+	 * @brief Reports whether the shared ADC engine is running.
+	 * @return `true` once the engine has been started by either `Inputs` or `Pots` init.
 	 */
 	bool is_audio_cv_dma_active() const;
 
@@ -195,9 +195,6 @@ public:
 private:
 	int32_t adc_to_millivolts(uint16_t adc_value) const;
 	void calculate_conversion_parameters();
-	bool init_audio_cv_dma();
-	void release_audio_cv_dma();
-	void sample_audio_cv_dma();
 
 	static void gpio_irq_handler(uint gpio, uint32_t events);
 	void handle_edge(bool raw_state);
@@ -207,10 +204,6 @@ private:
 	int32_t signal_min_millivolts_ = 0;
 	int32_t signal_span_millivolts_ = 0;
 	uint16_t channel_raw_[2] = {0, 0};
-	bool audio_cv_dma_enabled_ = false;
-	bool audio_cv_dma_active_ = false;
-	int audio_cv_dma_channel_ = -1;
-	uint16_t audio_cv_dma_samples_[2] = {0, 0};
 
 	uint pulse_in_gpio_ = 0;
 	bool pulse_initialized_ = false;

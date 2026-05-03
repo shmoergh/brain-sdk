@@ -4,6 +4,7 @@
 
 #include "apps/audio_processor_test.h"
 #include "apps/basic_pot_reads_test.h"
+#include "apps/inputs_and_pots_test.h"
 #include "apps/leds_test.h"
 #include "apps/midi_to_cv_test.h"
 #include "apps/multipot_test.h"
@@ -35,6 +36,7 @@ void print_menu() {
 	printf("  5) Storage persistence check\n");
 	printf("  6) LED full manual suite\n");
 	printf("  7) AudioProcessor effect + guardrails\n");
+	printf("  8) Inputs + Pots concurrent (engine-shared)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -101,6 +103,8 @@ int main() {
 				run_selected_app<sandbox::apps::LedsTest>();
 			case 7:
 				run_selected_app<sandbox::apps::AudioProcessorTest>();
+			case 8:
+				run_selected_app<sandbox::apps::InputsAndPotsTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

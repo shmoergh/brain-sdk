@@ -4,6 +4,7 @@
 add_executable(test
     apps/audio_processor_test.cpp
     apps/basic_pot_reads_test.cpp
+    apps/inputs_and_pots_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp

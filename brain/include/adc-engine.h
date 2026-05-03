@@ -42,19 +42,35 @@ public:
 	static AdcEngine& instance();
 
 	/**
-	 * @brief Configures and starts continuous round-robin sampling. Idempotent.
+	 * @brief Starts continuous round-robin sampling without enabling pot scanning.
 	 *
-	 * On first call: claims two DMA channels, configures ADC for 12-bit DMA-paced
-	 * sampling at full speed, sets up mux GPIOs, and starts ping-pong DMA. Subsequent
-	 * calls re-apply the pot scan parameters via `reconfigure_pots()` and return true.
+	 * Idempotent. On first call: configures the ADC for 12-bit DMA-paced sampling
+	 * at full speed, claims two DMA channels, and starts ping-pong DMA over the
+	 * fixed (POT, IN1, IN2) round-robin. The pot scanner state machine is left
+	 * disabled — POT samples are still taken (for deterministic frame layout)
+	 * but ignored. IN1/IN2 caches update every frame.
 	 *
-	 * @param pots_config Pot scan parameters (channel map, settling delay, samples per read, num pots).
+	 * Used by `Inputs` when no pot scanning is required.
+	 *
 	 * @return true on success, false if DMA channels could not be claimed.
 	 */
-	bool start(const PotsConfig& pots_config);
+	bool start();
 
 	/**
-	 * @brief Atomically updates pot scan parameters. Must be called after `start()`.
+	 * @brief Enables pot scanning, starting the engine first if needed.
+	 *
+	 * Idempotent. Calls `start()` if not already running, then claims the mux
+	 * GPIOs (S0/S1) and configures the pot scanner state machine from `pots_config`.
+	 * Subsequent calls re-apply the pot scan parameters and reset the state machine.
+	 *
+	 * Used by `Pots`. Coexists freely with a prior `start()` from `Inputs`.
+	 *
+	 * @return true on success.
+	 */
+	bool enable_pots(const PotsConfig& pots_config);
+
+	/**
+	 * @brief Atomically updates pot scan parameters. Must be called after `enable_pots()`.
 	 *
 	 * Briefly disables interrupts to swap in the new config and reset the pot
 	 * scanner state machine to pot 0 in the settling state. Last published pot
@@ -88,6 +104,7 @@ private:
 	static void dma_irq_handler_static();
 
 	bool running_ = false;
+	bool pot_scanning_enabled_ = false;
 	int dma_channel_a_ = -1;
 	int dma_channel_b_ = -1;
 

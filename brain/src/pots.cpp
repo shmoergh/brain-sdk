@@ -66,7 +66,7 @@ void Pots::init(const PotsConfig& cfg) {
 		buffered_values_[i] = 0;
 	}
 
-	brain::internal::AdcEngine::instance().start(config_);
+	brain::internal::AdcEngine::instance().enable_pots(config_);
 	buffer_valid_ = true;
 }
 

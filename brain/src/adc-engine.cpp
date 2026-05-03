@@ -56,25 +56,10 @@ AdcEngine& AdcEngine::instance() {
 	return engine;
 }
 
-bool AdcEngine::start(const PotsConfig& pots_config) {
+bool AdcEngine::start() {
 	if (running_) {
-		// Engine already running — just refresh pot scan parameters.
-		reconfigure_pots(pots_config);
 		return true;
 	}
-
-	mux_s0_gpio_ = pots_config.s0_gpio;
-	mux_s1_gpio_ = pots_config.s1_gpio;
-
-	apply_pot_scan_config(pots_config);
-	reset_pot_state_machine();
-
-	// Mux GPIOs as outputs; drive to currently-selected pot before sampling begins.
-	gpio_init(mux_s0_gpio_);
-	gpio_set_dir(mux_s0_gpio_, GPIO_OUT);
-	gpio_init(mux_s1_gpio_);
-	gpio_set_dir(mux_s1_gpio_, GPIO_OUT);
-	switch_mux_to(pot_current_index_);
 
 	// ADC init + GPIO claim for all three channels.
 	adc_init();
@@ -152,6 +137,30 @@ bool AdcEngine::start(const PotsConfig& pots_config) {
 	return true;
 }
 
+bool AdcEngine::enable_pots(const PotsConfig& pots_config) {
+	if (!start()) {
+		return false;
+	}
+
+	// Mux GPIOs as outputs; safe to init outside the IRQ-critical region.
+	gpio_init(pots_config.s0_gpio);
+	gpio_set_dir(pots_config.s0_gpio, GPIO_OUT);
+	gpio_init(pots_config.s1_gpio);
+	gpio_set_dir(pots_config.s1_gpio, GPIO_OUT);
+
+	// Atomic swap of pot config + state-machine enable under disabled interrupts.
+	const uint32_t saved_irq = save_and_disable_interrupts();
+	mux_s0_gpio_ = pots_config.s0_gpio;
+	mux_s1_gpio_ = pots_config.s1_gpio;
+	apply_pot_scan_config(pots_config);
+	reset_pot_state_machine();
+	switch_mux_to(pot_current_index_);
+	pot_scanning_enabled_ = true;
+	restore_interrupts(saved_irq);
+
+	return true;
+}
+
 void AdcEngine::reconfigure_pots(const PotsConfig& pots_config) {
 	// Atomic swap under disabled interrupts so the IRQ never sees a partial config.
 	const uint32_t saved_irq = save_and_disable_interrupts();
@@ -160,6 +169,7 @@ void AdcEngine::reconfigure_pots(const PotsConfig& pots_config) {
 	apply_pot_scan_config(pots_config);
 	reset_pot_state_machine();
 	switch_mux_to(pot_current_index_);
+	pot_scanning_enabled_ = true;
 	restore_interrupts(saved_irq);
 }
 
@@ -248,6 +258,13 @@ void AdcEngine::on_dma_irq() {
 		latest_in1_raw_ = in1_sample;
 		latest_in2_raw_ = in2_sample;
 		total_samples_ += kSamplesPerFrame;
+
+		// Pot state machine only runs when pot scanning has been enabled via
+		// start_pots(). Without it, the POT slot is sampled (for deterministic
+		// frame layout) but discarded.
+		if (!pot_scanning_enabled_) {
+			continue;
+		}
 
 		// Pot scanner state machine.
 		if (pot_state_ == kPotStateSettling) {
