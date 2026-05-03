@@ -12,8 +12,8 @@ namespace brain::internal {
  * @brief Per-channel ownership of a streamed DAC output.
  *
  * `kManual` (default) routes the channel's stream from a cached hold value
- * updated by `Outputs::set_voltage_*`. `kAudio` routes from a per-sample slot
- * updated by `OutputEngine::write_audio_sample`.
+ * updated by `Outputs::set_voltage_*`. `kAudio` routes from a per-channel
+ * sample ring updated by `OutputEngine::write_audio_sample`.
  */
 enum class ChannelOwner : uint8_t {
 	kManual = 0,
@@ -21,17 +21,15 @@ enum class ChannelOwner : uint8_t {
 };
 
 /**
- * @brief Stable cache of the latest streamed values, ownership, and counters.
+ * @brief Stable cache of latest hold values, ownership, and engine counters.
  *
- * Reader-side copy under disabled interrupts. Mirrors the AdcEngine snapshot
- * pattern. `hold_frame_*` and `audio_frame_*` are 16-bit MCP4822 frames already
- * carrying the channel/config bits — what the DAC sees on the wire.
+ * Reader-side copy under disabled interrupts. `hold_frame_*` is the 16-bit
+ * MCP4822 frame (channel/config nibble + 12-bit data) that the DAC sees on
+ * the wire when the channel is `kManual`.
  */
 struct OutputEngineSnapshot {
 	uint16_t hold_frame_a = 0;
 	uint16_t hold_frame_b = 0;
-	uint16_t audio_frame_a = 0;
-	uint16_t audio_frame_b = 0;
 	ChannelOwner owner_a = ChannelOwner::kManual;
 	ChannelOwner owner_b = ChannelOwner::kManual;
 	uint64_t total_blocks = 0;
@@ -58,29 +56,48 @@ struct OutputEngineConfig {
 };
 
 /**
- * @brief Singleton owner of the MCP4822 DAC. Phase 2 of the Brain SDK 2.1 refactor.
+ * @brief Singleton owner of the MCP4822 DAC. Phase 2 + 3 of the Brain SDK 2.1 refactor.
  *
  * Streams interleaved channel-A / channel-B 16-bit frames into the SPI peripheral
- * via three chained DMA channels:
+ * via three chained DMA channels paced by a hardware DMA timer:
  *
  *   render -> ctrl -> data -> render -> ...
  *
  *  - data    streams `streaming_block_` to `&spi_get_hw(spi)->dr`, paced by
- *            DREQ from a DMA pacing timer at frame rate (= 2 / sample_period_us).
- *  - ctrl    resets `data.read_addr` back to `&streaming_block_[0]` so streaming
+ *            DREQ from the DMA pacing timer at frame rate (= 2 / sample_period_us).
+ *  - ctrl    rewrites `data.read_addr` back to `&streaming_block_[0]` so streaming
  *            loops without CPU intervention.
  *  - render  copies `current_block_` -> `streaming_block_`, fires an IRQ on
- *            completion. The IRQ handler refills `current_block_` with the next
- *            batch of (A, B) frames based on per-channel ownership.
+ *            completion. The IRQ refills `current_block_` with the next block of
+ *            (A, B) frames and resets render's read/write addresses for the
+ *            next cycle.
  *
- * The PL022 in 16-bit Motorola frame format toggles CS between frames; MCP4822
- * latches its input register on each rising CS edge. No CPU work per frame.
+ * Phase 3 audio path: each `kAudio` channel has its own lock-free sample ring
+ * filled by `write_audio_sample()`. The render IRQ pulls 16 samples per block
+ * from the ring; on underrun the last consumed sample is repeated and the
+ * channel's underrun counter advances by one for that block. This gives real
+ * ~43 kHz audio updates when fed at sample rate, and graceful sample-and-hold
+ * when fed slower.
  *
- * Concurrency: render IRQ is the sole writer of all internal state. Public
- * accessors briefly disable interrupts and copy a small struct or single field.
+ * Manual channels are sourced from `hold_frame_*`; `set_hold_value` updates
+ * the hold frame and the next render block propagates it within ~368 µs.
+ *
+ * Concurrency: render IRQ is the sole writer of internal counters and ring
+ * tail pointers. Public accessors briefly disable interrupts and copy a small
+ * struct. `write_audio_sample` advances the ring head only and is safe from
+ * any IRQ priority (single-core sequential dispatch on Cortex-M).
  */
 class OutputEngine {
 public:
+	/**
+	 * @brief Public block-size constants for callers that fill audio sample arrays.
+	 *
+	 * `kAudioBlockSamples` is the number of stereo (A,B) pairs per render block.
+	 * `kAudioRingSamples` is the per-channel ring depth (≥ 2× block size for headroom).
+	 */
+	static constexpr uint32_t kAudioBlockSamples = 16;
+	static constexpr uint32_t kAudioRingSamples = 32;
+
 	/**
 	 * @brief Returns the singleton instance (Meyers singleton; thread-safe init).
 	 */
@@ -109,11 +126,14 @@ public:
 	bool set_hold_value(AudioCvOutChannel channel, uint16_t dac12);
 
 	/**
-	 * @brief Pushes a new audio sample for an audio-owned channel.
+	 * @brief Pushes a new audio sample into the per-channel ring.
 	 *
-	 * Wraps `dac12` in the MCP4822 frame envelope and atomically updates the
-	 * audio slot. Sets the channel's "fresh" bit; the render IRQ clears it after
-	 * each block and increments the audio underrun counter if the slot was stale.
+	 * Wraps `dac12` in the MCP4822 frame envelope and pushes one frame into the
+	 * channel's ring head. The render IRQ pulls 16 samples per block from the
+	 * ring tail; if the ring is empty mid-block the last consumed sample is
+	 * repeated and the channel's underrun counter increments once for that block.
+	 *
+	 * Safe to call from IRQ context (intended use: ADC IRQ at audio rate).
 	 *
 	 * @return false (no-op) if the channel's current owner is `kManual`.
 	 */
@@ -122,8 +142,9 @@ public:
 	/**
 	 * @brief Atomically changes ownership for a channel. Glitch-free.
 	 *
-	 * On `kManual` -> `kAudio`: seeds the audio slot with the current hold frame
-	 * so the first IRQ after the flip emits a continuous value.
+	 * On `kManual` -> `kAudio`: pre-fills the audio ring with `kAudioBlockSamples`
+	 * copies of the current `hold_frame_*` so the first render block emits a
+	 * continuous value.
 	 * On `kAudio` -> `kManual`: hold frame retained as-is (last `set_voltage_*`).
 	 */
 	void set_channel_owner(AudioCvOutChannel channel, ChannelOwner owner);
@@ -134,7 +155,7 @@ public:
 	ChannelOwner get_channel_owner(AudioCvOutChannel channel) const;
 
 	/**
-	 * @brief Returns a coherent snapshot of latest slots, ownership, and counters.
+	 * @brief Returns a coherent snapshot of latest hold values, ownership, and counters.
 	 */
 	OutputEngineSnapshot get_snapshot() const;
 
@@ -151,6 +172,7 @@ private:
 	void on_dma_irq();
 	static void dma_irq_handler_static();
 	void refill_current_block();
+	void seed_ring_with_hold(AudioCvOutChannel channel);
 
 	bool running_ = false;
 	OutputEngineConfig cfg_{};
@@ -163,17 +185,28 @@ private:
 	uint16_t mcp_base_a_ = 0;  // MCP4822 frame envelope for channel A (config bits, data=0).
 	uint16_t mcp_base_b_ = 0;  // Same for channel B.
 
-	// Slots written by public API, read by render IRQ. Mutated only under
-	// disabled interrupts (single-cycle 16-bit / single-byte stores on Cortex-M;
-	// the IRQ disable bracket is for grouped struct copies in get_snapshot()).
+	// Hold slots written by public API. Mutated only under disabled interrupts.
 	uint16_t hold_frame_a_ = 0;
 	uint16_t hold_frame_b_ = 0;
-	uint16_t audio_frame_a_ = 0;
-	uint16_t audio_frame_b_ = 0;
 	ChannelOwner owner_a_ = ChannelOwner::kManual;
 	ChannelOwner owner_b_ = ChannelOwner::kManual;
-	bool audio_fresh_a_ = false;
-	bool audio_fresh_b_ = false;
+
+	// Per-channel sample rings. Writer = `write_audio_sample` (any IRQ priority),
+	// reader = render IRQ. 8-bit head/tail counters are atomic on Cortex-M; on
+	// a single core, IRQs of the same priority dispatch sequentially, so no
+	// preemption between writer and reader.
+	uint16_t audio_ring_a_[kAudioRingSamples] = {0};
+	uint16_t audio_ring_b_[kAudioRingSamples] = {0};
+	volatile uint8_t audio_ring_a_head_ = 0;  // writer index (free-running)
+	volatile uint8_t audio_ring_a_tail_ = 0;  // reader index (free-running)
+	volatile uint8_t audio_ring_b_head_ = 0;
+	volatile uint8_t audio_ring_b_tail_ = 0;
+
+	// Last value successfully consumed from each ring. Repeated on underrun so
+	// the DAC sees a smooth sample-and-hold rather than a glitch when the
+	// feeder rate is below the consumer rate.
+	uint16_t last_consumed_a_ = 0;
+	uint16_t last_consumed_b_ = 0;
 
 	// Counters mutated only in render IRQ.
 	uint64_t total_blocks_ = 0;

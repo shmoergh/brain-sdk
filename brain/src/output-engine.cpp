@@ -3,8 +3,14 @@
 // the SPI peripheral via three chained DMA channels paced by a hardware DMA
 // timer. The PL022 in 16-bit Motorola frame format with CS routed through
 // GPIO_FUNC_SPI toggles CS between frames automatically; MCP4822 latches its
-// input register on each rising CS edge. CPU work happens once per block in the
-// render IRQ — never per frame.
+// input register on each rising CS edge.
+//
+// Phase 3 changes the audio path from a single replicated frame per block to a
+// per-channel sample ring filled by `write_audio_sample` and drained 16
+// samples-per-block by the render IRQ. The render IRQ still runs at block
+// rate (~2.7 kHz) regardless of mode, but in pure-Manual mode it does no
+// useful work — current_block already holds the right hold values via
+// `refill_current_block`'s manual path.
 
 #include "output-engine.h"
 
@@ -22,17 +28,14 @@ namespace {
 
 // Block layout: kBlockSizeFrames frames, interleaved A/B per audio sample.
 //   block[0] = A_0, block[1] = B_0, block[2] = A_1, block[3] = B_1, ...
-// Must be even (one A frame paired with one B frame per audio sample).
-constexpr uint32_t kBlockSizeFrames = 32;
-constexpr uint32_t kSamplesPerBlock = kBlockSizeFrames / 2;
+// kAudioBlockSamples (= 16) sample pairs per block.
+constexpr uint32_t kBlockSizeFrames = OutputEngine::kAudioBlockSamples * 2;
 
 // MCP4822 16-bit frame envelope (high nibble = config, low 12 bits = data):
 //   bit 15: A/B  (0 = channel A, 1 = channel B)
 //   bit 14: BUF  (0 = unbuffered)
-//   bit 13: GAIN (0 = 2x gain, matches existing Brain analog chain — see
-//                 outputs.h:28 kMCP4822_GAIN=0 and outputs.cpp:259-261)
+//   bit 13: GAIN (0 = 2x gain, matches existing Brain analog chain)
 //   bit 12: SHDN (1 = output active)
-// So the config nibble is [A/B, 0, 0, 1] = 0b0001 for A, 0b1001 for B.
 constexpr uint16_t kMcp4822FrameNibbleA = 0b0001;
 constexpr uint16_t kMcp4822FrameNibbleB = 0b1001;
 
@@ -40,8 +43,7 @@ inline uint16_t make_frame(uint16_t base_nibble, uint16_t dac12) {
 	return static_cast<uint16_t>((base_nibble << 12) | (dac12 & 0x0FFF));
 }
 
-// DMA buffers. Static storage so the DMA controller has stable addresses and
-// the IRQ handler can index them directly.
+// DMA buffers. Static storage so the DMA controller has stable addresses.
 uint16_t streaming_block[kBlockSizeFrames];
 uint16_t current_block[kBlockSizeFrames];
 
@@ -72,13 +74,15 @@ bool OutputEngine::start(const OutputEngineConfig& cfg) {
 
 	// Pre-fill both buffers with current (zero) hold values so the very first
 	// frames out are valid MCP4822 frames at 0V.
-	for (uint32_t sample = 0; sample < kSamplesPerBlock; ++sample) {
+	hold_frame_a_ = make_frame(mcp_base_a_, 0);
+	hold_frame_b_ = make_frame(mcp_base_b_, 0);
+	for (uint32_t sample = 0; sample < kAudioBlockSamples; ++sample) {
 		const uint32_t idx_a = sample * 2;
 		const uint32_t idx_b = idx_a + 1;
-		streaming_block[idx_a] = make_frame(mcp_base_a_, 0);
-		streaming_block[idx_b] = make_frame(mcp_base_b_, 0);
-		current_block[idx_a] = make_frame(mcp_base_a_, 0);
-		current_block[idx_b] = make_frame(mcp_base_b_, 0);
+		streaming_block[idx_a] = hold_frame_a_;
+		streaming_block[idx_b] = hold_frame_b_;
+		current_block[idx_a] = hold_frame_a_;
+		current_block[idx_b] = hold_frame_b_;
 	}
 
 	// Claim DMA pacing timer.
@@ -212,23 +216,21 @@ bool OutputEngine::set_hold_value(AudioCvOutChannel channel, uint16_t dac12) {
 }
 
 bool OutputEngine::write_audio_sample(AudioCvOutChannel channel, uint16_t dac12) {
-	const uint32_t saved_irq = save_and_disable_interrupts();
 	if (channel == AudioCvOutChannel::kChannelA) {
 		if (owner_a_ != ChannelOwner::kAudio) {
-			restore_interrupts(saved_irq);
 			return false;
 		}
-		audio_frame_a_ = make_frame(mcp_base_a_, dac12);
-		audio_fresh_a_ = true;
+		const uint8_t head = audio_ring_a_head_;
+		audio_ring_a_[head & (kAudioRingSamples - 1)] = make_frame(mcp_base_a_, dac12);
+		audio_ring_a_head_ = static_cast<uint8_t>(head + 1);
 	} else {
 		if (owner_b_ != ChannelOwner::kAudio) {
-			restore_interrupts(saved_irq);
 			return false;
 		}
-		audio_frame_b_ = make_frame(mcp_base_b_, dac12);
-		audio_fresh_b_ = true;
+		const uint8_t head = audio_ring_b_head_;
+		audio_ring_b_[head & (kAudioRingSamples - 1)] = make_frame(mcp_base_b_, dac12);
+		audio_ring_b_head_ = static_cast<uint8_t>(head + 1);
 	}
-	restore_interrupts(saved_irq);
 	return true;
 }
 
@@ -236,14 +238,12 @@ void OutputEngine::set_channel_owner(AudioCvOutChannel channel, ChannelOwner own
 	const uint32_t saved_irq = save_and_disable_interrupts();
 	if (channel == AudioCvOutChannel::kChannelA) {
 		if (owner == ChannelOwner::kAudio && owner_a_ != ChannelOwner::kAudio) {
-			audio_frame_a_ = hold_frame_a_;
-			audio_fresh_a_ = true;
+			seed_ring_with_hold(channel);
 		}
 		owner_a_ = owner;
 	} else {
 		if (owner == ChannelOwner::kAudio && owner_b_ != ChannelOwner::kAudio) {
-			audio_frame_b_ = hold_frame_b_;
-			audio_fresh_b_ = true;
+			seed_ring_with_hold(channel);
 		}
 		owner_b_ = owner;
 	}
@@ -263,8 +263,6 @@ OutputEngineSnapshot OutputEngine::get_snapshot() const {
 	const uint32_t saved_irq = save_and_disable_interrupts();
 	snapshot.hold_frame_a = hold_frame_a_;
 	snapshot.hold_frame_b = hold_frame_b_;
-	snapshot.audio_frame_a = audio_frame_a_;
-	snapshot.audio_frame_b = audio_frame_b_;
 	snapshot.owner_a = owner_a_;
 	snapshot.owner_b = owner_b_;
 	snapshot.total_blocks = total_blocks_;
@@ -288,7 +286,7 @@ void OutputEngine::on_dma_irq() {
 	// Render just finished copying current_block -> streaming_block; ctrl will
 	// chain to re-seed data.read_addr, and data starts streaming the new block.
 	// Reset render's read/write addresses for the next cycle (they advanced to
-	// the end of each buffer during the copy). Pattern from purple-thunder.
+	// the end of each buffer during the copy).
 	dma_channel_set_read_addr(dma_render_chan_, current_block, false);
 	dma_channel_set_write_addr(dma_render_chan_, streaming_block, false);
 
@@ -299,31 +297,69 @@ void OutputEngine::on_dma_irq() {
 }
 
 void OutputEngine::refill_current_block() {
-	// Pick frame source per channel based on ownership and audio freshness.
 	const bool a_audio = (owner_a_ == ChannelOwner::kAudio);
 	const bool b_audio = (owner_b_ == ChannelOwner::kAudio);
 
-	if (a_audio && !audio_fresh_a_) {
-		++audio_underrun_a_;
-	}
-	if (b_audio && !audio_fresh_b_) {
-		++audio_underrun_b_;
-	}
+	bool a_underrun_this_block = false;
+	bool b_underrun_this_block = false;
 
-	const uint16_t frame_a = a_audio ? audio_frame_a_ : hold_frame_a_;
-	const uint16_t frame_b = b_audio ? audio_frame_b_ : hold_frame_b_;
+	for (uint32_t sample = 0; sample < kAudioBlockSamples; ++sample) {
+		uint16_t frame_a;
+		if (a_audio) {
+			if (audio_ring_a_tail_ != audio_ring_a_head_) {
+				frame_a = audio_ring_a_[audio_ring_a_tail_ & (kAudioRingSamples - 1)];
+				audio_ring_a_tail_ = static_cast<uint8_t>(audio_ring_a_tail_ + 1);
+				last_consumed_a_ = frame_a;
+			} else {
+				frame_a = last_consumed_a_;
+				a_underrun_this_block = true;
+			}
+		} else {
+			frame_a = hold_frame_a_;
+		}
 
-	for (uint32_t sample = 0; sample < kSamplesPerBlock; ++sample) {
+		uint16_t frame_b;
+		if (b_audio) {
+			if (audio_ring_b_tail_ != audio_ring_b_head_) {
+				frame_b = audio_ring_b_[audio_ring_b_tail_ & (kAudioRingSamples - 1)];
+				audio_ring_b_tail_ = static_cast<uint8_t>(audio_ring_b_tail_ + 1);
+				last_consumed_b_ = frame_b;
+			} else {
+				frame_b = last_consumed_b_;
+				b_underrun_this_block = true;
+			}
+		} else {
+			frame_b = hold_frame_b_;
+		}
+
 		const uint32_t idx_a = sample * 2;
 		const uint32_t idx_b = idx_a + 1;
 		current_block[idx_a] = frame_a;
 		current_block[idx_b] = frame_b;
 	}
 
-	// Clear fresh bits — next block requires a new write_audio_sample call to
-	// avoid being counted as an underrun.
-	audio_fresh_a_ = false;
-	audio_fresh_b_ = false;
+	if (a_underrun_this_block) ++audio_underrun_a_;
+	if (b_underrun_this_block) ++audio_underrun_b_;
+}
+
+void OutputEngine::seed_ring_with_hold(AudioCvOutChannel channel) {
+	if (channel == AudioCvOutChannel::kChannelA) {
+		audio_ring_a_head_ = 0;
+		audio_ring_a_tail_ = 0;
+		last_consumed_a_ = hold_frame_a_;
+		for (uint32_t i = 0; i < kAudioBlockSamples; ++i) {
+			audio_ring_a_[i & (kAudioRingSamples - 1)] = hold_frame_a_;
+		}
+		audio_ring_a_head_ = static_cast<uint8_t>(kAudioBlockSamples);
+	} else {
+		audio_ring_b_head_ = 0;
+		audio_ring_b_tail_ = 0;
+		last_consumed_b_ = hold_frame_b_;
+		for (uint32_t i = 0; i < kAudioBlockSamples; ++i) {
+			audio_ring_b_[i & (kAudioRingSamples - 1)] = hold_frame_b_;
+		}
+		audio_ring_b_head_ = static_cast<uint8_t>(kAudioBlockSamples);
+	}
 }
 
 }  // namespace brain::internal
