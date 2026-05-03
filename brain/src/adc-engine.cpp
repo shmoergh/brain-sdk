@@ -1,8 +1,10 @@
 // adc-engine.cpp
-// Single owner of the ADC. Continuous round-robin (POT, IN1, IN2) sampling at full
-// speed via chained ping-pong DMA. The DMA IRQ handler is the sole writer of all
-// internal state. Pot samples flow through a settle/average state machine; only
-// stable averaged values are published. Inputs/Pots read snapshots without locking.
+// Single owner of the ADC. Continuous round-robin (POT, IN1, IN2) sampling at
+// full speed via a self-looping DMA chain: a tiny "ctrl" channel rewrites the
+// data channel's write pointer every cycle, so the buffer wraps in hardware
+// with zero CPU work. The IRQ only walks the just-filled buffer to update the
+// IN1/IN2 caches and run the pot settle/average state machine. Inputs/Pots
+// read snapshots without locking. Mirrors the OutputEngine ctrl-DMA pattern.
 
 #include "adc-engine.h"
 
@@ -33,21 +35,25 @@ constexpr uint8_t kAdcChannelIn2 = 2;
 //   frame[0] = POT, frame[1] = IN1, frame[2] = IN2.
 constexpr uint32_t kSamplesPerFrame = 3;
 
-// Each ping-pong half holds this many round-robin frames. With ~6 µs per frame
+// One DMA buffer holds this many round-robin frames. With ~6 µs per frame
 // (3 channels × ~2 µs/sample at full ADC speed), 32 frames = ~192 µs per IRQ.
 // Comfortable IRQ rate (~5 kHz) with low per-IRQ work.
-constexpr uint32_t kFramesPerHalf = 32;
-constexpr uint32_t kSamplesPerHalf = kFramesPerHalf * kSamplesPerFrame;
+constexpr uint32_t kFramesPerBuffer = 32;
+constexpr uint32_t kSamplesPerBuffer = kFramesPerBuffer * kSamplesPerFrame;
 
 // Each round-robin cycle through (POT, IN1, IN2) takes one sample per channel.
 // At full ADC speed (~2 µs/sample), the full frame period is ~6 µs, so the
 // effective sampling cadence for any one channel — including POT — is ~6 µs.
 constexpr uint32_t kPotSamplePeriodUs = kSamplesPerFrame * 2;
 
-// DMA destination buffers. Static storage so the DMA controller has stable
-// addresses and the IRQ handler can index them directly.
-uint16_t dma_buffer_a[kSamplesPerHalf];
-uint16_t dma_buffer_b[kSamplesPerHalf];
+// Single DMA destination buffer. Static storage so the DMA controller has a
+// stable address and the IRQ handler can index it directly.
+uint16_t adc_buffer[kSamplesPerBuffer];
+
+// Stable storage for the buffer's base address. The ctrl DMA channel reads
+// from this pointer and writes it into the data channel's write_addr register
+// once per loop, restarting the buffer fill in hardware.
+uint16_t* const adc_buffer_base = adc_buffer;
 
 }  // namespace
 
@@ -83,54 +89,61 @@ bool AdcEngine::start() {
 	// Start at POT so frame layout is deterministic: [POT, IN1, IN2].
 	adc_select_input(kAdcChannelPot);
 
-	// Claim two DMA channels for ping-pong, each chained to the other.
-	dma_channel_a_ = dma_claim_unused_channel(false);
-	if (dma_channel_a_ < 0) {
+	// Claim two DMA channels: data (streams ADC FIFO into the buffer) + ctrl
+	// (rewrites the data channel's write pointer to close the loop in hardware).
+	dma_data_chan_ = dma_claim_unused_channel(false);
+	if (dma_data_chan_ < 0) {
 		return false;
 	}
-	dma_channel_b_ = dma_claim_unused_channel(false);
-	if (dma_channel_b_ < 0) {
-		dma_channel_unclaim(dma_channel_a_);
-		dma_channel_a_ = -1;
+	dma_ctrl_chan_ = dma_claim_unused_channel(false);
+	if (dma_ctrl_chan_ < 0) {
+		dma_channel_unclaim(dma_data_chan_);
+		dma_data_chan_ = -1;
 		return false;
 	}
 
-	dma_channel_config cfg_a = dma_channel_get_default_config(dma_channel_a_);
-	channel_config_set_transfer_data_size(&cfg_a, DMA_SIZE_16);
-	channel_config_set_read_increment(&cfg_a, false);
-	channel_config_set_write_increment(&cfg_a, true);
-	channel_config_set_dreq(&cfg_a, DREQ_ADC);
-	channel_config_set_chain_to(&cfg_a, dma_channel_b_);
+	// Data channel: ADC FIFO -> adc_buffer, paced by DREQ_ADC. On completion
+	// it chains to the ctrl channel, which immediately rewinds write_addr and
+	// chains back here. trans_count is reloaded automatically from its trigger
+	// register on each chain re-arm, so we never have to write it again.
+	dma_channel_config data_cfg = dma_channel_get_default_config(dma_data_chan_);
+	channel_config_set_transfer_data_size(&data_cfg, DMA_SIZE_16);
+	channel_config_set_read_increment(&data_cfg, false);
+	channel_config_set_write_increment(&data_cfg, true);
+	channel_config_set_dreq(&data_cfg, DREQ_ADC);
+	channel_config_set_chain_to(&data_cfg, dma_ctrl_chan_);
 	dma_channel_configure(
-		dma_channel_a_,
-		&cfg_a,
-		dma_buffer_a,
-		&adc_hw->fifo,
-		kSamplesPerHalf,
-		false);  // don't trigger yet
+		dma_data_chan_,
+		&data_cfg,
+		adc_buffer,				// write addr (auto-incremented)
+		&adc_hw->fifo,			// read addr (fixed)
+		kSamplesPerBuffer,
+		false);					// don't trigger yet
 
-	dma_channel_config cfg_b = dma_channel_get_default_config(dma_channel_b_);
-	channel_config_set_transfer_data_size(&cfg_b, DMA_SIZE_16);
-	channel_config_set_read_increment(&cfg_b, false);
-	channel_config_set_write_increment(&cfg_b, true);
-	channel_config_set_dreq(&cfg_b, DREQ_ADC);
-	channel_config_set_chain_to(&cfg_b, dma_channel_a_);
+	// Ctrl channel: a single 32-bit transfer that writes adc_buffer's base
+	// address into the data channel's write_addr register, then chains back
+	// to the data channel which restarts. No DREQ — fires immediately when
+	// chain-triggered. No IRQ — invisible to the CPU.
+	dma_channel_config ctrl_cfg = dma_channel_get_default_config(dma_ctrl_chan_);
+	channel_config_set_transfer_data_size(&ctrl_cfg, DMA_SIZE_32);
+	channel_config_set_read_increment(&ctrl_cfg, false);
+	channel_config_set_write_increment(&ctrl_cfg, false);
+	channel_config_set_chain_to(&ctrl_cfg, dma_data_chan_);
 	dma_channel_configure(
-		dma_channel_b_,
-		&cfg_b,
-		dma_buffer_b,
-		&adc_hw->fifo,
-		kSamplesPerHalf,
+		dma_ctrl_chan_,
+		&ctrl_cfg,
+		&dma_hw->ch[dma_data_chan_].write_addr,	// write addr: data channel's write_addr register
+		&adc_buffer_base,						// read addr: pointer holding adc_buffer
+		1,
 		false);
 
-	// Enable IRQ0 for both channels and install handler.
-	dma_channel_set_irq0_enabled(dma_channel_a_, true);
-	dma_channel_set_irq0_enabled(dma_channel_b_, true);
+	// Only the data channel raises an IRQ; the ctrl channel is silent.
+	dma_channel_set_irq0_enabled(dma_data_chan_, true);
 	irq_set_exclusive_handler(DMA_IRQ_0, &AdcEngine::dma_irq_handler_static);
 	irq_set_enabled(DMA_IRQ_0, true);
 
-	// Start: trigger A, then ADC. A finishes -> chains to B -> chains back to A...
-	dma_channel_start(dma_channel_a_);
+	// Start: trigger data channel, then ADC. Hardware loops forever after this.
+	dma_channel_start(dma_data_chan_);
 	adc_run(true);
 
 	running_ = true;
@@ -230,27 +243,17 @@ void AdcEngine::dma_irq_handler_static() {
 }
 
 void AdcEngine::on_dma_irq() {
-	uint16_t* completed_buffer = nullptr;
-
-	if (dma_hw->ints0 & (1u << dma_channel_a_)) {
-		dma_hw->ints0 = 1u << dma_channel_a_;  // clear (write-1-to-clear)
-		completed_buffer = dma_buffer_a;
-		// Re-arm A so it's ready when B chains back to it.
-		dma_channel_set_write_addr(dma_channel_a_, dma_buffer_a, false);
-		dma_channel_set_trans_count(dma_channel_a_, kSamplesPerHalf, false);
-	} else if (dma_hw->ints0 & (1u << dma_channel_b_)) {
-		dma_hw->ints0 = 1u << dma_channel_b_;
-		completed_buffer = dma_buffer_b;
-		dma_channel_set_write_addr(dma_channel_b_, dma_buffer_b, false);
-		dma_channel_set_trans_count(dma_channel_b_, kSamplesPerHalf, false);
-	}
-
-	if (completed_buffer == nullptr) {
+	if ((dma_hw->ints0 & (1u << dma_data_chan_)) == 0) {
 		return;
 	}
+	dma_hw->ints0 = 1u << dma_data_chan_;  // clear (write-1-to-clear)
 
-	for (uint32_t frame = 0; frame < kFramesPerHalf; ++frame) {
-		const uint16_t* samples = completed_buffer + (frame * kSamplesPerFrame);
+	// The ctrl channel has already rewound write_addr and re-armed the data
+	// channel via chain_to, so the next buffer cycle is already in flight.
+	// We have ~192 µs of margin (one full buffer period) to walk this buffer
+	// before the writer overtakes us — well beyond per-IRQ cost.
+	for (uint32_t frame = 0; frame < kFramesPerBuffer; ++frame) {
+		const uint16_t* samples = adc_buffer + (frame * kSamplesPerFrame);
 		const uint16_t pot_sample = samples[0];
 		const uint16_t in1_sample = samples[1];
 		const uint16_t in2_sample = samples[2];
@@ -260,7 +263,7 @@ void AdcEngine::on_dma_irq() {
 		total_samples_ += kSamplesPerFrame;
 
 		// Pot state machine only runs when pot scanning has been enabled via
-		// start_pots(). Without it, the POT slot is sampled (for deterministic
+		// enable_pots(). Without it, the POT slot is sampled (for deterministic
 		// frame layout) but discarded.
 		if (!pot_scanning_enabled_) {
 			continue;

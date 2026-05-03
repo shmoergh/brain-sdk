@@ -45,10 +45,12 @@ public:
 	 * @brief Starts continuous round-robin sampling without enabling pot scanning.
 	 *
 	 * Idempotent. On first call: configures the ADC for 12-bit DMA-paced sampling
-	 * at full speed, claims two DMA channels, and starts ping-pong DMA over the
-	 * fixed (POT, IN1, IN2) round-robin. The pot scanner state machine is left
-	 * disabled — POT samples are still taken (for deterministic frame layout)
-	 * but ignored. IN1/IN2 caches update every frame.
+	 * at full speed, claims two DMA channels (data + ctrl), and starts a self-
+	 * looping DMA chain over the fixed (POT, IN1, IN2) round-robin. The ctrl
+	 * channel rewrites the data channel's write pointer on every cycle, so the
+	 * loop runs entirely in hardware — the IRQ only processes samples. The pot
+	 * scanner state machine is left disabled; POT samples are still taken (for
+	 * deterministic frame layout) but ignored. IN1/IN2 caches update every frame.
 	 *
 	 * Used by `Inputs` when no pot scanning is required.
 	 *
@@ -105,8 +107,8 @@ private:
 
 	bool running_ = false;
 	bool pot_scanning_enabled_ = false;
-	int dma_channel_a_ = -1;
-	int dma_channel_b_ = -1;
+	int dma_data_chan_ = -1;
+	int dma_ctrl_chan_ = -1;
 
 	// Mux pin storage (set on first start, fixed thereafter)
 	uint8_t mux_s0_gpio_ = 0;
