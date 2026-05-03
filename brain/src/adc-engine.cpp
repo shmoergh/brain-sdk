@@ -302,6 +302,34 @@ void AdcEngine::set_audio_callback(AdcAudioCallback callback, void* ctx) {
 	restore_interrupts(saved_irq);
 }
 
+void AdcEngine::pause_for_flash() {
+	if (!running_ || paused_for_flash_) {
+		return;
+	}
+	// Stop ADC sampling. With no DREQs, the data DMA channel goes idle and no
+	// completion IRQ accumulates while the bootrom flash routines hold IRQs
+	// disabled. ADC FIFO is drained so resume_after_flash() picks up cleanly.
+	adc_run(false);
+	// adc_run(false) only clears START_MANY; an in-flight conversion can still
+	// complete asynchronously (≤ 96 ADC clock cycles ≈ 2 µs at 48 MHz). Wait
+	// past that window before draining the FIFO.
+	busy_wait_us(5);
+	adc_fifo_drain();
+	paused_for_flash_ = true;
+}
+
+void AdcEngine::resume_after_flash() {
+	if (!running_ || !paused_for_flash_) {
+		return;
+	}
+	// Re-arm sampling. The DMA chain is still configured and waiting for
+	// DREQs; once ADC starts producing samples again, transfers resume from
+	// the current write position. Pot scanner state machine continues from
+	// wherever it was paused.
+	adc_run(true);
+	paused_for_flash_ = false;
+}
+
 void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
 	uint8_t count = pots_config.num_pots;
 	if (count > kMaxPots) count = kMaxPots;

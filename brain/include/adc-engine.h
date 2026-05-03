@@ -140,6 +140,36 @@ public:
 	 */
 	bool is_audio_mode() const { return audio_mode_enabled_; }
 
+	/**
+	 * @brief Pauses ADC sampling so flash writes can run safely.
+	 *
+	 * Stops the ADC, waits for any in-flight conversion to drain, and clears
+	 * the FIFO. The DMA chain naturally goes idle without DREQs and no DMA
+	 * completion IRQ accumulates while interrupts are disabled by the bootrom
+	 * flash routines. Internal state (mux position, scanner state, latest
+	 * cached values) is preserved verbatim — `resume_after_flash()` continues
+	 * from where this left off.
+	 *
+	 * No-op if the engine isn't running. Idempotent. Safe to call from any
+	 * context that isn't the DMA IRQ itself.
+	 *
+	 * Used by `Storage` around its `flash_safe_execute` calls. Firmwares that
+	 * call `flash_range_program` / `flash_range_erase` directly (bypassing
+	 * the `Storage` API) must pair this with `resume_after_flash()` themselves.
+	 */
+	void pause_for_flash();
+
+	/**
+	 * @brief Resumes ADC sampling after a flash write.
+	 *
+	 * Restarts the ADC. The DMA chain picks up from where the pause left it,
+	 * and pot/input snapshots resume updating within ~one buffer period.
+	 *
+	 * No-op if the engine isn't running, or if `pause_for_flash()` wasn't
+	 * called first.
+	 */
+	void resume_after_flash();
+
 private:
 	AdcEngine() = default;
 	AdcEngine(const AdcEngine&) = delete;
@@ -157,6 +187,7 @@ private:
 	bool running_ = false;
 	bool pot_scanning_enabled_ = false;
 	bool audio_mode_enabled_ = false;
+	bool paused_for_flash_ = false;
 	int dma_data_chan_ = -1;
 	int dma_ctrl_chan_ = -1;
 

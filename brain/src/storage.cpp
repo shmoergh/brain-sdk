@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "adc-engine.h"
+
 extern "C" uint8_t __flash_binary_end;
 
 namespace {
@@ -192,7 +194,15 @@ StorageStatus write_region_impl(
 		.size = region_size_bytes,
 	};
 
+	// Quiesce AdcEngine across the flash op. With ADC + DMA running, the
+	// bootrom flash routines (which disable IRQs for tens of ms) leave the
+	// engine in a state that can wedge the firmware on resume — likely a
+	// pending DMA-completion IRQ firing into a state machine that's badly
+	// misaligned with the wrapped DMA buffer. Pausing eliminates the
+	// misalignment by stopping new samples until the flash op returns.
+	brain::internal::AdcEngine::instance().pause_for_flash();
 	const int flash_result = flash_safe_execute(flash_program_sector_callback, &request, 500);
+	brain::internal::AdcEngine::instance().resume_after_flash();
 	return map_flash_safe_execute_result(flash_result);
 }
 
@@ -211,7 +221,10 @@ StorageStatus erase_region_impl(StorageRegion region, bool require_protected_lay
 		.size = region_size_impl(region),
 	};
 
+	// See write_region_impl for rationale on the AdcEngine pause/resume wrap.
+	brain::internal::AdcEngine::instance().pause_for_flash();
 	const int flash_result = flash_safe_execute(flash_program_sector_callback, &request, 500);
+	brain::internal::AdcEngine::instance().resume_after_flash();
 	return map_flash_safe_execute_result(flash_result);
 }
 
