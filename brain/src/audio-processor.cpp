@@ -180,9 +180,7 @@ BrainInitStatus AudioProcessor::start_engines(const EngineSetup& s) {
 		pots_cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
 		pots_cfg.s1_gpio = GPIO_BRAIN_POTMUX_S1;
 		pots_cfg.num_pots = s.pot_count;
-		for (uint8_t i = 0; i < kMaxPots; ++i) {
-			pots_cfg.channel_map[i] = (i < s.pot_count) ? i : 0;
-		}
+		// channel_map is deprecated/ignored by AdcEngine; pot N maps to mux N.
 		pots_cfg.output_resolution = 8;
 		pots_cfg.settling_delay_us =
 			static_cast<uint32_t>(s.pot_settle_discard_samples) *

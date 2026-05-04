@@ -37,9 +37,7 @@ PotsConfig create_default_config(uint8_t num_pots, uint8_t output_resolution) {
 	cfg.s0_gpio = GPIO_BRAIN_POTMUX_S0;
 	cfg.s1_gpio = GPIO_BRAIN_POTMUX_S1;
 	cfg.num_pots = (num_pots > 3) ? 3 : num_pots;  // Brain module has 3 pots
-	for (int i = 0; i < cfg.num_pots; ++i) {
-		cfg.channel_map[i] = i;	 // Direct mapping: pot 0 -> mux channel 0, etc.
-	}
+	// channel_map is deprecated/ignored: pot N is always mux N on Brain hardware.
 	cfg.output_resolution = output_resolution;
 	cfg.settling_delay_us = 200;  // Translated to a discard-sample count by AdcEngine.
 	cfg.samples_per_read = 6;	  // Averaging depth used by AdcEngine.
@@ -112,8 +110,10 @@ void Pots::set_change_threshold(uint16_t threshold) {
 
 uint16_t Pots::get_raw(uint8_t index) {
 	if (index >= config_.num_pots || index >= kMaxPots) return 0;
+	// AdcEngine publishes by logical pot index; pot N is wired to mux N on
+	// Brain hardware, so we read snapshot.pot_raw[index] directly.
 	const auto snapshot = brain::internal::AdcEngine::instance().get_snapshot();
-	return snapshot.pot_raw[config_.channel_map[index]];
+	return snapshot.pot_raw[index];
 }
 
 uint8_t Pots::get_output_resolution() const {
@@ -148,7 +148,7 @@ void Pots::scan() {
 	const uint16_t output_max = output_max_for_resolution(config_.output_resolution);
 
 	for (uint8_t i = 0; i < config_.num_pots && i < kMaxPots; ++i) {
-		const uint16_t raw = snapshot.pot_raw[config_.channel_map[i]];
+		const uint16_t raw = snapshot.pot_raw[i];
 		const uint16_t val = scale_raw_to_output(raw, output_max);
 		buffered_values_[i] = val;
 

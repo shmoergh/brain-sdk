@@ -14,6 +14,9 @@ struct PotsConfig {
 	uint8_t s0_gpio;
 	uint8_t s1_gpio;
 	uint8_t num_pots;
+	// Brain hardware always wires pot N to mux channel N. The engine ignores
+	// this field; it is preserved only for 2.0 source compatibility.
+	[[deprecated("PotsConfig::channel_map is ignored: pot N is always mux N on Brain hardware")]]
 	uint8_t channel_map[kMaxPots];
 	uint8_t output_resolution;
 	uint32_t settling_delay_us;
@@ -39,7 +42,7 @@ public:
 	 * - `adc_gpio`: ADC input pin connected to pot mux output.
 	 * - `s0_gpio`, `s1_gpio`: mux select lines.
 	 * - `num_pots`: number of pots to read (clamped to `kMaxPots`).
-	 * - `channel_map`: maps logical pot index to mux channel.
+	 * - `channel_map`: deprecated/ignored; pot N is always mux N on Brain hardware.
 	 * - `output_resolution`: bit depth for returned values (mapped from 12-bit ADC).
 	 * - `settling_delay_us`: delay after mux switch before reading.
 	 * - `samples_per_read`: averaging depth for stabilized mode.

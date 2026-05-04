@@ -440,9 +440,6 @@ void AdcEngine::resume_after_flash() {
 			restored_count = 1;
 		}
 		pot_count_ = restored_count;
-		for (uint8_t i = 0; i < kMaxPots; ++i) {
-			pot_channel_map_[i] = pot_configured_channel_map_[i];
-		}
 		pot_settling_samples_ = pot_configured_settling_samples_;
 		pot_average_samples_ = pot_configured_average_samples_;
 		reset_pot_state_machine();
@@ -475,9 +472,9 @@ void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
 	if (count == 0) count = 1;
 	pot_count_ = count;
 
-	for (uint8_t i = 0; i < kMaxPots; ++i) {
-		pot_channel_map_[i] = (i < count) ? pots_config.channel_map[i] : 0;
-	}
+	// Note: pots_config.channel_map is intentionally ignored. Brain hardware
+	// always wires logical pot N to mux channel N; the engine encodes that
+	// directly in switch_mux_to().
 
 	const uint32_t settling = (pots_config.settling_delay_us == 0)
 		? kPotSamplePeriodUs
@@ -505,9 +502,6 @@ void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
 
 	// Shadow copy for deterministic restore after flash pause/resume.
 	pot_configured_count_ = pot_count_;
-	for (uint8_t i = 0; i < kMaxPots; ++i) {
-		pot_configured_channel_map_[i] = pot_channel_map_[i];
-	}
 	pot_configured_settling_samples_ = pot_settling_samples_;
 	pot_configured_average_samples_ = pot_average_samples_;
 }
@@ -521,7 +515,8 @@ void AdcEngine::reset_pot_state_machine() {
 }
 
 void AdcEngine::switch_mux_to(uint8_t logical_pot_index) {
-	const uint8_t mux_channel = pot_channel_map_[logical_pot_index] & 0x03;
+	// Brain hardware: pot N is wired directly to mux channel N. No remap.
+	const uint8_t mux_channel = logical_pot_index & 0x03;
 	gpio_put(mux_s0_gpio_, mux_channel & 0x01);
 	gpio_put(mux_s1_gpio_, (mux_channel >> 1) & 0x01);
 }
