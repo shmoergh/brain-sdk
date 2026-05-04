@@ -13,6 +13,7 @@ add_executable(test
     apps/multipot_test.cpp
     apps/output_engine_timing_test.cpp
     apps/output_ownership_test.cpp
+    apps/pots_storage_stress_test.cpp
     apps/storage_test.cpp
     apps/storage_persistence_check_test.cpp
 )
