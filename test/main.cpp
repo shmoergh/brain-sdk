@@ -12,6 +12,7 @@
 #include "apps/multipot_test.h"
 #include "apps/output_engine_timing_test.h"
 #include "apps/output_ownership_test.h"
+#include "apps/outputs_storage_stress_test.h"
 #include "apps/pots_storage_stress_test.h"
 #include "apps/storage_persistence_check_test.h"
 #include "apps/storage_test.h"
@@ -47,6 +48,7 @@ void print_menu() {
 	printf(" 11) Audio passthrough (IN1 -> OUT A, simplest)\n");
 	printf(" 12) Audio passthrough V2 (stereo: IN1 -> A, IN2 -> B)\n");
 	printf(" 13) Pots + Storage stress (verify ADC pause/resume on flash writes)\n");
+	printf(" 14) Outputs + Storage stress (verify output DMA survives flash writes)\n");
 	printf("\n");
 	printf("Enter number then press Enter.\n");
 	printf("> ");
@@ -125,6 +127,8 @@ int main() {
 				run_selected_app<sandbox::apps::AudioPassthroughV2Test>();
 			case 13:
 				run_selected_app<sandbox::apps::PotsStorageStressTest>();
+			case 14:
+				run_selected_app<sandbox::apps::OutputsStorageStressTest>();
 			default:
 				printf("\nInvalid selection: %d\n", selection);
 				sleep_ms(900);

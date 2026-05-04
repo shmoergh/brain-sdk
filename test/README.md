@@ -17,6 +17,8 @@ After a test app starts, it owns the loop. Reset the board to return to the star
 - `PotReadStabilityTest` (`apps/pot_read_stability_test.cpp`)
 - `StorageTest` (`apps/storage_test.cpp`)
 - `StoragePersistenceCheckTest` (`apps/storage_persistence_check_test.cpp`)
+- `PotsStorageStressTest` (`apps/pots_storage_stress_test.cpp`)
+- `OutputsStorageStressTest` (`apps/outputs_storage_stress_test.cpp`)
 
 ## Critical Issues Coverage
 
@@ -30,6 +32,8 @@ After a test app starts, it owns the loop. Reset the board to return to the star
   - `AudioProcessorTest`
 - Flash storage correctness + persistence:
   - `StorageTest`, `StoragePersistenceCheckTest`
+- Flash writes while real-time IO engines are active:
+  - `PotsStorageStressTest`, `OutputsStorageStressTest`
 - UI LED behavior regressions:
   - `LedsTest`
 
