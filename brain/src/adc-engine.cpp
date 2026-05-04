@@ -28,6 +28,10 @@ namespace {
 constexpr uint8_t kAdcChannelPot = 0;
 constexpr uint8_t kAdcChannelIn1 = 1;
 constexpr uint8_t kAdcChannelIn2 = 2;
+constexpr uint32_t kAdcRoundRobinMask =
+	(1u << kAdcChannelPot) |
+	(1u << kAdcChannelIn1) |
+	(1u << kAdcChannelIn2);
 
 // Round-robin samples a fixed three-channel frame per cycle.
 // Hardware cycles enabled bits in increasing order, starting from the channel
@@ -45,6 +49,8 @@ constexpr uint32_t kSamplesPerBuffer = kFramesPerBuffer * kSamplesPerFrame;
 // At full ADC speed (~2 µs/sample), the full frame period is ~6 µs, so the
 // effective sampling cadence for any one channel — including POT — is ~6 µs.
 constexpr uint32_t kPotSamplePeriodUs = kSamplesPerFrame * 2;
+constexpr uint32_t kFlashPauseSettleUs = 10;
+constexpr uint32_t kFlashResumePrimeUs = 250;
 
 // Single DMA destination buffer. Static storage so the DMA controller has a
 // stable address and the IRQ handler can index it directly.
@@ -54,6 +60,17 @@ uint16_t adc_buffer[kSamplesPerBuffer];
 // from this pointer and writes it into the data channel's write_addr register
 // once per loop, restarting the buffer fill in hardware.
 uint16_t* const adc_buffer_base = adc_buffer;
+
+inline void quiesce_dma_chain_before_abort(int dma_data_chan, int dma_ctrl_chan) {
+	// Plain-English note for future debugging:
+	// We saw "first flash write freezes app" in Pots + Storage stress test.
+	// On RP2350, aborting a chained DMA channel without clearing EN first can
+	// re-trigger the chain while abort is in progress (RP2350-E5). That leaves
+	// BUSY/IRQ state inconsistent and can hang the firmware on flash write.
+	// So we always clear EN on both chain members before abort.
+	hw_clear_bits(&dma_hw->ch[dma_data_chan].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+	hw_clear_bits(&dma_hw->ch[dma_ctrl_chan].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+}
 
 }  // namespace
 
@@ -82,10 +99,7 @@ bool AdcEngine::start() {
 		false,	// no ERR bit
 		false);	// 12-bit samples (ERR bit disabled means full 12 bits)
 	adc_fifo_drain();
-	adc_set_round_robin(
-		(1u << kAdcChannelPot) |
-		(1u << kAdcChannelIn1) |
-		(1u << kAdcChannelIn2));
+	adc_set_round_robin(kAdcRoundRobinMask);
 	// Start at POT so frame layout is deterministic: [POT, IN1, IN2].
 	adc_select_input(kAdcChannelPot);
 
@@ -226,6 +240,7 @@ bool AdcEngine::enable_audio_mode(uint32_t sample_period_us) {
 	// 96 ADC clock cycles (2 µs at 48 MHz). Wait a bit longer than that so
 	// any in-flight conversion finishes before we re-seat AINSEL below.
 	busy_wait_us(5);
+	quiesce_dma_chain_before_abort(dma_data_chan_, dma_ctrl_chan_);
 	dma_channel_abort(dma_data_chan_);
 	adc_fifo_drain();
 
@@ -274,6 +289,7 @@ void AdcEngine::disable_audio_mode() {
 
 	adc_run(false);
 	busy_wait_us(5);
+	quiesce_dma_chain_before_abort(dma_data_chan_, dma_ctrl_chan_);
 	dma_channel_abort(dma_data_chan_);
 	dma_channel_abort(dma_ctrl_chan_);
 	adc_fifo_drain();
@@ -306,28 +322,138 @@ void AdcEngine::pause_for_flash() {
 	if (!running_ || paused_for_flash_) {
 		return;
 	}
-	// Stop ADC sampling. With no DREQs, the data DMA channel goes idle and no
-	// completion IRQ accumulates while the bootrom flash routines hold IRQs
-	// disabled. ADC FIFO is drained so resume_after_flash() picks up cleanly.
+	// Why this is strict:
+	// During flash program/erase, IRQs are disabled by flash_safe_execute.
+	// If ADC+DMA is left half-running, we can resume into bad phase/IRQ state:
+	// pots appear "stuck" (often near 0/1/2 or ~midscale) or firmware freezes.
+	// We therefore force a clean, fully-idle ADC+DMA state before flash.
+	const uint32_t saved_irq = save_and_disable_interrupts();
+
+	// Mask the ADC DMA IRQ path first so no handler can race this transition.
+	dma_channel_set_irq0_enabled(dma_data_chan_, false);
+	irq_set_enabled(DMA_IRQ_0, false);
+
+	// Stop ADC sampling first so no new DREQs are generated.
 	adc_run(false);
 	// adc_run(false) only clears START_MANY; an in-flight conversion can still
 	// complete asynchronously (≤ 96 ADC clock cycles ≈ 2 µs at 48 MHz). Wait
 	// past that window before draining the FIFO.
-	busy_wait_us(5);
+	busy_wait_us(kFlashPauseSettleUs);
+
+	// Fully terminate the DMA chain at a known point before flash operations.
+	// We intentionally abort after adc_run(false) + settle wait so channels are
+	// no longer making forward progress on DREQ, avoiding mid-frame resume.
+	quiesce_dma_chain_before_abort(dma_data_chan_, dma_ctrl_chan_);
+	dma_channel_abort(dma_data_chan_);
+	dma_channel_abort(dma_ctrl_chan_);
+
+	// Drop any leftover samples and stale completion flags.
 	adc_fifo_drain();
+	dma_hw->ints0 = 1u << dma_data_chan_;
+	irq_clear(DMA_IRQ_0);
 	paused_for_flash_ = true;
+	restore_interrupts(saved_irq);
 }
 
 void AdcEngine::resume_after_flash() {
 	if (!running_ || !paused_for_flash_) {
 		return;
 	}
-	// Re-arm sampling. The DMA chain is still configured and waiting for
-	// DREQs; once ADC starts producing samples again, transfers resume from
-	// the current write position. Pot scanner state machine continues from
-	// wherever it was paused.
+	// Resume goal:
+	// restart from a deterministic POT-first frame so scanner/mux math is
+	// aligned again immediately after flash. This avoids post-flash garbage
+	// snapshots and intermittent "frozen-looking" pot reads.
+	const uint32_t saved_irq = save_and_disable_interrupts();
+
+	// Re-apply ADC capture configuration in case flash-safe execute path or
+	// timing edge left ADC CS/FCS registers in a degraded state.
+	adc_gpio_init(GPIO_BRAIN_POTMUX_ADC);
+	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_A);
+	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_B);
+	if (!audio_mode_enabled_) {
+		adc_set_clkdiv(0.0f);
+	}
+	adc_fifo_setup(
+		true,	// enable FIFO
+		true,	// DMA request
+		1,		// DREQ asserted when >=1 sample present
+		false,	// no ERR bit
+		false);	// 12-bit samples
+	adc_set_round_robin(kAdcRoundRobinMask);
+
+	// Re-seat ADC + DMA to a deterministic frame boundary before restart.
+	adc_fifo_drain();
+	adc_select_input(kAdcChannelPot);
+
+	// Rebuild both DMA channel configurations to force a clean chain restart.
+	const uint32_t trans_count =
+		audio_mode_enabled_ ? kSamplesPerFrame : kSamplesPerBuffer;
+
+	dma_channel_config data_cfg = dma_channel_get_default_config(dma_data_chan_);
+	channel_config_set_transfer_data_size(&data_cfg, DMA_SIZE_16);
+	channel_config_set_read_increment(&data_cfg, false);
+	channel_config_set_write_increment(&data_cfg, true);
+	channel_config_set_dreq(&data_cfg, DREQ_ADC);
+	channel_config_set_chain_to(&data_cfg, dma_ctrl_chan_);
+	dma_channel_configure(
+		dma_data_chan_,
+		&data_cfg,
+		adc_buffer,
+		&adc_hw->fifo,
+		trans_count,
+		false);
+
+	dma_channel_config ctrl_cfg = dma_channel_get_default_config(dma_ctrl_chan_);
+	channel_config_set_transfer_data_size(&ctrl_cfg, DMA_SIZE_32);
+	channel_config_set_read_increment(&ctrl_cfg, false);
+	channel_config_set_write_increment(&ctrl_cfg, false);
+	channel_config_set_chain_to(&ctrl_cfg, dma_data_chan_);
+	dma_channel_configure(
+		dma_ctrl_chan_,
+		&ctrl_cfg,
+		&dma_hw->ch[dma_data_chan_].write_addr,
+		&adc_buffer_base,
+		1,
+		false);
+
+	// Keep mux/scanner alignment deterministic after every flash write.
+	if (pot_scanning_enabled_) {
+		gpio_set_dir(mux_s0_gpio_, GPIO_OUT);
+		gpio_set_dir(mux_s1_gpio_, GPIO_OUT);
+		gpio_disable_pulls(mux_s0_gpio_);
+		gpio_disable_pulls(mux_s1_gpio_);
+		uint8_t restored_count = pot_configured_count_;
+		if (restored_count == 0 || restored_count > kMaxPots) {
+			restored_count = 1;
+		}
+		pot_count_ = restored_count;
+		for (uint8_t i = 0; i < kMaxPots; ++i) {
+			pot_channel_map_[i] = pot_configured_channel_map_[i];
+		}
+		pot_settling_samples_ = pot_configured_settling_samples_;
+		pot_average_samples_ = pot_configured_average_samples_;
+		reset_pot_state_machine();
+		switch_mux_to(pot_current_index_);
+	}
+
+	dma_hw->ints0 = 1u << dma_data_chan_;
+	irq_clear(DMA_IRQ_0);
+
+	// Re-enable channel IRQ routing.
+	dma_channel_set_irq0_enabled(dma_data_chan_, true);
+	irq_set_enabled(DMA_IRQ_0, true);
+
+	// Kick data DMA first; it will wait on ADC DREQ once sampling resumes.
+	dma_channel_start(dma_data_chan_);
 	adc_run(true);
 	paused_for_flash_ = false;
+
+	// Allow one CV-mode DMA buffer period to complete so snapshots are fresh
+	// immediately after a flash write in polling tests.
+	if (!audio_mode_enabled_) {
+		busy_wait_us(kFlashResumePrimeUs);
+	}
+	restore_interrupts(saved_irq);
 }
 
 void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
@@ -363,6 +489,14 @@ void AdcEngine::apply_pot_scan_config(const PotsConfig& pots_config) {
 	uint16_t average = pots_config.samples_per_read;
 	if (average == 0) average = 1;
 	pot_average_samples_ = average;
+
+	// Shadow copy for deterministic restore after flash pause/resume.
+	pot_configured_count_ = pot_count_;
+	for (uint8_t i = 0; i < kMaxPots; ++i) {
+		pot_configured_channel_map_[i] = pot_channel_map_[i];
+	}
+	pot_configured_settling_samples_ = pot_settling_samples_;
+	pot_configured_average_samples_ = pot_average_samples_;
 }
 
 void AdcEngine::reset_pot_state_machine() {

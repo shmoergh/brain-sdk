@@ -204,6 +204,12 @@ private:
 	uint8_t pot_channel_map_[kMaxPots] = {0, 0, 0, 0};
 	uint16_t pot_settling_samples_ = 1;
 	uint16_t pot_average_samples_ = 1;
+	// Last requested pot config, kept so flash resume can restore scanner state
+	// exactly (instead of resuming with stale/partial settings).
+	uint8_t pot_configured_count_ = 1;
+	uint8_t pot_configured_channel_map_[kMaxPots] = {0, 0, 0, 0};
+	uint16_t pot_configured_settling_samples_ = 1;
+	uint16_t pot_configured_average_samples_ = 1;
 
 	// Pot scanner state machine (mutated only in IRQ)
 	enum PotState : uint8_t {
