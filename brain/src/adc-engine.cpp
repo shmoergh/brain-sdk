@@ -72,6 +72,13 @@ inline void quiesce_dma_chain_before_abort(int dma_data_chan, int dma_ctrl_chan)
 	hw_clear_bits(&dma_hw->ch[dma_ctrl_chan].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
 }
 
+inline void enable_dma_chain_after_abort(int dma_data_chan, int dma_ctrl_chan) {
+	// After quiesce+abort, EN may remain cleared. If we don't re-enable here,
+	// dma_channel_start() trigger is ignored and audio callback ticks stay at 0.
+	hw_set_bits(&dma_hw->ch[dma_ctrl_chan].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+	hw_set_bits(&dma_hw->ch[dma_data_chan].al1_ctrl, DMA_CH0_CTRL_TRIG_EN_BITS);
+}
+
 }  // namespace
 
 AdcEngine& AdcEngine::instance() {
@@ -274,6 +281,9 @@ bool AdcEngine::enable_audio_mode(uint32_t sample_period_us) {
 
 	audio_mode_enabled_ = true;
 
+	// Re-enable channels after quiesce+abort; otherwise start trigger is ignored.
+	enable_dma_chain_after_abort(dma_data_chan_, dma_ctrl_chan_);
+
 	// Restart the chain.
 	dma_channel_start(dma_data_chan_);
 	adc_run(true);
@@ -304,6 +314,9 @@ void AdcEngine::disable_audio_mode() {
 	audio_mode_enabled_ = false;
 	audio_callback_ = nullptr;
 	audio_ctx_ = nullptr;
+
+	// Re-enable channels after quiesce+abort before restarting in CV mode.
+	enable_dma_chain_after_abort(dma_data_chan_, dma_ctrl_chan_);
 
 	dma_channel_start(dma_data_chan_);
 	adc_run(true);
