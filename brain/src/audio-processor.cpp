@@ -158,6 +158,10 @@ BrainInitStatus AudioProcessor::start_engines(const EngineSetup& s) {
 		stop();
 		return BrainInitStatus::kFailed;
 	}
+	// We have committed shared engine state. From here on, any failure path
+	// must run stop() to release ownership; engines_touched_ ensures stop()'s
+	// early-out doesn't skip the teardown.
+	engines_touched_ = true;
 
 	// AudioProcessor writes signed samples around 0; drive coupling pins of
 	// claimed channels high to select the bipolar -5..+5V range.
@@ -230,12 +234,13 @@ BrainInitStatus AudioProcessor::start_engines(const EngineSetup& s) {
 }
 
 void AudioProcessor::stop() {
-	// No-op if this instance never claimed shared engine resources. Critical
+	// No-op if this instance never committed any shared engine state. Critical
 	// because each `Brain` aggregates an `AudioProcessor` and unrelated `Brain`
 	// instances must not touch the shared engines owned by the running instance
-	// when they go out of scope.
-	if (!initialized_ && !audio_mode_started_ &&
-	    !channel_a_claimed_ && !channel_b_claimed_) {
+	// when they go out of scope. The per-step flags below let us run the same
+	// teardown for both clean shutdown and partial-init failure rollback —
+	// each conditional safely no-ops if that step never ran.
+	if (!engines_touched_) {
 		return;
 	}
 
@@ -263,6 +268,7 @@ void AudioProcessor::stop() {
 	user_ctx_ = nullptr;
 	mode_v2_ = false;
 	initialized_ = false;
+	engines_touched_ = false;
 }
 
 bool AudioProcessor::is_initialized() const {

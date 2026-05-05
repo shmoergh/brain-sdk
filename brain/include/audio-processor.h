@@ -227,6 +227,12 @@ private:
 	void* user_ctx_ = nullptr;
 
 	bool initialized_ = false;
+	// Set the moment any shared engine state is committed (currently:
+	// OutputEngine::start() succeeds). Used by stop() to decide whether to
+	// run teardown — independent of how far init() progressed afterwards.
+	// Without this, a failure between OutputEngine::start() and the per-step
+	// flags below would cause stop()'s early-out to skip cleanup.
+	bool engines_touched_ = false;
 	bool audio_mode_started_ = false;
 	bool channel_a_claimed_ = false;
 	bool channel_b_claimed_ = false;
