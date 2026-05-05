@@ -49,8 +49,9 @@ struct OutputEngineSnapshot {
  * @brief Engine config passed once to `start()`.
  *
  * Defaults match the Brain hardware: SPI0 with 16-bit Motorola frames at 20 MHz,
- * CS routed via `GPIO_FUNC_SPI` so the PL022 toggles CS between frames. Sample
- * period of 23 µs matches the legacy `AudioProcessorConfig::sample_period_us`.
+ * CS routed via `GPIO_FUNC_SPI` so the PL022 toggles CS between frames. The
+ * 23 µs sample period gives ~43.5 kHz audio rate (also the default for
+ * `AudioProcessorConfig::sample_period_us`).
  */
 struct OutputEngineConfig {
 	spi_inst_t* spi_instance = spi0;
@@ -63,7 +64,7 @@ struct OutputEngineConfig {
 };
 
 /**
- * @brief Singleton owner of the MCP4822 DAC. Phase 3 refactor.
+ * @brief Singleton owner of the MCP4822 DAC.
  *
  * **Architecture: zero-IRQ, zero-chain ring DMA.** A single DMA channel reads
  * 16-bit frames from a power-of-two-sized ring buffer (`kStreamFrames` = 64
@@ -83,17 +84,21 @@ struct OutputEngineConfig {
  * under disabled-IRQ — change reaches the DAC within one buffer rotation
  * (~736 µs at sample_period_us = 23).
  *
- * **Audio mode:** the writer (`write_audio_sample`, called from the ADC IRQ at
- * audio rate) maintains a per-channel "next pair to write" counter that leads
- * the DMA's current read position by `kSafetyLead` pairs. With matched rates
- * (DMA frame rate = 2 × audio rate, hardware-locked since both derive from the
- * same crystal-driven PLLs and there's no chain overhead), the lead stays
- * constant forever. The writer simply writes its frame into the channel's slot
- * at the current writer-pair, then advances by one pair per audio sample.
+ * **Audio mode:** `write_audio_sample` (called from the ADC IRQ at audio rate)
+ * rewrites the new sample into every one of the 32 slots for that channel. The
+ * loop is ~32 16-bit stores (~0.5 µs at clk_sys), much faster than the DMA's
+ * per-pair read cadence (~11.5 µs at the default 23 µs sample period). The DMA
+ * frame rate is locked to 2 × the audio rate (both rates derive from the same
+ * crystal-driven PLLs), so each call to `write_audio_sample` happens between
+ * two consecutive DMA reads of any one slot — every distinct audio sample
+ * reaches the DAC. The "fill all slots" approach is also correct at slow
+ * writer rates (e.g. CV updates): the value persists in every slot until the
+ * next push, producing a clean stepped output.
  *
- * Concurrency: writer counters are written only from the audio IRQ; other
- * fields are written under disabled interrupts. Public accessors briefly
- * disable interrupts for coherent snapshots.
+ * Concurrency: 16-bit stores and reads are atomic on the AHB bus, so DMA
+ * cannot observe a torn frame mid-store. Manual-mode mutators run under
+ * disabled interrupts; public accessors briefly disable interrupts for
+ * coherent snapshots.
  */
 class OutputEngine {
 public:
@@ -129,8 +134,8 @@ public:
 	bool set_hold_value(AudioCvOutChannel channel, uint16_t dac12);
 
 	/**
-	 * @brief Writes a new audio sample into the streaming buffer at the writer's
-	 * current pair index for this channel, then advances the writer.
+	 * @brief Writes a new audio sample by rewriting all 32 of the channel's
+	 * slots in the streaming buffer with the new value.
 	 *
 	 * Safe to call from IRQ context (intended use: ADC IRQ at audio rate).
 	 *
@@ -141,12 +146,12 @@ public:
 	/**
 	 * @brief Atomically changes ownership for a channel. Glitch-free.
 	 *
-	 * On `kManual` -> `kAudio`: seeds the writer's pair index to lead the DMA's
-	 * current read position by `kSafetyLead` pairs. The buffer slots ahead of
-	 * the writer still hold the channel's hold value, so the first samples out
-	 * are continuous with the prior manual output.
+	 * On `kManual` -> `kAudio`: a no-op apart from setting the flag. The buffer
+	 * already holds the channel's hold value in every slot, so audio output
+	 * continues at that value until the next `write_audio_sample` call
+	 * overwrites it.
 	 * On `kAudio` -> `kManual`: re-fills all of that channel's slots with
-	 * `hold_frame_*`. The audio writer ceases to push.
+	 * `hold_frame_*`. Subsequent `write_audio_sample` calls are rejected.
 	 */
 	void set_channel_owner(AudioCvOutChannel channel, ChannelOwner owner);
 

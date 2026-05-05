@@ -15,7 +15,7 @@ struct PotsConfig {
 	uint8_t s1_gpio;
 	uint8_t num_pots;
 	// Brain hardware always wires pot N to mux channel N. The engine ignores
-	// this field; it is preserved only for 2.0 source compatibility.
+	// this field; it is preserved only for source compatibility.
 	[[deprecated("PotsConfig::channel_map is ignored: pot N is always mux N on Brain hardware")]]
 	uint8_t channel_map[kMaxPots];
 	uint8_t output_resolution;

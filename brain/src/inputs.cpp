@@ -1,8 +1,8 @@
 // inputs.cpp
 // Inputs is a thin client over brain::internal::AdcEngine for IN1/IN2 cache reads
 // plus a self-contained pulse input (GPIO + IRQ) path that is unrelated to ADC.
-// Voltage conversion (raw ADC -> signed millivolts) is preserved verbatim from
-// the pre-engine implementation.
+// Voltage conversion (raw ADC -> signed millivolts) lives here; the engine only
+// provides 12-bit raw samples.
 
 #include "inputs.h"
 

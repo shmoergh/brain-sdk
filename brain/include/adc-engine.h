@@ -24,7 +24,7 @@ struct AdcSnapshot {
 };
 
 /**
- * @brief Singleton owner of the RP2040/RP2350 ADC. Phase 1 of the Brain SDK 2.1 refactor.
+ * @brief Singleton owner of the RP2040/RP2350 ADC.
  *
  * Runs continuous DMA-paced round-robin sampling over (POT, IN1, IN2) at full ADC
  * speed. Inputs and Pots become cache readers via `get_snapshot()`. The pot scanner

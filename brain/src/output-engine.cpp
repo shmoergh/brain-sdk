@@ -1,5 +1,5 @@
 // output-engine.cpp
-// Phase 3 refactor: zero-IRQ, zero-chain ring DMA topology.
+// Zero-IRQ, zero-chain ring DMA topology.
 //
 // A single DMA channel reads 16-bit MCP4822 frames from a 128-byte ring buffer
 // directly into the SPI data register. Read-side ring DMA wraps the read
@@ -12,9 +12,10 @@
 // buffer[2k+1] = B frame at pair k.
 //
 // Manual mode: hold value replicated into every channel-A or channel-B slot.
-// Audio mode: writer fills slots one pair ahead of the DMA's current read
-// position, leading by kSafetyLead pairs. With matched rates the lead stays
-// constant indefinitely.
+// Audio mode: each write_audio_sample call rewrites all 32 of the channel's
+// slots with the new sample (~0.5 µs). The DMA reads each slot at most once
+// per ring rotation (~11.5 µs at default rate), and writer rate matches DMA
+// rate, so every distinct sample reaches the DAC.
 
 #include "output-engine.h"
 
@@ -85,11 +86,17 @@ bool OutputEngine::start(const OutputEngineConfig& cfg) {
 		return false;
 	}
 
-	// Frame rate = 2 / sample_period_us. dma_timer fires at clk_sys * X / Y.
-	// Use X = 2 and Y = clk_sys * sample_period_us / 1_000_000 to make the
-	// frame period exactly sample_period_us / 2 microseconds. With clk_sys = 125
-	// MHz and sample_period_us = 23, this is X=2 / Y=2875 — exact match for
-	// the ADC audio mode's frame rate (48 MHz / 1104 cycles = 43478.26 Hz).
+	// dma_timer fires at clk_sys * X / Y Hz. We want one DAC frame every
+	// sample_period_us / 2 microseconds (each audio sample emits two frames:
+	// one A, one B), i.e. a frame rate of 2_000_000 / sample_period_us Hz.
+	// Setting X = 2 and Y = clk_sys * sample_period_us / 1_000_000 gives that
+	// exactly: rate = clk_sys * 2 / (clk_sys * sample_period_us / 1_000_000)
+	//             = 2_000_000 / sample_period_us.
+	// Example: at clk_sys = 125 MHz, sample_period_us = 23 → Y = 2875,
+	// frame rate = 125e6 * 2 / 2875 ≈ 86956 Hz, per-channel rate ≈ 43478 Hz.
+	// The ADC's audio-mode round-robin runs at the same per-channel rate,
+	// derived from the same crystal-PLL chain, so input and output stay
+	// sample-locked with no long-term drift.
 	const uint32_t clk_sys_hz = clock_get_hz(clk_sys);
 	uint64_t denominator_64 =
 		(static_cast<uint64_t>(clk_sys_hz) * cfg.sample_period_us + 500'000ull) /

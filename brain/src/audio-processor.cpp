@@ -1,10 +1,10 @@
 // audio-processor.cpp
-// Phase 3: AudioProcessor is a thin client over the shared AdcEngine + OutputEngine.
+// AudioProcessor is a thin client over the shared AdcEngine + OutputEngine.
 // On init() it switches the AdcEngine into audio mode at the requested
-// sample_period_us, claims OutputEngine channel A as kAudio, and registers
-// a per-sample callback that runs at the ADC IRQ rate (~43 kHz at default 23 µs).
-// The callback runs the user's DSP and pushes the result into channel A's
-// audio ring; OutputEngine's render IRQ drains the ring 16 samples per block.
+// sample_period_us, claims one or both OutputEngine channels as kAudio, and
+// registers a per-sample callback that runs at the ADC IRQ rate (~43 kHz at
+// default 23 µs). The callback runs the user's DSP and writes each output
+// sample directly into the OutputEngine's streaming buffer.
 
 #include "audio-processor.h"
 

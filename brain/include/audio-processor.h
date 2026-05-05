@@ -94,18 +94,24 @@ using ProcessFrameFnV2 = void (*)(int16_t in1, int16_t in2,
 /**
  * @brief Audio-rate DSP harness running atop the shared `AdcEngine` and `OutputEngine`.
  *
- * Phase 3: AudioProcessor no longer owns hardware. On `init()` it starts the
+ * AudioProcessor does not own hardware itself. On `init()` it starts the
  * shared engines (idempotent), switches `AdcEngine` into audio mode at the
  * requested `sample_period_us`, claims `OutputEngine` channel A as `kAudio`,
  * and registers an audio callback. Each ADC IRQ at sample rate (~43 kHz at
  * the default 23 µs) calls the user's `ProcessSampleFn` with the freshly
  * sampled IN1 value and the latest pot/frame metadata, then writes the
- * returned sample into the OutputEngine's per-channel ring for DAC output.
+ * returned sample into the OutputEngine's streaming buffer for DAC output.
  *
  * Coexistence: this class is friendly with `Inputs`, `Pots`, `PotMultiFunction`,
- * and `Outputs` instances — they all share the same engines. The legacy
- * conflict guards in `Brain` will be removed in a later slice; once that lands,
- * any combination of components can be initialized in any order.
+ * and `Outputs` instances — they all share the same engines. Any combination
+ * of components can be initialized in any order.
+ *
+ * Output range: claiming a channel for audio forces it into the bipolar
+ * (-5..+5 V) range by driving its coupling pin high — `AudioProcessor` writes
+ * signed samples around 0. **`stop()` does not restore the prior range.** If
+ * your firmware previously set the channel to unipolar via
+ * `Outputs::set_output_range(...)`, you must call `set_output_range(...)`
+ * again after `stop()` to put the channel back into unipolar mode.
  */
 class AudioProcessor {
 public:
@@ -133,8 +139,8 @@ public:
 	 * - `pot_count`: number of pot channels to cycle (clamped to `AudioProcessorFrame::kMaxPots`).
 	 * - `pot_settle_discard_samples`: pot samples discarded after each mux switch.
 	 * - `pot_average_samples`: pot samples averaged per logical pot update.
-	 * - `max_dma_drain_samples_per_tick`: ignored in Phase 3 (no internal ring); preserved for source compat.
-	 * - `spi_baud_hz`: ignored in Phase 3 (`OutputEngine` owns SPI at 20 MHz); preserved for source compat.
+	 * - `max_dma_drain_samples_per_tick`: ignored (no internal ring); preserved for source compatibility.
+	 * - `spi_baud_hz`: ignored (`OutputEngine` owns SPI at 20 MHz); preserved for source compatibility.
 	 * @param process_sample_fn Per-sample DSP callback called from the ADC IRQ at audio rate.
 	 * Returning value is converted to a 12-bit DAC sample and pushed into channel A's audio ring.
 	 * @param user_ctx Opaque pointer passed through to each `process_sample_fn` call.
@@ -168,9 +174,11 @@ public:
 	/**
 	 * @brief Stops audio-rate processing.
 	 *
-	 * Clears the audio callback, releases channel A back to manual ownership,
-	 * and disables audio mode on the `AdcEngine` (engine reverts to CV mode
-	 * for any other consumers). Does not stop the engines themselves.
+	 * Clears the audio callback, releases claimed channels back to manual
+	 * ownership, and disables audio mode on the `AdcEngine` (engine reverts
+	 * to CV mode for any other consumers). Does not stop the engines
+	 * themselves, and does not restore output ranges — claimed channels stay
+	 * in bipolar mode until you call `Outputs::set_output_range(...)`.
 	 */
 	void stop();
 
