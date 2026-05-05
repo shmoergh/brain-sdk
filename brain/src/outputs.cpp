@@ -55,14 +55,19 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 	gpio_init(coupling_pin_b_);
 	gpio_set_dir(coupling_pin_b_, GPIO_OUT);
 
-	brain::internal::OutputEngineConfig engine_cfg;
-	engine_cfg.spi_instance = spi_instance_;
-	engine_cfg.cs_gpio = cs_pin_;
-	engine_cfg.sck_gpio = sck_pin_;
-	engine_cfg.tx_gpio = tx_pin_;
-	if (!brain::internal::OutputEngine::instance().start(engine_cfg)) {
-		fprintf(stderr, "Outputs: OutputEngine::start failed\n");
-		return false;
+	// Outputs only writes hold values via the engine, which is rate-independent.
+	// If the engine is already running (e.g. AudioProcessor started first at a
+	// non-default sample rate), attach without trying to re-specify a rate.
+	if (!brain::internal::OutputEngine::instance().is_running()) {
+		brain::internal::OutputEngineConfig engine_cfg;
+		engine_cfg.spi_instance = spi_instance_;
+		engine_cfg.cs_gpio = cs_pin_;
+		engine_cfg.sck_gpio = sck_pin_;
+		engine_cfg.tx_gpio = tx_pin_;
+		if (!brain::internal::OutputEngine::instance().start(engine_cfg)) {
+			fprintf(stderr, "Outputs: OutputEngine::start failed\n");
+			return false;
+		}
 	}
 
 	audio_cv_initialized_ = true;

@@ -19,6 +19,8 @@
 
 #include "output-engine.h"
 
+#include <cstdio>
+
 #include <hardware/dma.h>
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
@@ -56,6 +58,28 @@ OutputEngine& OutputEngine::instance() {
 
 bool OutputEngine::start(const OutputEngineConfig& cfg) {
 	if (running_) {
+		// Idempotent re-entry only when the caller asks for the same hardware
+		// setup. Reconfiguring a running DMA/SPI/timer chain mid-stream is
+		// risky, and silently keeping the first config would desync the DAC
+		// frame rate from a later AudioProcessor's audio rate. Reject loudly.
+		const bool match =
+			cfg.spi_instance == cfg_.spi_instance &&
+			cfg.cs_gpio == cfg_.cs_gpio &&
+			cfg.sck_gpio == cfg_.sck_gpio &&
+			cfg.tx_gpio == cfg_.tx_gpio &&
+			cfg.spi_baud_hz == cfg_.spi_baud_hz &&
+			cfg.sample_period_us == cfg_.sample_period_us &&
+			cfg.gain_2x == cfg_.gain_2x;
+		if (!match) {
+			fprintf(stderr,
+				"OutputEngine::start: already running with sample_period_us=%lu "
+				"baud=%lu; rejecting re-entry with sample_period_us=%lu baud=%lu\n",
+				static_cast<unsigned long>(cfg_.sample_period_us),
+				static_cast<unsigned long>(cfg_.spi_baud_hz),
+				static_cast<unsigned long>(cfg.sample_period_us),
+				static_cast<unsigned long>(cfg.spi_baud_hz));
+			return false;
+		}
 		return true;
 	}
 
