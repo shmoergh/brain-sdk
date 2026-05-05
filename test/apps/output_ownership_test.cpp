@@ -190,10 +190,6 @@ void OutputOwnershipTest::enter_idle() {
 	printf("  total_blocks=%llu total_frames=%llu\n",
 		static_cast<unsigned long long>(snapshot.total_blocks),
 		static_cast<unsigned long long>(snapshot.total_frames));
-	printf("  audio_underrun_a=%lu audio_underrun_b=%lu\n",
-		static_cast<unsigned long>(snapshot.audio_underrun_a),
-		static_cast<unsigned long>(snapshot.audio_underrun_b));
-	printf("  (Underrun A > 0 is expected — main loop pace is below block rate.)\n");
 
 	phase_ = Phase::kIdle;
 }

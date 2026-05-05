@@ -113,14 +113,12 @@ void OutputEngineTimingTest::update() {
 	const uint64_t measured_frame_rate_hz =
 		(delta_frames * 1'000'000ull) / (elapsed_us == 0 ? 1 : elapsed_us);
 
-	printf("\rblocks=%llu frames=%llu rate=%lluHz A=0x%03X B=0x%03X underruns=A%lu/B%lu    ",
+	printf("\rblocks=%llu frames=%llu rate=%lluHz A=0x%03X B=0x%03X    ",
 		static_cast<unsigned long long>(snapshot.total_blocks),
 		static_cast<unsigned long long>(snapshot.total_frames),
 		static_cast<unsigned long long>(measured_frame_rate_hz),
 		static_cast<unsigned>(snapshot.hold_frame_a & 0x0FFF),
-		static_cast<unsigned>(snapshot.hold_frame_b & 0x0FFF),
-		static_cast<unsigned long>(snapshot.audio_underrun_a),
-		static_cast<unsigned long>(snapshot.audio_underrun_b));
+		static_cast<unsigned>(snapshot.hold_frame_b & 0x0FFF));
 	fflush(stdout);
 }
 

@@ -37,12 +37,6 @@ struct OutputEngineSnapshot {
 	ChannelOwner owner_b = ChannelOwner::kManual;
 	uint64_t total_blocks = 0;
 	uint64_t total_frames = 0;
-	uint32_t audio_underrun_a = 0;
-	uint32_t audio_underrun_b = 0;
-	// Diagnostic: increments any time the writer detects it has caught up to
-	// or lapped the DMA's current read position. Should stay at 0 with locked rates.
-	uint32_t audio_overflow_a = 0;
-	uint32_t audio_overflow_b = 0;
 };
 
 /**
@@ -199,14 +193,6 @@ private:
 	uint16_t hold_frame_b_ = 0;
 	ChannelOwner owner_a_ = ChannelOwner::kManual;
 	ChannelOwner owner_b_ = ChannelOwner::kManual;
-
-	// Diagnostic counters. Reserved for now; `write_audio_sample` is rate-
-	// agnostic so neither under- nor over-runs really apply, but the snapshot
-	// fields are retained so AudioProcessor stats and existing tests compile.
-	uint32_t audio_underrun_a_ = 0;
-	uint32_t audio_underrun_b_ = 0;
-	uint32_t audio_overflow_a_ = 0;
-	uint32_t audio_overflow_b_ = 0;
 
 	// For computing total_frames in get_snapshot() (no IRQ to count, so we use
 	// elapsed time × configured frame rate).

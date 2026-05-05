@@ -52,11 +52,8 @@ void AudioPassthroughTest::update() {
 		last_print_us_ = now_us;
 
 		const AudioProcessorStats stats = brain_.audio_processor.get_stats();
-		const auto out_snap = brain::internal::OutputEngine::instance().get_snapshot();
-		printf("\n\rTicks=%llu Underruns=%lu Overflows=%lu      ",
-			static_cast<unsigned long long>(stats.tick_count),
-			static_cast<unsigned long>(out_snap.audio_underrun_a),
-			static_cast<unsigned long>(out_snap.audio_overflow_a));
+		printf("\n\rTicks=%llu      ",
+			static_cast<unsigned long long>(stats.tick_count));
 		fflush(stdout);
 	}
 

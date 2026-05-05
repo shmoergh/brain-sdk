@@ -234,7 +234,6 @@ private:
 	uint8_t active_pot_count_ = 0;
 
 	uint64_t tick_count_ = 0;
-	uint32_t initial_underrun_a_ = 0;  // baseline subtracted from OutputEngine underrun for stats.
 };
 
 }  // namespace brain::utils

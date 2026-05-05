@@ -237,10 +237,6 @@ OutputEngineSnapshot OutputEngine::get_snapshot() const {
 	snapshot.hold_frame_b = hold_frame_b_;
 	snapshot.owner_a = owner_a_;
 	snapshot.owner_b = owner_b_;
-	snapshot.audio_underrun_a = audio_underrun_a_;
-	snapshot.audio_underrun_b = audio_underrun_b_;
-	snapshot.audio_overflow_a = audio_overflow_a_;
-	snapshot.audio_overflow_b = audio_overflow_b_;
 	const bool running = running_;
 	const uint64_t start_us = start_time_us_;
 	const uint32_t period_us = cfg_.sample_period_us;

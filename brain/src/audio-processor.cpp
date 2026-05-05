@@ -220,12 +220,7 @@ BrainInitStatus AudioProcessor::start_engines(const EngineSetup& s) {
 		channel_b_claimed_ = true;
 	}
 
-	// 5) Capture baseline underrun count so get_stats() reports overruns
-	// accumulated during this run only.
-	initial_underrun_a_ =
-		brain::internal::OutputEngine::instance().get_snapshot().audio_underrun_a;
-
-	// 6) Register the per-sample callback. Order matters: do this last so the
+	// 5) Register the per-sample callback. Order matters: do this last so the
 	// callback only fires once everything else is ready.
 	brain::internal::AdcEngine::instance().set_audio_callback(
 		&AudioProcessor::on_adc_sample_static, this);
@@ -285,11 +280,10 @@ AudioProcessorStats AudioProcessor::get_stats() const {
 	stats.pot_mux_switch_count = adc_snap.pot_switch_count;
 	stats.pot_settle_discard_count = adc_snap.pot_discard_count;
 
-	const auto out_snap = brain::internal::OutputEngine::instance().get_snapshot();
-	const uint32_t current_underrun = out_snap.audio_underrun_a;
-	stats.overrun_count = (current_underrun >= initial_underrun_a_)
-		? (current_underrun - initial_underrun_a_)
-		: current_underrun;
+	// overrun_count is preserved in the struct for source compatibility but
+	// the OutputEngine architecture has no concurrent-failure mode the writer
+	// can observe at matched rates, so it stays at 0.
+	stats.overrun_count = 0;
 
 	return stats;
 }
