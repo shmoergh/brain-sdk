@@ -144,9 +144,13 @@ public:
 
 	/**
 	 * @brief Enables/disables Brain-level ADC optimization policy.
-	 * @param enabled `true` lets `Brain` apply optimized defaults to `Inputs` and `Pots`
-	 * (`set_audio_cv_dma_enabled` and `set_optimized_sampling_enabled`).
-	 * `false` disables those optimizations and applies non-optimized behavior immediately.
+	 *
+	 * Stores a policy flag. Since the shared `AdcEngine` runs a single
+	 * deterministic DMA-paced scan path, the underlying `Inputs` and `Pots`
+	 * toggles this flag used to forward to are deprecated no-ops; this
+	 * setter currently has no observable effect on hardware behavior. The
+	 * accessor and stored state are kept so future engine modes can wire
+	 * back to it without breaking the public API.
 	 */
 	void enable_adc_optimization(bool enabled = true) {
 		adc_optimization_enabled_ = enabled;
@@ -425,7 +429,6 @@ public:
 	 */
 	BrainInitStatus init_inputs() {
 		if (inputs_initialized_) return BrainInitStatus::kAlreadyInitialized;
-		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
 		if (!inputs.init()) return BrainInitStatus::kFailed;
 		inputs_initialized_ = true;
 		return BrainInitStatus::kOk;
@@ -465,7 +468,6 @@ public:
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
 		if (!pots.init(config)) return BrainInitStatus::kFailed;
-		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 		pots_initialized_ = true;
 		return BrainInitStatus::kOk;
 	}
@@ -485,7 +487,6 @@ public:
 			return init_pots(config);
 		}
 		pots.reconfigure(config);
-		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 
 #if BRAIN_CFG_POT_MULTI_FUNCTION
 		if (reset_pot_multi_state && pot_multi_initialized_) {
@@ -707,14 +708,16 @@ private:
 		return count;
 	}
 
-	void apply_adc_policy_to_components() {
-#if BRAIN_CFG_INPUTS
-		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
-#endif
-#if BRAIN_CFG_POTS
-		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
-#endif
-	}
+	// Empty on purpose. enable_adc_optimization(),
+	// set_audio_cv_dma_enabled(), and set_shared_pot_sampling_enabled() store
+	// their flags and call this helper, which used to push the values down to
+	// inputs.set_audio_cv_dma_enabled() and pots.set_optimized_sampling_enabled().
+	// Those component setters became no-ops once everything moved to the
+	// single-mode AdcEngine, so there is nothing to forward — the engine has
+	// no equivalent knob to toggle. The helper stays as an empty hook so a
+	// future engine mode that does have something to toggle can re-wire it
+	// here without changing the public Brain API.
+	void apply_adc_policy_to_components() {}
 
 	bool adc_optimization_enabled_ = true;
 	bool audio_cv_dma_enabled_ = false;

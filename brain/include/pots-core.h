@@ -60,17 +60,17 @@ public:
 	void reconfigure(const PotsConfig& cfg);
 
 	/**
-	 * @brief Switches between fast simple sampling and stabilized sampling strategy.
-	 * @param simple `true` uses minimal settle + single-sample fast path.
-	 * `false` uses longer settle and averaged reads for better stability.
+	 * @brief Deprecated. AdcEngine has a single deterministic scan path; this is
+	 * a no-op kept for source compatibility.
 	 */
+	[[deprecated("AdcEngine has a single deterministic scan path; this setter has no effect")]]
 	void set_simple(bool simple);
 
 	/**
-	 * @brief Enables/disables optimized sampling behavior.
-	 * @param enabled `true` allows optimized stabilized path.
-	 * `false` forces the fast direct-like read behavior even when `simple` is false.
+	 * @brief Deprecated. AdcEngine has a single deterministic scan path; this is
+	 * a no-op kept for source compatibility.
 	 */
+	[[deprecated("AdcEngine has a single deterministic scan path; this setter has no effect")]]
 	void set_optimized_sampling_enabled(bool enabled);
 
 	/**

@@ -97,6 +97,7 @@ public:
 	/**
 	 * @brief Deprecated. Engine always uses DMA — this is a no-op kept for source compatibility.
 	 */
+	[[deprecated("AdcEngine always uses DMA; this setter has no effect")]]
 	void set_audio_cv_dma_enabled(bool enabled);
 
 	/**
