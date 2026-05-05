@@ -53,7 +53,7 @@ Pots::Pots() {
 	buffer_valid_ = false;
 }
 
-void Pots::init(const PotsConfig& cfg) {
+bool Pots::init(const PotsConfig& cfg) {
 	config_ = cfg;
 	if (config_.num_pots > kMaxPots) {
 		config_.num_pots = kMaxPots;
@@ -64,8 +64,11 @@ void Pots::init(const PotsConfig& cfg) {
 		buffered_values_[i] = 0;
 	}
 
-	brain::internal::AdcEngine::instance().enable_pots(config_);
+	if (!brain::internal::AdcEngine::instance().enable_pots(config_)) {
+		return false;
+	}
 	buffer_valid_ = true;
+	return true;
 }
 
 void Pots::reconfigure(const PotsConfig& cfg) {

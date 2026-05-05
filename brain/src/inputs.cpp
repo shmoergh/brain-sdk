@@ -38,7 +38,9 @@ bool Inputs::init_audio_cv() {
 	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_A);
 	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_B);
 
-	brain::internal::AdcEngine::instance().start();
+	if (!brain::internal::AdcEngine::instance().start()) {
+		return false;
+	}
 	calculate_conversion_parameters();
 	return true;
 }

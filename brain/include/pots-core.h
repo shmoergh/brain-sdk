@@ -47,8 +47,11 @@ public:
 	 * - `settling_delay_us`: delay after mux switch before reading.
 	 * - `samples_per_read`: averaging depth for stabilized mode.
 	 * - `change_threshold`: minimum delta that triggers `on_change` callback.
+	 *
+	 * @return `true` on success; `false` if the engine could not start (e.g. DMA
+	 * channels could not be claimed).
 	 */
-	void init(const PotsConfig& cfg);
+	bool init(const PotsConfig& cfg);
 
 	/**
 	 * @brief Applies a new configuration without creating a new `Pots` object.

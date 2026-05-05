@@ -55,7 +55,8 @@ public:
 	 * parameters (mapping IN1/IN2 raw samples to signed millivolts) are computed
 	 * once here.
 	 *
-	 * @return Always returns `true`.
+	 * @return `true` on success; `false` if the engine could not start (e.g. DMA
+	 * channels could not be claimed).
 	 */
 	bool init_audio_cv();
 

@@ -459,11 +459,12 @@ public:
 	 *
 	 * @param config Pot configuration passed to `pots.init(...)`.
 	 * @return `BrainInitStatus::kOk` on success,
-	 * `BrainInitStatus::kAlreadyInitialized` if already initialized.
+	 * `BrainInitStatus::kAlreadyInitialized` if already initialized,
+	 * or `BrainInitStatus::kFailed` if the shared `AdcEngine` could not start.
 	 */
 	BrainInitStatus init_pots(const PotsConfig& config = create_default_pots_config()) {
 		if (pots_initialized_) return BrainInitStatus::kAlreadyInitialized;
-		pots.init(config);
+		if (!pots.init(config)) return BrainInitStatus::kFailed;
 		pots.set_optimized_sampling_enabled(adc_optimization_enabled_ && shared_pot_sampling_enabled_);
 		pots_initialized_ = true;
 		return BrainInitStatus::kOk;
