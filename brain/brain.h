@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
+
+#include <pico/stdlib.h>
 
 #include "include/audio-processor.h"
 #include "include/buttons.h"
@@ -94,8 +97,30 @@ class Brain {
 public:
 	/**
 	 * @brief Constructs a `Brain` instance and prepares default runtime state.
+	 *
+	 * Only one `Brain` instance may exist on a device. The shared singleton
+	 * engines (`AdcEngine`, `OutputEngine`) own the underlying hardware, and
+	 * a second `Brain`'s components would silently stomp the first's
+	 * callback registrations and channel ownership. Constructing a second
+	 * `Brain` halts the firmware via `panic()` so the bug is visible
+	 * instead of producing subtle audio glitches.
+	 *
+	 * TODO(3.0): convert `Brain` to a Meyers singleton (`Brain::instance()`)
+	 * and drop this runtime guard. That requires changing all callsites
+	 * from `Brain brain;` to `auto& brain = Brain::instance();`, which is a
+	 * source-level break and so deferred to the next major version.
 	 */
-	Brain() = default;
+	Brain() {
+		int& count = live_instance_count();
+		if (count != 0) {
+			panic("Brain: only one instance allowed per device");
+		}
+		count = 1;
+	}
+
+	~Brain() {
+		live_instance_count() = 0;
+	}
 
 	/**
 	 * @brief Copy construction is disabled for this type.
@@ -674,6 +699,13 @@ public:
 #endif
 
 private:
+	// Tracks live `Brain` instances. Function-local static gives one shared
+	// counter across all TUs without requiring C++17 inline variables.
+	static int& live_instance_count() {
+		static int count = 0;
+		return count;
+	}
+
 	void apply_adc_policy_to_components() {
 #if BRAIN_CFG_INPUTS
 		inputs.set_audio_cv_dma_enabled(adc_optimization_enabled_ && audio_cv_dma_enabled_);
