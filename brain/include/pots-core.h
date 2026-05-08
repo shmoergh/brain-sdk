@@ -14,6 +14,9 @@ struct PotsConfig {
 	uint8_t s0_gpio;
 	uint8_t s1_gpio;
 	uint8_t num_pots;
+	// Brain hardware always wires pot N to mux channel N. The engine ignores
+	// this field; it is preserved only for source compatibility.
+	[[deprecated("PotsConfig::channel_map is ignored: pot N is always mux N on Brain hardware")]]
 	uint8_t channel_map[kMaxPots];
 	uint8_t output_resolution;
 	uint32_t settling_delay_us;
@@ -39,13 +42,16 @@ public:
 	 * - `adc_gpio`: ADC input pin connected to pot mux output.
 	 * - `s0_gpio`, `s1_gpio`: mux select lines.
 	 * - `num_pots`: number of pots to read (clamped to `kMaxPots`).
-	 * - `channel_map`: maps logical pot index to mux channel.
+	 * - `channel_map`: deprecated/ignored; pot N is always mux N on Brain hardware.
 	 * - `output_resolution`: bit depth for returned values (mapped from 12-bit ADC).
 	 * - `settling_delay_us`: delay after mux switch before reading.
 	 * - `samples_per_read`: averaging depth for stabilized mode.
 	 * - `change_threshold`: minimum delta that triggers `on_change` callback.
+	 *
+	 * @return `true` on success; `false` if the engine could not start (e.g. DMA
+	 * channels could not be claimed).
 	 */
-	void init(const PotsConfig& cfg);
+	bool init(const PotsConfig& cfg);
 
 	/**
 	 * @brief Applies a new configuration without creating a new `Pots` object.
@@ -54,17 +60,17 @@ public:
 	void reconfigure(const PotsConfig& cfg);
 
 	/**
-	 * @brief Switches between fast simple sampling and stabilized sampling strategy.
-	 * @param simple `true` uses minimal settle + single-sample fast path.
-	 * `false` uses longer settle and averaged reads for better stability.
+	 * @brief Deprecated. AdcEngine has a single deterministic scan path; this is
+	 * a no-op kept for source compatibility.
 	 */
+	[[deprecated("AdcEngine has a single deterministic scan path; this setter has no effect")]]
 	void set_simple(bool simple);
 
 	/**
-	 * @brief Enables/disables optimized sampling behavior.
-	 * @param enabled `true` allows optimized stabilized path.
-	 * `false` forces the fast direct-like read behavior even when `simple` is false.
+	 * @brief Deprecated. AdcEngine has a single deterministic scan path; this is
+	 * a no-op kept for source compatibility.
 	 */
+	[[deprecated("AdcEngine has a single deterministic scan path; this setter has no effect")]]
 	void set_optimized_sampling_enabled(bool enabled);
 
 	/**
@@ -157,9 +163,6 @@ public:
 	uint8_t get_num_pots() const;
 
 private:
-	void set_mux_channel(uint8_t ch);
-	uint16_t read_channel_once(uint8_t ch);
-
 	PotsConfig config_;
 	uint16_t last_values_[kMaxPots];
 	uint16_t buffered_values_[kMaxPots];

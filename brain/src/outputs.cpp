@@ -5,6 +5,8 @@
 
 #include <cstdio>
 
+#include "output-engine.h"
+
 namespace {
 
 int32_t div_round_nearest(int32_t numerator, int32_t denominator) {
@@ -48,20 +50,25 @@ bool Outputs::init_audio_cv(spi_inst_t* spi_instance, uint cs_pin, uint sck_pin,
 	coupling_pin_a_ = coupling_pin_a;
 	coupling_pin_b_ = coupling_pin_b;
 
-	spi_init(spi_instance_, kSpiFrequency);
-	spi_set_format(spi_instance_, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
-
-	gpio_set_function(sck_pin_, GPIO_FUNC_SPI);
-	gpio_set_function(tx_pin_, GPIO_FUNC_SPI);
-
-	gpio_init(cs_pin_);
-	gpio_set_dir(cs_pin_, GPIO_OUT);
-	gpio_put(cs_pin_, 1);
-
 	gpio_init(coupling_pin_a_);
 	gpio_set_dir(coupling_pin_a_, GPIO_OUT);
 	gpio_init(coupling_pin_b_);
 	gpio_set_dir(coupling_pin_b_, GPIO_OUT);
+
+	// Outputs only writes hold values via the engine, which is rate-independent.
+	// If the engine is already running (e.g. AudioProcessor started first at a
+	// non-default sample rate), attach without trying to re-specify a rate.
+	if (!brain::internal::OutputEngine::instance().is_running()) {
+		brain::internal::OutputEngineConfig engine_cfg;
+		engine_cfg.spi_instance = spi_instance_;
+		engine_cfg.cs_gpio = cs_pin_;
+		engine_cfg.sck_gpio = sck_pin_;
+		engine_cfg.tx_gpio = tx_pin_;
+		if (!brain::internal::OutputEngine::instance().start(engine_cfg)) {
+			fprintf(stderr, "Outputs: OutputEngine::start failed\n");
+			return false;
+		}
+	}
 
 	audio_cv_initialized_ = true;
 	set_output_range(AudioCvOutChannel::kChannelA, range_a);
@@ -101,11 +108,15 @@ bool Outputs::set_voltage_millivolts(AudioCvOutChannel channel, int32_t millivol
 	}
 
 	uint16_t dac_value = millivolts_to_dac(dac_input_millivolts);
-	write_dac_channel(channel, dac_value);
+	if (!brain::internal::OutputEngine::instance().set_hold_value(channel, dac_value)) {
+		return false;
+	}
 
 	if (channel == AudioCvOutChannel::kChannelA) {
+		last_dac_value_a_ = dac_value;
 		last_set_millivolts_a_ = millivolts;
 	} else {
+		last_dac_value_b_ = dac_value;
 		last_set_millivolts_b_ = millivolts;
 	}
 	return true;
@@ -132,11 +143,16 @@ bool Outputs::set_voltage_calibrated_millivolts(AudioCvOutChannel channel, int32
 		calibrated_dac_value = kMaxDacValue;
 	}
 
-	write_dac_channel(channel, static_cast<uint16_t>(calibrated_dac_value));
+	const uint16_t dac_value = static_cast<uint16_t>(calibrated_dac_value);
+	if (!brain::internal::OutputEngine::instance().set_hold_value(channel, dac_value)) {
+		return false;
+	}
 
 	if (channel == AudioCvOutChannel::kChannelA) {
+		last_dac_value_a_ = dac_value;
 		last_set_millivolts_a_ = target_millivolts;
 	} else {
+		last_dac_value_b_ = dac_value;
 		last_set_millivolts_b_ = target_millivolts;
 	}
 	return true;
@@ -249,30 +265,19 @@ bool Outputs::pulse_get() const {
 	return pulse_state_;
 }
 
-void Outputs::write_dac_channel(AudioCvOutChannel channel, uint16_t dac_value) {
-	if (channel == AudioCvOutChannel::kChannelA) {
-		last_dac_value_a_ = dac_value;
-	} else {
-		last_dac_value_b_ = dac_value;
-	}
+void Outputs::set_channel_owner(AudioCvOutChannel channel, AudioCvOutOwner owner) {
+	const auto engine_owner = (owner == AudioCvOutOwner::kAudio)
+		? brain::internal::ChannelOwner::kAudio
+		: brain::internal::ChannelOwner::kManual;
+	brain::internal::OutputEngine::instance().set_channel_owner(channel, engine_owner);
+}
 
-	uint8_t config =
-		(channel == AudioCvOutChannel::kChannelA ? kMCP4822_CHANNEL_A : kMCP4822_CHANNEL_B) << 3 |
-		0 << 2 | kMCP4822_GAIN << 1 | kMCP4822_ACTIVE;
-
-	uint8_t data[2];
-	data[0] = config << 4 | (dac_value & 0xf00) >> 8;
-	data[1] = dac_value & 0xff;
-
-	asm volatile("nop \n nop \n nop");
-	gpio_put(cs_pin_, 0);
-	asm volatile("nop \n nop \n nop");
-
-	spi_write_blocking(spi_instance_, data, 2);
-
-	asm volatile("nop \n nop \n nop");
-	gpio_put(cs_pin_, 1);
-	asm volatile("nop \n nop \n nop");
+AudioCvOutOwner Outputs::get_channel_owner(AudioCvOutChannel channel) const {
+	const auto engine_owner =
+		brain::internal::OutputEngine::instance().get_channel_owner(channel);
+	return (engine_owner == brain::internal::ChannelOwner::kAudio)
+		? AudioCvOutOwner::kAudio
+		: AudioCvOutOwner::kManual;
 }
 
 bool Outputs::to_dac_input_millivolts(

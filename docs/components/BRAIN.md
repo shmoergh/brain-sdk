@@ -220,39 +220,29 @@ You can call `init_*` functions multiple times, it won't re-initialize or break 
 
 #### Audio utility init/status
 
-- `init_audio_processor(const AudioProcessorConfig&, ProcessSampleFn, void* user_ctx = nullptr)`
+- `init_audio_processor(const AudioProcessorConfig&, ProcessSampleFn, void* user_ctx = nullptr)` — Mono audio (IN1 → OUT A).
+- `init_audio_processor_v2(const AudioProcessorConfigV2&, ProcessFrameFnV2, void* user_ctx = nullptr)` — Stereo audio (IN1+IN2 → OUT A+OUT B).
 - `is_audio_processor_initialized()`
+- `brain.audio_processor.stop()`
 - `brain.audio_processor.get_stats()`
 - `brain.audio_processor.get_pot_raw_u8(index)`
 
-## Audio Processor guardrails
+See [AUDIO_PROCESSOR.md](../utilities/AUDIO_PROCESSOR.md) for full details on both APIs.
 
-`AudioProcessor` owns ADC/DMA + pot sampling when active, so `Brain` enforces runtime guardrails to make sure they don't conflict with other modules.
+## Component coexistence
 
-If `audio_processor` is already initialized:
+In 2.1, all `Brain` components share two internal hardware engines (`AdcEngine` for the ADC, `OutputEngine` for the DAC). Any combination of `inputs`, `pots`, `pot_multi`, `outputs`, and `audio_processor` can be initialized in any order on the same `Brain` instance — there are no init-time conflicts.
 
-- `init_inputs()` will fail
-- `init_pots(...)` will fail
-- `reconfigure_pots(...)` will fail
-- `init_pot_multi(...)` will fail
+The only runtime constraint is per-channel on the DAC: when `AudioProcessor` claims an output channel as audio, manual writes to that channel via `Outputs::set_voltage_*` return `false` (no-op) until `AudioProcessor::stop()` releases it. The unclaimed channel is unaffected — you can still drive manual CV on the other one.
 
-The other way around, if `inputs`, `pots`, or `pot_multi` are already initialized:
-
-- `init_audio_processor(...)` will fail
-
-You can call these updates but they won't do anything (no-op):
-
-- `update_inputs()` is a no-op when inputs are not initialized
-- `update_pots()` is a no-op when pots are not initialized
-- `update_pot_multi()` / `update_pot_multi_single()` remain no-op-safe when pot-multi is not initialized
+Update calls are no-op-safe — calling `update_inputs()`, `update_pots()`, etc. when the corresponding component isn't initialized just returns silently.
 
 ## ADC behavior
 
-`Brain` gives you switches for how ADC-based modules behave. These exist because `Inputs` and `Pots` both rely on ADC and there are optimized vs. fallback read modes. The controls are:
+`Brain` exposes a few ADC-policy flags that affect how `Inputs` and `Pots` read from the shared engine. The controls are:
 
 - `enable_adc_optimization(bool)` — Master switch, default: `true`. If `false`, the ADC functions below are effectively disabled.
-- `set_audio_cv_dma_enabled(bool)` Controls whether `Inputs` uses DMA for sampling audio/CV. Default: `false`.
-	- Enabling DMA just enables the mode; actual DMA setup is attempted during init/update, with fallback to non-DMA reads if setup fails.
+- `set_audio_cv_dma_enabled(bool)` — Reserved policy flag. In 2.1 the shared `AdcEngine` always uses DMA, so this flag has no runtime effect; preserved for source compat.
 
 - `set_shared_pot_sampling_enabled(bool)` — Controls whether `Pots` uses the optimized shared/buffered pot sampling path. Default: `true`.
 	- When set `true` `Pots` uses its optimized/stable read path (more settling/averaging behavior). You usually get smoother, less jumpy knob values.

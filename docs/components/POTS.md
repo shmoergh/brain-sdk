@@ -2,6 +2,8 @@
 
 `Pots` class reads the Brain potentiometers. The Brain hardware uses a multiplexer to read its three pots through a single ADC channel (the other two channels are used by the two audio/CV inputs). The multiplexer needs some time between two reads, otherwise pot readings will "bleed/crosstalk", ie. the reading of one pot will have an effect on another. To avoid crosstalk and jitter we use buffered pot reads which means we read a stored pot value that was captured earlier.
 
+Since 2.1, `Pots` is a thin reader over the shared internal `AdcEngine` — the engine handles mux switching, settling, and averaging in hardware/IRQ. `Pots` coexists freely with `Inputs`, `PotMultiFunction`, and `AudioProcessor`; initialize them in any order on the same `Brain` instance.
+
 
 ## Quick Start
 ```cpp

@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "adc-engine.h"
+
 extern "C" uint8_t __flash_binary_end;
 
 namespace {
@@ -179,7 +181,11 @@ StorageStatus write_region_impl(
 	const uint32_t region_offset_bytes = region_offset_impl(region);
 	const size_t region_size_bytes = region_size_impl(region);
 
-	uint8_t sector_buffer[StorageLayout::kFlashSectorSizeBytes];
+	// Static rather than stack: a 4 KB sector buffer overflows the default
+	// PICO_STACK_SIZE (0x800 = 2 KB), silently corrupting adjacent SRAM.
+	// Flash writes are serialized through the public Storage API +
+	// flash_safe_execute, so a single shared buffer is safe.
+	static uint8_t sector_buffer[StorageLayout::kFlashSectorSizeBytes];
 	std::memcpy(
 		sector_buffer,
 		reinterpret_cast<const void*>(XIP_BASE + region_offset_bytes),
@@ -192,7 +198,15 @@ StorageStatus write_region_impl(
 		.size = region_size_bytes,
 	};
 
+	// Quiesce AdcEngine across the flash op. With ADC + DMA running, the
+	// bootrom flash routines (which disable IRQs for tens of ms) leave the
+	// engine in a state that can wedge the firmware on resume — likely a
+	// pending DMA-completion IRQ firing into a state machine that's badly
+	// misaligned with the wrapped DMA buffer. Pausing eliminates the
+	// misalignment by stopping new samples until the flash op returns.
+	brain::internal::AdcEngine::instance().pause_for_flash();
 	const int flash_result = flash_safe_execute(flash_program_sector_callback, &request, 500);
+	brain::internal::AdcEngine::instance().resume_after_flash();
 	return map_flash_safe_execute_result(flash_result);
 }
 
@@ -202,7 +216,8 @@ StorageStatus erase_region_impl(StorageRegion region, bool require_protected_lay
 		return StorageStatus::kUnprotectedLayout;
 	}
 
-	uint8_t blank_sector[StorageLayout::kFlashSectorSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t blank_sector[StorageLayout::kFlashSectorSizeBytes];
 	std::memset(blank_sector, 0xFF, sizeof(blank_sector));
 
 	FlashProgramRequest request{
@@ -211,7 +226,10 @@ StorageStatus erase_region_impl(StorageRegion region, bool require_protected_lay
 		.size = region_size_impl(region),
 	};
 
+	// See write_region_impl for rationale on the AdcEngine pause/resume wrap.
+	brain::internal::AdcEngine::instance().pause_for_flash();
 	const int flash_result = flash_safe_execute(flash_program_sector_callback, &request, 500);
+	brain::internal::AdcEngine::instance().resume_after_flash();
 	return map_flash_safe_execute_result(flash_result);
 }
 
@@ -384,7 +402,8 @@ StorageStatus Storage::read_app_blob(void* out, size_t max_size, size_t* actual_
 	}
 	*actual_size = 0;
 
-	uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
 	StorageStatus read_status = read_region_impl(
 		StorageRegion::kAppData,
 		0,
@@ -446,7 +465,8 @@ StorageStatus Storage::write_app_blob(const void* data, size_t size) const {
 		return StorageStatus::kTooLarge;
 	}
 
-	uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
+	// Static rather than stack — see write_region_impl for rationale.
+	static uint8_t sector_buffer[StorageLayout::kAppDataRegionSizeBytes];
 	std::memset(sector_buffer, 0xFF, sizeof(sector_buffer));
 
 	AppBlobRecordHeaderV1 header{};

@@ -2,12 +2,19 @@
 # This executable contains manual hardware test apps.
 
 add_executable(test
+    apps/audio_passthrough_test.cpp
+    apps/audio_passthrough_v2_test.cpp
     apps/audio_processor_test.cpp
+    apps/basic_pot_reads_test.cpp
+    apps/inputs_and_pots_test.cpp
     main.cpp
     apps/leds_test.cpp
     apps/midi_to_cv_test.cpp
     apps/multipot_test.cpp
-    apps/pot_read_stability_test.cpp
+    apps/output_engine_timing_test.cpp
+    apps/output_ownership_test.cpp
+    apps/outputs_storage_stress_test.cpp
+    apps/pots_storage_stress_test.cpp
     apps/storage_test.cpp
     apps/storage_persistence_check_test.cpp
 )

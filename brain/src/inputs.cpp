@@ -1,13 +1,17 @@
+// inputs.cpp
+// Inputs is a thin client over brain::internal::AdcEngine for IN1/IN2 cache reads
+// plus a self-contained pulse input (GPIO + IRQ) path that is unrelated to ADC.
+// Voltage conversion (raw ADC -> signed millivolts) lives here; the engine only
+// provides 12-bit raw samples.
+
 #include "inputs.h"
 
 #include <hardware/adc.h>
-#include <hardware/dma.h>
 #include <hardware/gpio.h>
-#include <hardware/timer.h>
 #include <pico/stdlib.h>
 #include <pico/time.h>
 
-#include "adc-arbiter.h"
+#include "adc-engine.h"
 
 namespace {
 
@@ -26,33 +30,18 @@ int32_t round_div_i64(int64_t numerator, int64_t denominator) {
 Inputs::Inputs(uint pulse_in_gpio)
 	: pulse_in_gpio_(pulse_in_gpio) {}
 
-Inputs::~Inputs() {
-	release_audio_cv_dma();
-}
+Inputs::~Inputs() = default;
 
 bool Inputs::init_audio_cv() {
-	{
-		BrainAdcLockGuard guard;
-		adc_init();
-		adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_A);
-		adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_B);
-	}
+	// adc_gpio_init() is idempotent; safe even if AdcEngine has already claimed
+	// these pins. The engine itself also calls these on first start().
+	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_A);
+	adc_gpio_init(GPIO_BRAIN_AUDIO_CV_IN_B);
 
-	if (audio_cv_dma_enabled_) {
-		bool dma_ok = init_audio_cv_dma();
-		if (dma_ok) {
-			sample_audio_cv_dma();
-		} else {
-			audio_cv_dma_enabled_ = false;
-		}
-	} else {
-		release_audio_cv_dma();
+	if (!brain::internal::AdcEngine::instance().start()) {
+		return false;
 	}
-
 	calculate_conversion_parameters();
-	if (!audio_cv_dma_enabled_) {
-		update_audio_cv();
-	}
 	return true;
 }
 
@@ -94,26 +83,9 @@ bool Inputs::init() {
 }
 
 void Inputs::update_audio_cv() {
-	if (audio_cv_dma_enabled_) {
-		if (!audio_cv_dma_active_) {
-			if (!init_audio_cv_dma()) {
-				audio_cv_dma_enabled_ = false;
-			}
-		}
-		if (audio_cv_dma_active_) {
-			sample_audio_cv_dma();
-			return;
-		}
-	}
-
-	{
-		BrainAdcLockGuard guard;
-		adc_select_input(1);
-		channel_raw_[AudioCvInChannel::kChannelA] = adc_read();
-
-		adc_select_input(2);
-		channel_raw_[AudioCvInChannel::kChannelB] = adc_read();
-	}
+	const auto snapshot = brain::internal::AdcEngine::instance().get_snapshot();
+	channel_raw_[AudioCvInChannel::kChannelA] = snapshot.in1_raw;
+	channel_raw_[AudioCvInChannel::kChannelB] = snapshot.in2_raw;
 }
 
 void Inputs::pulse_poll() {
@@ -149,19 +121,16 @@ void Inputs::update() {
 	pulse_poll();
 }
 
-void Inputs::set_audio_cv_dma_enabled(bool enabled) {
-	audio_cv_dma_enabled_ = enabled;
-	if (!enabled) {
-		release_audio_cv_dma();
-	}
+void Inputs::set_audio_cv_dma_enabled(bool /*enabled*/) {
+	// Deprecated: AdcEngine always uses DMA. No-op.
 }
 
 bool Inputs::is_audio_cv_dma_enabled() const {
-	return audio_cv_dma_enabled_;
+	return true;
 }
 
 bool Inputs::is_audio_cv_dma_active() const {
-	return audio_cv_dma_active_;
+	return brain::internal::AdcEngine::instance().is_running();
 }
 
 uint16_t Inputs::get_raw(int channel) const {
@@ -268,86 +237,4 @@ void Inputs::gpio_irq_handler(uint gpio, uint32_t events) {
 void Inputs::handle_edge(bool raw_state) {
 	(void)raw_state;
 	pulse_last_change_time_us_ = time_us_32();
-}
-
-bool Inputs::init_audio_cv_dma() {
-	BrainAdcLockGuard guard;
-	if (audio_cv_dma_active_) {
-		return true;
-	}
-
-	const uint8_t adc_channel_a = GPIO_BRAIN_AUDIO_CV_IN_A - 26;
-	const uint8_t adc_channel_b = GPIO_BRAIN_AUDIO_CV_IN_B - 26;
-
-	adc_fifo_setup(
-		true,	// enable
-		true,	// DMA request
-		1,		// DREQ asserted when at least 1 sample is present
-		false,	// no ERR bit
-		false); // 12-bit samples
-	adc_set_clkdiv(0.0f);
-	adc_set_round_robin((1u << adc_channel_a) | (1u << adc_channel_b));
-	adc_select_input(adc_channel_a);
-
-	int dma_channel = dma_claim_unused_channel(false);
-	if (dma_channel < 0) {
-		return false;
-	}
-
-	dma_channel_config cfg = dma_channel_get_default_config(dma_channel);
-	channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
-	channel_config_set_read_increment(&cfg, false);
-	channel_config_set_write_increment(&cfg, true);
-	channel_config_set_dreq(&cfg, DREQ_ADC);
-	dma_channel_configure(
-		dma_channel,
-		&cfg,
-		audio_cv_dma_samples_,
-		&adc_hw->fifo,
-		2,
-		false);
-
-	audio_cv_dma_channel_ = dma_channel;
-	audio_cv_dma_active_ = true;
-	return true;
-}
-
-void Inputs::release_audio_cv_dma() {
-	BrainAdcLockGuard guard;
-	if (!audio_cv_dma_active_) {
-		return;
-	}
-
-	adc_run(false);
-	adc_set_round_robin(0);
-	if (audio_cv_dma_channel_ >= 0) {
-		dma_channel_abort(audio_cv_dma_channel_);
-		dma_channel_unclaim(audio_cv_dma_channel_);
-	}
-	audio_cv_dma_channel_ = -1;
-	audio_cv_dma_active_ = false;
-}
-
-void Inputs::sample_audio_cv_dma() {
-	BrainAdcLockGuard guard;
-	if (!audio_cv_dma_active_ || audio_cv_dma_channel_ < 0) {
-		return;
-	}
-
-	const uint8_t adc_channel_a = GPIO_BRAIN_AUDIO_CV_IN_A - 26;
-	const uint8_t adc_channel_b = GPIO_BRAIN_AUDIO_CV_IN_B - 26;
-
-	adc_run(false);
-	adc_fifo_drain();
-	adc_set_round_robin((1u << adc_channel_a) | (1u << adc_channel_b));
-	adc_select_input(adc_channel_a);
-	dma_channel_set_read_addr(audio_cv_dma_channel_, &adc_hw->fifo, false);
-	dma_channel_set_write_addr(audio_cv_dma_channel_, audio_cv_dma_samples_, false);
-	dma_channel_set_trans_count(audio_cv_dma_channel_, 2, true);
-	adc_run(true);
-	dma_channel_wait_for_finish_blocking(audio_cv_dma_channel_);
-	adc_run(false);
-
-	channel_raw_[AudioCvInChannel::kChannelA] = audio_cv_dma_samples_[0];
-	channel_raw_[AudioCvInChannel::kChannelB] = audio_cv_dma_samples_[1];
 }

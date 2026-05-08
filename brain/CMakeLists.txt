@@ -1,10 +1,12 @@
 add_library(brain
+    src/adc-engine.cpp
     src/audio-processor.cpp
     src/button.cpp
     src/inputs.cpp
     src/leds.cpp
     src/midi-parser.cpp
     src/midi-to-cv.cpp
+    src/output-engine.cpp
     src/outputs.cpp
     src/pot-multi-function.cpp
     src/pots.cpp
