@@ -93,7 +93,7 @@ The archetype skill carries the per-domain rules (no floats in audio, fixed-poin
 ## Cross-cutting reminders
 
 - **No `float`/`double` in any hot loop.** This is a hard rule for every Brain firmware. RP2040 has no FPU; RP2350 has one but it's still costly. Use Q15/Q31 fixed-point and lookup tables. Float is OK in init code that runs once.
-- **Preserve CV calibration by default** — keep the storage flash reservation and let `Storage` init in protected-layout mode. See `docs/PRESERVING_CV_CALIBRATION.md`. Only skip if the user explicitly asks for a calibration-free firmware.
+- **Preserve CV calibration by default.** The scaffolder's `CMakeLists.txt` already includes `brain_storage_configure_flash_reservation()` between `project()` and `pico_sdk_init()` — verify it's still there after any post-edits. Then insert `brain.outputs.load_calibration_from_flash();` into `main()` immediately after `brain.init_all();` so the firmware actually uses the calibration data. After running `cmake -S . -B build`, confirm the configure log includes `[brain-storage] Reserved ... bytes at top-of-flash.` Hand off to the `brain-calibration` skill if anything looks off, or if the user asks to skip calibration (only valid for explicit test/diagnostic firmwares).
 
 ## References
 

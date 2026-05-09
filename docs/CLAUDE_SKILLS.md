@@ -11,11 +11,13 @@ The Brain SDK ships a small set of [Claude Code](https://docs.claude.com/en/docs
 | `brain-sequencer` | Sequencers, arpeggiators, MIDI tools, MIDI-to-CV. Pitch CV via the calibrated voltage API, integer tempo math, gate/trigger patterns. |
 | `brain-cv-utility` | LFOs, ADSRs, sample-and-hold, slew limiters, quantizers. Lookup-table patterns, integer phase counters. |
 | `brain-migrate` | An existing firmware needs to move forward to a newer Brain SDK version. Detects era, walks `docs/2.0_MIGRATION.md` / `docs/2.1_MIGRATION.md` step by step. |
+| `brain-calibration` | A change touches storage, flash layout, or the output voltage API in a way that could break CV calibration preservation. Owns the full rule (CMake helper order, `load_calibration_from_flash()`, calibrated vs raw API, forbidden flags). Fires defensively when the user is about to remove storage code or simplify CMake in risky ways. |
 
-Two cross-cutting rules are baked into every archetype skill:
+Three cross-cutting rules are baked into every archetype skill:
 
 1. **No `float` / `double` in hot loops.** RP2040 has no FPU; RP2350 has one but transcendentals are still expensive. Use Q15/Q31 fixed-point and lookup tables. Floats are fine in init code that runs once.
 2. **Ask about output range up front.** Before writing code that drives an output, the skill asks unipolar (0..10 V) or bipolar (−5..+5 V) and inserts the appropriate `Outputs::set_output_range(...)` calls. The skills also cover the `AudioProcessor` gotcha: it forces bipolar on its claimed channel and `stop()` does not restore the prior range.
+3. **Preserve CV calibration.** Every firmware needs `brain_storage_configure_flash_reservation()` in `CMakeLists.txt` (between `project()` and `pico_sdk_init()`) and `outputs.load_calibration_from_flash()` after `brain.init_all()`. The dedicated `brain-calibration` skill owns the full rule and fires defensively when changes risk breaking either.
 
 ## Installation
 

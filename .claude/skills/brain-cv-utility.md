@@ -62,7 +62,7 @@ Quantizers, 1V/oct sources, anything that has to track musical intervals → `se
 
 ### Preserve CV calibration
 
-Standard rule. Keep storage flash reservation and protected-layout `Storage` init. See `docs/PRESERVING_CV_CALIBRATION.md`.
+Two things, both required: (1) `brain_storage_configure_flash_reservation()` in `CMakeLists.txt` between `project()` and `pico_sdk_init()`, (2) `brain.outputs.load_calibration_from_flash()` after `brain.init_all()`. Quantizers and any 1V/oct source must use `set_voltage_calibrated_millivolts(...)`. See the `brain-calibration` skill and `docs/PRESERVING_CV_CALIBRATION.md`.
 
 ### Pots = parameters, not raw control voltages
 

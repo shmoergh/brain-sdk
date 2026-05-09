@@ -50,7 +50,7 @@ The shift (5 here) sets the smoothing rate — bigger = slower.
 
 ### Preserve CV calibration
 
-Brain firmwares default to preserving CV calibration in flash. Don't disable it. Keep the storage flash reservation (`brain-storage-reserve-flash.cmake`) and let `init_all()` initialize storage in protected-layout mode. See [docs/PRESERVING_CV_CALIBRATION.md](../../docs/PRESERVING_CV_CALIBRATION.md).
+Two things, both required: (1) `brain_storage_configure_flash_reservation()` in `CMakeLists.txt` between `project()` and `pico_sdk_init()`, (2) `brain.outputs.load_calibration_from_flash()` after `brain.init_all()`. See the `brain-calibration` skill (loaded automatically when you touch storage / output APIs / CMake) and [docs/PRESERVING_CV_CALIBRATION.md](../../docs/PRESERVING_CV_CALIBRATION.md) for the full rules.
 
 ## Skeleton (mono, Brain SDK 2.1)
 

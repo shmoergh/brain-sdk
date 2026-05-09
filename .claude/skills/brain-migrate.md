@@ -70,8 +70,8 @@ Per `docs/2.1_MIGRATION.md`, most firmwares need **zero code changes**. The migr
 After patching:
 
 1. **Build** at the firmware's normal target. Watch for `[[deprecated]]` warnings — these are migration breadcrumbs.
-2. **Boot on hardware** and run through the firmware's manual test checklist (or the SDK's `test/` apps if relevant).
-3. **Check calibration persistence** — after migration, calibration must still survive a power cycle. Run the firmware's calibration UI (or a dedicated test) once and confirm.
+2. **Confirm calibration is still preserved.** Hand off to the `brain-calibration` skill for the full audit, or at minimum check: (a) `brain_storage_configure_flash_reservation()` is still called between `project()` and `pico_sdk_init()` in `CMakeLists.txt`; (b) `cmake -S . -B build` prints the `[brain-storage] Reserved ... bytes at top-of-flash.` line; (c) `brain.outputs.load_calibration_from_flash()` is called after `brain.init_all()` in `main()`. The 1.x → 2.0 migration is a particularly easy place to drop one of these by accident.
+3. **Boot on hardware** and run through the firmware's manual test checklist (or the SDK's `test/` apps if relevant). Power-cycle the board and confirm calibration survives.
 
 ## Cross-cutting reminders
 

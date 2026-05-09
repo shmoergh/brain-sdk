@@ -50,7 +50,7 @@ Sequencer firmwares typically have multiple time-driven things going on (clock, 
 
 ### Preserve CV calibration
 
-Same default as every Brain firmware — keep storage flash reservation and protected-layout `Storage` init. See `docs/PRESERVING_CV_CALIBRATION.md`.
+Two things, both required: (1) `brain_storage_configure_flash_reservation()` in `CMakeLists.txt` between `project()` and `pico_sdk_init()`, (2) `brain.outputs.load_calibration_from_flash()` after `brain.init_all()`. Pitch CV must use `set_voltage_calibrated_millivolts(...)` (the API table above already does this). See the `brain-calibration` skill and `docs/PRESERVING_CV_CALIBRATION.md`.
 
 ## Skeleton (MIDI-to-CV-style, internal clock)
 
