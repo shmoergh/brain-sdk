@@ -25,6 +25,10 @@ Anyone can write their own apps for the Brain module. The SDK provides easy acce
 
 Updating from 2.0? See [docs/2.1_MIGRATION.md](./docs/2.1_MIGRATION.md). For most firmwares, the upgrade is just a submodule bump.
 
+### Claude Code skills
+
+The SDK ships [Claude Code skills](./docs/CLAUDE_SKILLS.md) for scaffolding new firmwares, building audio-effect / sequencer / CV-utility apps, and migrating between SDK versions. From a firmware project root: `./brain-sdk/scripts/install-claude-skills.sh`.
+
 ### Folder Structure
 ```
 brain-sdk/
