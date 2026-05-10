@@ -579,14 +579,35 @@ void AdcEngine::on_dma_irq() {
 		const uint16_t in1_sample = adc_buffer[1];
 		const uint16_t in2_sample = adc_buffer[2];
 
-		latest_in1_raw_ = in1_sample;
+		// Mux-glitch suppression on IN1. If the *previous* IRQ ran a mux GPIO
+		// toggle (end of one pot's averaging window), the digital edges on
+		// S0/S1 couple into the analog rails. This frame's IN1 was sampled
+		// ~7.6 µs after that toggle and may carry a small glitch — substitute
+		// the previous frame's clean reading instead. The visible audio-rate
+		// effect is a one-sample sample-and-hold every ~`pot_settling_samples_
+		// + pot_average_samples_` frames per pot, well below the audible-
+		// crackle floor that the raw glitch produces. IN2 is sampled ~15 µs
+		// after the toggle — empirically far enough that no hold is needed.
+		uint16_t in1_published;
+		if (in1_hold_next_frame_) {
+			in1_published = latest_in1_raw_;     // hold previous clean sample
+			in1_hold_next_frame_ = false;
+		} else {
+			in1_published = in1_sample;
+			latest_in1_raw_ = in1_sample;        // commit clean value to cache
+		}
 		latest_in2_raw_ = in2_sample;
 		total_samples_ += kSamplesPerFrame;
 
+		const uint32_t prev_switch_count = pot_switch_count_;
 		run_pot_scanner_one_sample(pot_sample);
+		if (pot_switch_count_ != prev_switch_count) {
+			// Mux GPIOs just toggled. Suppress next frame's IN1.
+			in1_hold_next_frame_ = true;
+		}
 
 		if (audio_callback_ != nullptr) {
-			audio_callback_(in1_sample, in2_sample, build_snapshot_inline(), audio_ctx_);
+			audio_callback_(in1_published, in2_sample, build_snapshot_inline(), audio_ctx_);
 		}
 		return;
 	}

@@ -227,6 +227,14 @@ private:
 	uint64_t total_samples_ = 0;
 	uint32_t pot_switch_count_ = 0;
 	uint32_t pot_discard_count_ = 0;
+
+	// Audio-mode mux-glitch suppression. When the pot scanner toggles the
+	// external mux's S0/S1 GPIOs, the fast digital edges couple into the
+	// analog rails. The next audio frame's IN1 is sampled ~7 µs later and
+	// picks up a small glitch. We detect the switch and hold IN1 for one
+	// frame so the user callback never sees the glitched sample. See
+	// adc-engine.cpp on_dma_irq() for the read-side logic.
+	bool in1_hold_next_frame_ = false;
 };
 
 }  // namespace brain::internal
