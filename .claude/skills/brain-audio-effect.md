@@ -39,14 +39,34 @@ Note: `int32_t` accumulator, integer-only math, `clamp_i16` to bound the result.
 
 ### Smooth pot reads, do not use them raw
 
-Pot values arrive in `frame->pot_raw_u8[N]` (0..255). Reading them raw into a coefficient causes zipper noise. Apply a one-pole smoother on the *parameter*, not the audio:
+Pot values arrive in `frame->pot_raw_u8[N]` (0..255). Reading them raw into a coefficient causes zipper noise. Apply a one-pole smoother on the *parameter*, not the audio. The right time constant depends on **whether the pot drives a recursive coefficient**.
+
+**Non-recursive uses** (delay time, LFO depth, dry/wet mix, distortion drive feeding a memoryless waveshaper) — fast smoother is fine:
 
 ```cpp
-// 1-pole smoother on pot value, runs in the audio callback
+// ~0.7 ms time constant. Smoothed value lives in 0..255 directly.
 s->cutoff_smoothed += (static_cast<int32_t>(frame->pot_raw_u8[0]) - s->cutoff_smoothed) >> 5;
 ```
 
-The shift (5 here) sets the smoothing rate — bigger = slower.
+**Recursive uses** (any IIR filter, anything with resonance / feedback) — use a much slower smoother and store the smoothed value with extra fractional bits, otherwise integer rounding stops it converging:
+
+```cpp
+// ~12 ms time constant. Smoothed stored << 8 (range 0..65280) so the
+// >>9 shift still produces meaningful single-sample steps. Read back
+// with >>8 to get a 0..255 parameter.
+s->cutoff_smoothed += ((static_cast<int32_t>(frame->pot_raw_u8[0]) << 8) - s->cutoff_smoothed) >> 9;
+uint8_t cutoff = static_cast<uint8_t>(s->cutoff_smoothed >> 8);
+```
+
+The shift sets the time constant — `>>5` ≈ 0.7 ms, `>>9` ≈ 12 ms at 43.5 kHz. Why the slow shift matters for filters: the Pico's pot ADC has ~1 LSB of hash on the 8-bit pot value even with a perfectly still pot, and `pot_average_samples` (see config below) only reduces it, doesn't eliminate it. That LSB hash modulates the filter coefficient every pot update (~390 Hz per pot), and a recursive IIR amplifies coefficient noise at its resonant peak. With a fast smoother the result is a hash floor that gets louder as you turn resonance up. The slow smoother attenuates the per-update step before it ever reaches the coefficient.
+
+### Average more pot samples for audio effects
+
+The default `pot_average_samples = 4` is fine for CV-style apps where the pot drives a one-shot mapping, but it under-averages for audio effects where coefficient noise compounds. Use **16 for any effect with feedback or resonance** — cuts ADC LSB hash by ~2× before it reaches the firmware:
+
+```cpp
+cfg.pot_average_samples = 16;  // default 4 is too noisy for resonant filters
+```
 
 ### Preserve CV calibration
 
@@ -60,7 +80,7 @@ Two things, both required: (1) `brain_storage_configure_flash_reservation()` in 
 
 struct EffectState {
     int32_t lp = 0;
-    int32_t cutoff_smoothed = 0;
+    int32_t cutoff_smoothed = 0;  // stored << 8 for sub-LSB resolution
 };
 
 static EffectState g_state;
@@ -68,11 +88,12 @@ static EffectState g_state;
 static int16_t process_sample(int16_t in, const AudioProcessorFrame* frame, void* user_ctx) {
     EffectState* s = static_cast<EffectState*>(user_ctx);
 
-    // smooth the pot
+    // Slow smoother (recursive use — see "Smooth pot reads" rules above).
     if (frame && frame->pot_count > 0) {
-        s->cutoff_smoothed += (static_cast<int32_t>(frame->pot_raw_u8[0]) - s->cutoff_smoothed) >> 5;
+        s->cutoff_smoothed +=
+            ((static_cast<int32_t>(frame->pot_raw_u8[0]) << 8) - s->cutoff_smoothed) >> 9;
     }
-    int32_t cutoff = s->cutoff_smoothed;  // 0..255
+    int32_t cutoff = s->cutoff_smoothed >> 8;  // 0..255
 
     // 1-pole lowpass (integer)
     s->lp += ((static_cast<int32_t>(in) - s->lp) * (4 + (cutoff >> 1))) >> 8;
@@ -92,7 +113,7 @@ int main() {
     cfg.enable_pot_mux = true;
     cfg.pot_count = 3;
     cfg.pot_settle_discard_samples = 2;
-    cfg.pot_average_samples = 4;
+    cfg.pot_average_samples = 16;       // 16 for audio effects, 4 is too noisy
 
     if (!brain_init_succeeded(brain.init_audio_processor(cfg, &process_sample, &g_state))) {
         // init failed — handle as the firmware needs
