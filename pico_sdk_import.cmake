@@ -2,13 +2,20 @@
 # This can be dropped into an external project to help locate this SDK
 # It should be include()ed prior to project()
 
-# Use PICO_SDK_PATH from environment if set, otherwise fall back to local pico-sdk directory
-if(DEFINED ENV{PICO_SDK_PATH} AND NOT "$ENV{PICO_SDK_PATH}" STREQUAL "")
-    set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
-    message("Using PICO_SDK_PATH from environment ('${PICO_SDK_PATH}')")
-else()
+# Pin to the pico-sdk vendored alongside brain-sdk so every firmware that uses
+# the Brain SDK configures against the exact same SDK revision. To override,
+# set PICO_SDK_PATH in the firmware's CMakeLists.txt before including this
+# file, e.g.:
+#
+#     set(PICO_SDK_PATH "/path/to/your/sdk")
+#     include(brain-sdk/pico_sdk_import.cmake)
+#
+# The shell environment variable $PICO_SDK_PATH is intentionally not consulted.
+if(NOT DEFINED PICO_SDK_PATH OR "${PICO_SDK_PATH}" STREQUAL "")
     set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/pico-sdk")
-    message("Using local pico-sdk at '${PICO_SDK_PATH}'")
+    message("Using brain-sdk pico-sdk at '${PICO_SDK_PATH}'")
+else()
+    message("Using PICO_SDK_PATH override ('${PICO_SDK_PATH}')")
 endif()
 
 if (DEFINED ENV{PICO_SDK_FETCH_FROM_GIT} AND (NOT PICO_SDK_FETCH_FROM_GIT))
